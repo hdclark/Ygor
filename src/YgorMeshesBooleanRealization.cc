@@ -1,0 +1,2436 @@
+#include "YgorMeshesBooleanRealization.h"
+#include <algorithm>
+#include <array>
+#include <functional>
+#include <limits>
+#include <map>
+#include <set>
+#include <tuple>
+
+#if defined(__FAST_MATH__)
+#error "Component 11 requires strict floating-point compilation"
+#endif
+#if defined(__FINITE_MATH_ONLY__) && __FINITE_MATH_ONLY__
+#error "Component 11 must not assume finite-only arithmetic"
+#endif
+
+namespace ygor {
+namespace mesh_boolean {
+namespace {
+
+template <class T, class I> std::uint64_t type_tag() {
+  return realized_boundary_type_tag +
+         (static_cast<std::uint64_t>(std::is_same<T, double>::value
+                                         ? coordinate_tag::binary64
+                                         : coordinate_tag::binary32)
+          << 8) +
+         static_cast<std::uint64_t>(std::is_same<I, std::uint64_t>::value
+                                        ? index_tag::uint64
+                                        : index_tag::uint32);
+}
+
+template <class Id> void ids(canonical_encoder &e, const std::vector<Id> &v) {
+  e.u64(v.size());
+  for (const auto x : v)
+    e.id(x);
+}
+
+void point(canonical_encoder &e, const exact_point3 &p) {
+  encode(e, p.x);
+  encode(e, p.y);
+  encode(e, p.z);
+}
+
+template <class T> void bits(canonical_encoder &e, coordinate_bits<T> b) {
+  if constexpr (sizeof(T) == 4)
+    e.u32(b.bits);
+  else
+    e.u64(b.bits);
+}
+
+digest exact_point_digest(const exact_point3 &p) {
+  canonical_encoder e;
+  point(e, p);
+  return domain_digest({{'Y', 'G', 'B', 'P', 'N', 'T', '1', '1'}}, e.bytes());
+}
+
+std::vector<std::uint8_t> owner_free_vertex_key(const exact_point3 &p) {
+  canonical_encoder e;
+  const char tag[] = "YGBVTX11";
+  e.raw(reinterpret_cast<const std::uint8_t *>(tag), 8);
+  e.u16(1);
+  point(e, p);
+  return e.bytes();
+}
+
+digest realization_policy_digest(const realization_policy &p) {
+  canonical_encoder e;
+  e.u16(p.schema);
+  e.u16(p.solver_version);
+  e.byte(static_cast<std::uint8_t>(p.semantics));
+  e.byte(static_cast<std::uint8_t>(p.strategy));
+  e.byte(static_cast<std::uint8_t>(p.original_coordinates));
+  e.byte(static_cast<std::uint8_t>(p.topology));
+  e.byte(static_cast<std::uint8_t>(p.pair_certification));
+  e.byte(static_cast<std::uint8_t>(p.certificate_level));
+  e.u32(p.neighboring_value_radius);
+  return domain_digest({{'Y', 'G', 'B', 'P', 'O', 'L', '1', '1'}}, e.bytes());
+}
+
+template <class T, class I>
+std::vector<std::uint8_t>
+owner_free_triangle_key(const realized_boundary<T, I> &a,
+                        const realization_triangle &triangle) {
+  const auto &selected = *a.selected->payload;
+  const auto &patch = selected.patches[triangle.patch.value_for_debug()];
+  canonical_encoder e;
+  const char tag[] = "YGBTRI11";
+  e.raw(reinterpret_cast<const std::uint8_t *>(tag), 8);
+  e.u16(1);
+  e.byte(static_cast<std::uint8_t>(patch.orientation));
+  e.u64(patch.cycles.size());
+  for (auto cycle_id : patch.cycles) {
+    const auto &cycle = selected.cycles[cycle_id.value_for_debug()];
+    e.boolean(cycle.hole);
+    e.u64(cycle.halfedges.size());
+    for (auto halfedge_id : cycle.halfedges) {
+      const auto vertex =
+          selected.halfedges[halfedge_id.value_for_debug()].origin;
+      e.byte_string(
+          a.vertices[vertex.value_for_debug()].owner_free_semantic_key);
+    }
+  }
+  for (auto vertex : triangle.vertices)
+    e.byte_string(a.vertices[vertex.value_for_debug()].owner_free_semantic_key);
+  e.byte(static_cast<std::uint8_t>(triangle.projection));
+  for (auto halfedge : triangle.halfedges)
+    e.byte(static_cast<std::uint8_t>(
+        a.halfedges[halfedge.value_for_debug()].role));
+  return e.bytes();
+}
+
+template <class T>
+exact_point3 decoded_point(const std::array<coordinate_bits<T>, 3> &b) {
+  auto x = decode_coordinate<T>(b[0], boolean_stage::geometry_realization);
+  auto y = decode_coordinate<T>(b[1], boolean_stage::geometry_realization);
+  auto z = decode_coordinate<T>(b[2], boolean_stage::geometry_realization);
+  if (!x.has_value() || !y.has_value() || !z.has_value())
+    throw std::logic_error("nonfinite realization coordinate");
+  return {x.value().value, y.value().value, z.value().value};
+}
+
+template <class T>
+bool same_bits(const std::array<coordinate_bits<T>, 3> &a,
+               const std::array<coordinate_bits<T>, 3> &b) {
+  return a[0].bits == b[0].bits && a[1].bits == b[1].bits &&
+         a[2].bits == b[2].bits;
+}
+
+template <class T>
+std::vector<realization_axis_candidate<T>>
+axis_candidates(const exact_scalar &target, const realization_policy &policy,
+                const std::optional<coordinate_bits<T>> &fixed) {
+  std::vector<std::pair<coordinate_bits<T>, std::uint32_t>> raw;
+  if (fixed) {
+    raw.push_back({*fixed, 0});
+  } else {
+    const auto nearest = round_binary_nearest_even<T>(target);
+    if (!nearest)
+      return {};
+    raw.push_back({*nearest, 0});
+    if (policy.semantics != realization_semantics::exact_in_T &&
+        policy.strategy == realization_strategy::neighboring_values) {
+      auto p = *nearest;
+      auto s = *nearest;
+      for (std::uint32_t i = 0; i < policy.neighboring_value_radius; ++i) {
+        const auto next = predecessor_bits<T>(p);
+        if (!next)
+          break;
+        raw.push_back({*next, i + 1});
+        p = *next;
+      }
+      for (std::uint32_t i = 0; i < policy.neighboring_value_radius; ++i) {
+        const auto next = successor_bits<T>(s);
+        if (!next)
+          break;
+        raw.push_back({*next, i + 1});
+        s = *next;
+      }
+    }
+  }
+  std::sort(raw.begin(), raw.end(), [](const auto &a, const auto &b) {
+    return a.first.bits < b.first.bits;
+  });
+  raw.erase(std::unique(raw.begin(), raw.end(),
+                        [](const auto &a, const auto &b) {
+                          return a.first.bits == b.first.bits;
+                        }),
+            raw.end());
+  struct ranked {
+    coordinate_bits<T> bits;
+    exact_scalar value;
+    exact_scalar error;
+    std::uint32_t distance;
+  };
+  std::vector<ranked> ranked_values;
+  for (const auto &entry : raw) {
+    const auto b = entry.first;
+    auto d = decode_coordinate<T>(b, boolean_stage::geometry_realization);
+    if (!d.has_value())
+      continue;
+    ranked_values.push_back(
+        {b, d.value().value, (d.value().value - target).abs(), entry.second});
+  }
+  std::sort(ranked_values.begin(), ranked_values.end(),
+            [](const auto &a, const auto &b) {
+              if (a.distance != b.distance)
+                return a.distance < b.distance;
+              if (a.error != b.error)
+                return a.error < b.error;
+              if (a.value != b.value)
+                return a.value < b.value;
+              return a.bits.bits < b.bits.bits;
+            });
+  std::vector<realization_axis_candidate<T>> out;
+  for (std::size_t i = 0; i < ranked_values.size(); ++i)
+    out.push_back({candidate_value_id::from_canonical_value(i),
+                   ranked_values[i].bits, ranked_values[i].distance,
+                   static_cast<std::uint32_t>(i), ranked_values[i].error});
+  return out;
+}
+
+template <class T> struct point_candidate {
+  std::array<coordinate_bits<T>, 3> bits;
+  std::array<std::uint32_t, 3> axis_rank;
+  std::uint32_t max_step = 0, sum_step = 0;
+  exact_scalar squared_error;
+  std::uint64_t rank = 0;
+};
+
+template <class T>
+std::vector<point_candidate<T>>
+point_candidates(const realization_axis_domain<T> &x,
+                 const realization_axis_domain<T> &y,
+                 const realization_axis_domain<T> &z) {
+  std::vector<point_candidate<T>> out;
+  out.reserve(x.values.size() * y.values.size() * z.values.size());
+  for (const auto &a : x.values)
+    for (const auto &b : y.values)
+      for (const auto &c : z.values) {
+        point_candidate<T> p;
+        p.bits = {{a.bits, b.bits, c.bits}};
+        p.axis_rank = {{a.rank, b.rank, c.rank}};
+        p.max_step =
+            std::max({a.step_distance, b.step_distance, c.step_distance});
+        p.sum_step = a.step_distance + b.step_distance + c.step_distance;
+        p.squared_error = a.absolute_error.pow(2) + b.absolute_error.pow(2) +
+                          c.absolute_error.pow(2);
+        out.push_back(std::move(p));
+      }
+  std::sort(out.begin(), out.end(), [](const auto &a, const auto &b) {
+    if (a.max_step != b.max_step)
+      return a.max_step < b.max_step;
+    if (a.sum_step != b.sum_step)
+      return a.sum_step < b.sum_step;
+    if (a.squared_error != b.squared_error)
+      return a.squared_error < b.squared_error;
+    if (a.axis_rank != b.axis_rank)
+      return a.axis_rank < b.axis_rank;
+    return std::make_tuple(a.bits[0].bits, a.bits[1].bits, a.bits[2].bits) <
+           std::make_tuple(b.bits[0].bits, b.bits[1].bits, b.bits[2].bits);
+  });
+  for (std::size_t i = 0; i < out.size(); ++i)
+    out[i].rank = i;
+  return out;
+}
+
+template <class T>
+point_candidate<T> singleton_point_candidate(
+    const realization_axis_domain<T> &x,
+    const realization_axis_domain<T> &y,
+    const realization_axis_domain<T> &z) {
+  point_candidate<T> candidate;
+  const std::array<const realization_axis_candidate<T> *, 3> values{
+      {&x.values.front(), &y.values.front(), &z.values.front()}};
+  for (std::size_t axis = 0; axis < values.size(); ++axis) {
+    candidate.bits[axis] = values[axis]->bits;
+    candidate.axis_rank[axis] = values[axis]->rank;
+    candidate.max_step = std::max(candidate.max_step,
+                                  values[axis]->step_distance);
+    candidate.sum_step += values[axis]->step_distance;
+    candidate.squared_error = candidate.squared_error +
+                              values[axis]->absolute_error.pow(2);
+  }
+  return candidate;
+}
+
+template <class T, class I>
+std::vector<std::size_t> solver_vertex_order(const realized_boundary<T, I> &a) {
+  std::vector<std::size_t> order(a.vertices.size()), degree(a.vertices.size());
+  for (std::size_t i = 0; i < order.size(); ++i)
+    order[i] = i;
+  for (const auto &t : a.triangles)
+    for (auto v : t.vertices)
+      degree[v.value_for_debug()]++;
+  for (const auto &e : a.selected->payload->edges) {
+    degree[e.lower.value_for_debug()]++;
+    degree[e.upper.value_for_debug()]++;
+  }
+  std::sort(order.begin(), order.end(), [&](auto x, auto y) {
+    const auto xs = a.axis_domains[3 * x].values.size() *
+                    a.axis_domains[3 * x + 1].values.size() *
+                    a.axis_domains[3 * x + 2].values.size();
+    const auto ys = a.axis_domains[3 * y].values.size() *
+                    a.axis_domains[3 * y + 1].values.size() *
+                    a.axis_domains[3 * y + 2].values.size();
+    if (xs != ys)
+      return xs < ys;
+    if (degree[x] != degree[y])
+      return degree[x] > degree[y];
+    return x < y;
+  });
+  return order;
+}
+
+exact_scalar polygon_double_area(const std::vector<exact_point2> &ring) {
+  exact_scalar area(0);
+  for (std::size_t i = 0; i < ring.size(); ++i) {
+    const auto &a = ring[i];
+    const auto &b = ring[(i + 1) % ring.size()];
+    area = area + a.x * b.y - a.y * b.x;
+  }
+  return area;
+}
+
+exact_sign polygon_sign(const std::vector<exact_point2> &ring) {
+  return polygon_double_area(ring).sign();
+}
+
+bool point_in_triangle_or_boundary(const exact_point2 &p, const exact_point2 &a,
+                                   const exact_point2 &b, const exact_point2 &c,
+                                   exact_sign sign) {
+  const auto x = orient2d(a, b, p), y = orient2d(b, c, p),
+             z = orient2d(c, a, p);
+  if (sign == exact_sign::positive)
+    return x != exact_sign::negative && y != exact_sign::negative &&
+           z != exact_sign::negative;
+  return x != exact_sign::positive && y != exact_sign::positive &&
+         z != exact_sign::positive;
+}
+
+struct triangulation_node {
+  realization_vertex_id vertex;
+  exact_point2 point;
+};
+
+struct triangulation_ring {
+  std::vector<triangulation_node> nodes;
+  bool hole = false;
+};
+
+struct patch_triangulation {
+  std::vector<std::array<realization_vertex_id, 3>> triangles;
+  std::set<std::pair<realization_vertex_id, realization_vertex_id>> bridges;
+};
+
+std::pair<realization_vertex_id, realization_vertex_id>
+edge_key(realization_vertex_id a, realization_vertex_id b) {
+  return std::minmax(a, b);
+}
+
+std::tuple<selected_patch_id, realization_vertex_id, realization_vertex_id>
+bridge_key(selected_patch_id patch, realization_vertex_id a,
+           realization_vertex_id b) {
+  const auto edge = edge_key(a, b);
+  return {patch, edge.first, edge.second};
+}
+
+bool endpoint_only_intersection(const exact_segment2 &candidate,
+                                const exact_segment2 &edge) {
+  const auto relation = relate_segments(candidate, edge);
+  if (relation.dimension == intersection_dimension::empty)
+    return true;
+  if (relation.dimension != intersection_dimension::point || !relation.point)
+    return false;
+  const auto &p = *relation.point;
+  return (p == candidate.origin || p == candidate.destination) &&
+         (p == edge.origin || p == edge.destination);
+}
+
+bool visible_bridge(const triangulation_node &a, const triangulation_node &b,
+                    const std::vector<triangulation_node> &boundary,
+                    const std::vector<triangulation_ring> &rings) {
+  if (a.point == b.point)
+    return false;
+  const exact_segment2 candidate{a.point, b.point};
+  for (const auto &ring : rings)
+    for (std::size_t i = 0; i < ring.nodes.size(); ++i)
+      if (!endpoint_only_intersection(
+              candidate, {ring.nodes[i].point,
+                          ring.nodes[(i + 1) % ring.nodes.size()].point}))
+        return false;
+  for (std::size_t i = 0; i < boundary.size(); ++i)
+    if (!endpoint_only_intersection(
+            candidate,
+            {boundary[i].point, boundary[(i + 1) % boundary.size()].point}))
+      return false;
+
+  const exact_point2 midpoint{(a.point.x + b.point.x) / exact_scalar(2),
+                              (a.point.y + b.point.y) / exact_scalar(2)};
+  auto outer = classify_point_polygon(midpoint, [&] {
+    std::vector<exact_point2> p;
+    for (const auto &n : rings.front().nodes)
+      p.push_back(n.point);
+    return p;
+  }());
+  if (!outer.has_value() ||
+      outer.value().kind != point_region_kind::open_interior)
+    return false;
+  for (std::size_t i = 1; i < rings.size(); ++i) {
+    std::vector<exact_point2> p;
+    for (const auto &n : rings[i].nodes)
+      p.push_back(n.point);
+    auto hole = classify_point_polygon(midpoint, p);
+    if (!hole.has_value() || hole.value().kind != point_region_kind::outside)
+      return false;
+  }
+  return true;
+}
+
+bool valid_ear_diagonal(const std::vector<triangulation_node> &nodes,
+                        std::size_t previous, std::size_t next) {
+  const exact_segment2 diagonal{nodes[previous].point, nodes[next].point};
+  if (diagonal.origin == diagonal.destination)
+    return false;
+  for (std::size_t i = 0; i < nodes.size(); ++i) {
+    const auto j = (i + 1) % nodes.size();
+    if (i == previous || j == previous || i == next || j == next)
+      continue;
+    const exact_segment2 edge{nodes[i].point, nodes[j].point};
+    const auto relation = relate_segments(diagonal, edge);
+    if (relation.dimension == intersection_dimension::empty)
+      continue;
+    if (relation.dimension == intersection_dimension::segment &&
+        ((diagonal.origin == edge.origin &&
+          diagonal.destination == edge.destination) ||
+         (diagonal.origin == edge.destination &&
+          diagonal.destination == edge.origin)))
+      continue;
+    if (relation.dimension != intersection_dimension::point ||
+        !relation.point ||
+        !(*relation.point == diagonal.origin ||
+          *relation.point == diagonal.destination) ||
+        !(*relation.point == edge.origin ||
+          *relation.point == edge.destination))
+      return false;
+  }
+  return true;
+}
+
+status_or<std::vector<std::array<realization_vertex_id, 3>>>
+clip_weakly_simple_ring(std::vector<triangulation_node> nodes,
+                        exact_sign sign) {
+  if (nodes.size() < 3 || sign == exact_sign::zero)
+    return make_error(boolean_error_code::internal_invariant_error,
+                      boolean_stage::geometry_realization,
+                      "invalid_selected_cycle");
+  std::vector<std::array<realization_vertex_id, 3>> out;
+  while (nodes.size() > 3) {
+    std::optional<std::size_t> best;
+    std::tuple<std::uint64_t, std::uint64_t, std::uint64_t, std::size_t>
+        best_key;
+    for (std::size_t i = 0; i < nodes.size(); ++i) {
+      const auto p = (i + nodes.size() - 1) % nodes.size();
+      const auto r = (i + 1) % nodes.size();
+      if (nodes[p].vertex == nodes[i].vertex ||
+          nodes[i].vertex == nodes[r].vertex ||
+          nodes[p].vertex == nodes[r].vertex ||
+          orient2d(nodes[p].point, nodes[i].point, nodes[r].point) != sign ||
+          !valid_ear_diagonal(nodes, p, r))
+        continue;
+      bool contains = false;
+      for (std::size_t n = 0; n < nodes.size(); ++n)
+        if (n != p && n != i && n != r && !(nodes[n].point == nodes[p].point) &&
+            !(nodes[n].point == nodes[i].point) &&
+            !(nodes[n].point == nodes[r].point) &&
+            point_in_triangle_or_boundary(nodes[n].point, nodes[p].point,
+                                          nodes[i].point, nodes[r].point,
+                                          sign)) {
+          contains = true;
+          break;
+        }
+      if (contains)
+        continue;
+      const auto key = std::make_tuple(nodes[p].vertex.value_for_debug(),
+                                       nodes[i].vertex.value_for_debug(),
+                                       nodes[r].vertex.value_for_debug(), i);
+      if (!best || key < best_key) {
+        best = i;
+        best_key = key;
+      }
+    }
+    if (!best)
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::geometry_realization,
+                        "non_simple_selected_cycle");
+    const auto i = *best;
+    const auto p = (i + nodes.size() - 1) % nodes.size();
+    const auto r = (i + 1) % nodes.size();
+    out.push_back({nodes[p].vertex, nodes[i].vertex, nodes[r].vertex});
+    nodes.erase(nodes.begin() + static_cast<std::ptrdiff_t>(i));
+  }
+  if (nodes[0].vertex == nodes[1].vertex ||
+      nodes[1].vertex == nodes[2].vertex ||
+      nodes[0].vertex == nodes[2].vertex ||
+      orient2d(nodes[0].point, nodes[1].point, nodes[2].point) != sign)
+    return make_error(boolean_error_code::internal_invariant_error,
+                      boolean_stage::geometry_realization,
+                      "degenerate_selected_cycle_tail");
+  out.push_back({nodes[0].vertex, nodes[1].vertex, nodes[2].vertex});
+  return out;
+}
+
+status_or<patch_triangulation>
+triangulate_patch(std::vector<triangulation_ring> rings) {
+  if (rings.empty() || rings.front().hole || rings.front().nodes.size() < 3)
+    return make_error(boolean_error_code::internal_invariant_error,
+                      boolean_stage::geometry_realization,
+                      "invalid_selected_patch_cycles");
+  std::vector<exact_point2> outer_points;
+  for (const auto &node : rings.front().nodes)
+    outer_points.push_back(node.point);
+  const auto sign = polygon_sign(outer_points);
+  if (sign == exact_sign::zero)
+    return make_error(boolean_error_code::internal_invariant_error,
+                      boolean_stage::geometry_realization,
+                      "degenerate_selected_cycle");
+  exact_scalar expected_area = polygon_double_area(outer_points);
+  std::size_t expected_triangle_count = rings.front().nodes.size() - 2;
+  std::map<realization_vertex_id, exact_point2> points_by_vertex;
+  for (const auto &node : rings.front().nodes)
+    points_by_vertex.emplace(node.vertex, node.point);
+  for (std::size_t i = 1; i < rings.size(); ++i) {
+    if (!rings[i].hole || rings[i].nodes.size() < 3)
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::geometry_realization,
+                        "invalid_selected_patch_cycles");
+    std::vector<exact_point2> points;
+    for (const auto &node : rings[i].nodes)
+      points.push_back(node.point);
+    if (polygon_sign(points) == exact_sign::zero ||
+        polygon_sign(points) == sign)
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::geometry_realization,
+                        "invalid_selected_hole_orientation");
+    expected_area = expected_area + polygon_double_area(points);
+    expected_triangle_count += rings[i].nodes.size() + 2;
+    for (const auto &node : rings[i].nodes)
+      points_by_vertex.emplace(node.vertex, node.point);
+  }
+
+  patch_triangulation result;
+  auto boundary = rings.front().nodes;
+  std::vector<bool> bridged(rings.size());
+  bridged.front() = true;
+  for (std::size_t remaining = rings.size() - 1; remaining > 0; --remaining) {
+    std::optional<std::tuple<std::size_t, std::size_t, std::size_t>> best;
+    std::tuple<std::uint64_t, std::uint64_t, std::size_t, std::size_t,
+               std::size_t>
+        best_key;
+    for (std::size_t h = 1; h < rings.size(); ++h) {
+      if (bridged[h])
+        continue;
+      for (std::size_t hi = 0; hi < rings[h].nodes.size(); ++hi)
+        for (std::size_t bi = 0; bi < boundary.size(); ++bi) {
+          if (!visible_bridge(rings[h].nodes[hi], boundary[bi], boundary,
+                              rings))
+            continue;
+          const auto key =
+              std::make_tuple(rings[h].nodes[hi].vertex.value_for_debug(),
+                              boundary[bi].vertex.value_for_debug(), h, hi, bi);
+          if (!best || key < best_key) {
+            best = std::make_tuple(h, hi, bi);
+            best_key = key;
+          }
+        }
+    }
+    if (!best)
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::geometry_realization,
+                        "selected_hole_bridge_not_visible");
+    const auto h = std::get<0>(*best), hi = std::get<1>(*best),
+               bi = std::get<2>(*best);
+    const auto hole_vertex = rings[h].nodes[hi];
+    const auto boundary_vertex = boundary[bi];
+    result.bridges.insert(edge_key(hole_vertex.vertex, boundary_vertex.vertex));
+    std::vector<triangulation_node> merged;
+    merged.reserve(boundary.size() + rings[h].nodes.size() + 2);
+    merged.insert(merged.end(), boundary.begin(), boundary.begin() + bi + 1);
+    for (std::size_t i = 0; i < rings[h].nodes.size(); ++i)
+      merged.push_back(rings[h].nodes[(hi + i) % rings[h].nodes.size()]);
+    merged.push_back(hole_vertex);
+    merged.push_back(boundary_vertex);
+    merged.insert(merged.end(), boundary.begin() + bi + 1, boundary.end());
+    boundary = std::move(merged);
+    bridged[h] = true;
+  }
+  auto triangles = clip_weakly_simple_ring(std::move(boundary), sign);
+  if (!triangles.has_value())
+    return triangles.error();
+  exact_scalar actual_area(0);
+  for (const auto &triangle : triangles.value()) {
+    const auto &a = points_by_vertex.at(triangle[0]);
+    const auto &b = points_by_vertex.at(triangle[1]);
+    const auto &c = points_by_vertex.at(triangle[2]);
+    actual_area = actual_area + a.x * b.y - a.y * b.x + b.x * c.y - b.y * c.x +
+                  c.x * a.y - c.y * a.x;
+  }
+  if (triangles.value().size() != expected_triangle_count ||
+      actual_area != expected_area)
+    return make_error(boolean_error_code::internal_invariant_error,
+                      boolean_stage::geometry_realization,
+                      "selected_triangulation_partition");
+  result.triangles = std::move(triangles.value());
+  return result;
+}
+
+template <class T, class I>
+status_or<std::vector<triangulation_ring>>
+selected_patch_rings(const selected_exact_boundary<T, I> &selected,
+                     const realized_boundary<T, I> &realized,
+                     const selected_patch &patch, projection_axis projection) {
+  if (patch.cycles.empty())
+    return make_error(boolean_error_code::internal_invariant_error,
+                      boolean_stage::geometry_realization,
+                      "invalid_selected_patch_cycles");
+  std::vector<triangulation_ring> rings;
+  for (std::size_t i = 0; i < patch.cycles.size(); ++i) {
+    const auto cycle_id = patch.cycles[i];
+    if (cycle_id.value_for_debug() >= selected.cycles.size())
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::geometry_realization,
+                        "selected_cycle_range");
+    const auto &cycle = selected.cycles[cycle_id.value_for_debug()];
+    if (cycle.patch != patch.id || cycle.hole != (i != 0))
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::geometry_realization,
+                        "invalid_selected_patch_cycles");
+    triangulation_ring ring;
+    ring.hole = cycle.hole;
+    for (const auto halfedge_id : cycle.halfedges) {
+      if (halfedge_id.value_for_debug() >= selected.halfedges.size())
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::geometry_realization,
+                          "selected_halfedge_range");
+      const auto selected_vertex =
+          selected.halfedges[halfedge_id.value_for_debug()].origin;
+      if (selected_vertex.value_for_debug() >= realized.vertices.size())
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::geometry_realization,
+                          "selected_vertex_range");
+      const auto vertex = realization_vertex_id::from_canonical_value(
+          selected_vertex.value_for_debug());
+      ring.nodes.push_back(
+          {vertex,
+           project(realized.vertices[vertex.value_for_debug()].exact_coordinate,
+                   projection)});
+    }
+    rings.push_back(std::move(ring));
+  }
+  return rings;
+}
+
+template <class T, class I>
+std::vector<std::uint8_t> semantic(const realized_boundary<T, I> &a) {
+  canonical_encoder e;
+  const char tag[] = "YGBCAN11";
+  e.raw(reinterpret_cast<const std::uint8_t *>(tag), 8);
+  e.u16(realized_boundary_schema);
+  e.raw(a.selected->payload->certificate.semantic_digest.bytes.data(), 16);
+  e.raw(a.kernel_policy_digest.bytes.data(), 16);
+  e.raw(a.policy_digest.bytes.data(), 16);
+  e.u64(a.vertices.size());
+  for (const auto &v : a.vertices) {
+    e.id(v.id);
+    e.id(v.selected);
+    e.id(v.symbolic);
+    point(e, v.exact_coordinate);
+    e.raw(v.exact_digest.bytes.data(), 16);
+    e.byte_string(v.owner_free_semantic_key);
+    ids(e, v.derivations);
+    ids(e, v.original_sources);
+    e.boolean(bool(v.preserved_source));
+    if (v.preserved_source)
+      e.id(*v.preserved_source);
+    e.boolean(bool(v.preserved_source_bits));
+    if (v.preserved_source_bits)
+      for (auto b : *v.preserved_source_bits)
+        bits(e, b);
+    for (auto b : v.accepted_bits)
+      bits(e, b);
+    for (auto r : v.accepted_axis_rank)
+      e.u32(r);
+    e.u64(v.accepted_point_rank);
+    ids(e, v.selected_edges);
+    ids(e, v.patches);
+    ids(e, v.triangles);
+    ids(e, v.obligations);
+  }
+  e.u64(a.axis_domains.size());
+  for (const auto &d : a.axis_domains) {
+    e.id(d.vertex);
+    e.byte(d.axis);
+    encode(e, d.target);
+    e.u64(d.values.size());
+    for (const auto &v : d.values) {
+      e.id(v.id);
+      bits(e, v.bits);
+      e.u32(v.step_distance);
+      e.u32(v.rank);
+      encode(e, v.absolute_error);
+    }
+  }
+  e.u64(a.triangles.size());
+  for (const auto &t : a.triangles) {
+    e.id(t.id);
+    e.id(t.patch);
+    e.byte_string(t.owner_free_semantic_key);
+    for (auto x : t.vertices)
+      e.id(x);
+    for (auto x : t.halfedges)
+      e.id(x);
+    e.byte(static_cast<std::uint8_t>(t.projection));
+    e.byte(static_cast<std::uint8_t>(t.exact_orientation));
+  }
+  e.u64(a.halfedges.size());
+  for (const auto &h : a.halfedges) {
+    e.id(h.id);
+    e.id(h.triangle);
+    e.id(h.origin);
+    e.id(h.destination);
+    e.id(h.next);
+    e.id(h.previous);
+    e.boolean(bool(h.twin));
+    if (h.twin)
+      e.id(*h.twin);
+    e.byte(static_cast<std::uint8_t>(h.role));
+    e.boolean(bool(h.selected_edge));
+    if (h.selected_edge)
+      e.id(*h.selected_edge);
+  }
+  e.u64(a.obligations.size());
+  for (const auto &o : a.obligations) {
+    e.id(o.id);
+    e.byte(static_cast<std::uint8_t>(o.kind));
+    e.u16(o.version);
+    ids(e, o.vertices);
+    ids(e, o.triangles);
+    ids(e, o.selected_edges);
+    ids(e, o.selected_patches);
+    e.byte(static_cast<std::uint8_t>(o.expected));
+    e.byte(static_cast<std::uint8_t>(o.actual));
+    e.byte_string(o.witness);
+    e.boolean(bool(o.defining_relation));
+    if (o.defining_relation)
+      e.id(*o.defining_relation);
+  }
+  e.u64(a.pair_boxes.size());
+  for (const auto &box : a.pair_boxes) {
+    e.id(box.triangle);
+    point(e, box.lower);
+    point(e, box.upper);
+  }
+  e.u64(a.pair_candidates.size());
+  for (const auto &pair : a.pair_candidates) {
+    e.id(pair.lower);
+    e.id(pair.upper);
+  }
+  e.u64(a.components.size());
+  for (const auto &component : a.components) {
+    e.id(component.id);
+    ids(e, component.variables);
+    ids(e, component.obligations);
+    e.raw(component.graph_digest.bytes.data(), 16);
+  }
+  e.u64(a.component_transcripts.size());
+  for (const auto &transcript : a.component_transcripts) {
+    e.id(transcript.component);
+    e.u64(transcript.accepted_ranks.size());
+    for (auto rank : transcript.accepted_ranks)
+      e.u64(rank);
+    ids(e, transcript.rejected_prefix_witnesses);
+    e.u64(transcript.visited_nodes);
+    e.u64(transcript.complete_assignments);
+    e.raw(transcript.transcript_digest.bytes.data(), 16);
+  }
+  e.raw(a.search.domain_digest.bytes.data(), 16);
+  e.u64(a.search.visited_nodes);
+  e.u64(a.search.complete_assignments);
+  e.u64(a.search.pair_checks);
+  e.boolean(bool(a.search.accepted_assignment));
+  if (a.search.accepted_assignment)
+    e.id(*a.search.accepted_assignment);
+  e.boolean(a.search.nearest_passed);
+  e.boolean(a.search.exhausted);
+  const auto &c = a.certificate;
+  e.id(c.id);
+  e.u16(c.triangulation_version);
+  e.u16(c.obligation_version);
+  e.u16(c.solver_version);
+  e.u64(c.vertices);
+  e.u64(c.triangles);
+  e.u64(c.halfedges);
+  e.u64(c.obligations);
+  e.u64(c.witnesses);
+  e.u64(c.components);
+  e.u64(c.pair_boxes);
+  e.u64(c.pair_candidates);
+  e.raw(a.selected->payload->certificate.semantic_digest.bytes.data(), 16);
+  for (const auto *d :
+       {&c.kernel_policy_digest, &c.policy_digest, &c.triangulation_digest,
+         &c.obligation_digest, &c.assignment_digest, &c.component_digest,
+         &c.pair_digest})
+    e.raw(d->bytes.data(), 16);
+  return e.bytes();
+}
+
+template <class T, class I>
+std::vector<std::uint8_t> invocation(const realized_boundary<T, I> &a) {
+  canonical_encoder e;
+  const char tag[] = "YGBREA11";
+  e.raw(reinterpret_cast<const std::uint8_t *>(tag), 8);
+  e.u16(realized_boundary_schema);
+  e.raw(a.setup_digest.bytes.data(), 16);
+  e.raw(a.selected_digest.bytes.data(), 16);
+  e.raw(a.kernel_policy_digest.bytes.data(), 16);
+  e.raw(a.policy_digest.bytes.data(), 16);
+  e.byte_string(a.canonical_bytes);
+  return e.bytes();
+}
+
+template <class T, class I>
+digest artifact_digest_for(const realized_boundary<T, I> &a) {
+  canonical_encoder e;
+  e.raw(a.setup_digest.bytes.data(), 16);
+  e.byte(static_cast<std::uint8_t>(artifact_slot::realized_boundary));
+  e.byte_string(a.artifact_bytes);
+  return domain_digest({{'Y', 'G', 'B', 'A', 'R', 'T', '0', '1'}}, e.bytes());
+}
+
+template <class T> exact_point3 accepted_point(const realization_vertex<T> &v) {
+  return decoded_point(v.accepted_bits);
+}
+
+realization_relation relation_for(polygon_intersection_kind r) {
+  if (r == polygon_intersection_kind::point)
+    return realization_relation::point;
+  if (r == polygon_intersection_kind::segment)
+    return realization_relation::segment;
+  return realization_relation::disjoint;
+}
+
+template <class T, class I>
+bool assignment_valid(const realized_boundary<T, I> &a) {
+  std::set<std::tuple<decltype(coordinate_bits<T>{}.bits),
+                      decltype(coordinate_bits<T>{}.bits),
+                      decltype(coordinate_bits<T>{}.bits)>>
+      unique;
+  std::vector<exact_point3> p;
+  for (const auto &v : a.vertices) {
+    if (!(accepted_point(v) == v.exact_coordinate))
+      return false;
+    if (!unique
+             .emplace(v.accepted_bits[0].bits, v.accepted_bits[1].bits,
+                      v.accepted_bits[2].bits)
+             .second)
+      return false;
+    p.push_back(accepted_point(v));
+  }
+  for (const auto &t : a.triangles)
+    if (orient2d(project(p[t.vertices[0].value_for_debug()], t.projection),
+                 project(p[t.vertices[1].value_for_debug()], t.projection),
+                 project(p[t.vertices[2].value_for_debug()], t.projection)) !=
+        t.exact_orientation)
+      return false;
+  for (const auto &pair : a.pair_candidates) {
+      const auto &x = a.triangles[pair.lower.value_for_debug()];
+      const auto &y = a.triangles[pair.upper.value_for_debug()];
+      std::size_t shared = 0;
+      for (auto xv : x.vertices)
+        for (auto yv : y.vertices)
+          shared += xv == yv;
+      const auto relation =
+          relate_triangles({p[x.vertices[0].value_for_debug()],
+                            p[x.vertices[1].value_for_debug()],
+                            p[x.vertices[2].value_for_debug()]},
+                           {p[y.vertices[0].value_for_debug()],
+                            p[y.vertices[1].value_for_debug()],
+                            p[y.vertices[2].value_for_debug()]});
+      if ((shared == 0 && relation != polygon_intersection_kind::disjoint) ||
+          (shared == 1 && relation != polygon_intersection_kind::point) ||
+          (shared == 2 && relation != polygon_intersection_kind::segment) ||
+          shared > 2)
+        return false;
+  }
+  return true;
+}
+
+template <class T, class I>
+void append_obligations(realized_boundary<T, I> &a) {
+  auto add = [&](realization_obligation o) {
+    o.id =
+        realization_obligation_id::from_canonical_value(a.obligations.size());
+    for (auto v : o.vertices)
+      a.vertices[v.value_for_debug()].obligations.push_back(o.id);
+    o.witness = {static_cast<std::uint8_t>(o.actual)};
+    a.obligations.push_back(std::move(o));
+  };
+  for (const auto &v : a.vertices) {
+    add({{},
+         realization_obligation_kind::exact_target_equality,
+         1,
+         {v.id},
+         {},
+         {},
+         {},
+         realization_relation::exact_equal,
+         accepted_point(v) == v.exact_coordinate
+             ? realization_relation::exact_equal
+             : realization_relation::distinct,
+         {}});
+    for (auto node_id : v.derivations) {
+      const auto &node = a.constructions->nodes[node_id.value_for_debug()];
+      for (auto relation_id : node.defining_relations) {
+        const auto &relation =
+            a.constructions->relations[relation_id.value_for_debug()];
+        realization_obligation obligation{
+            {}, realization_obligation_kind::defining_relation, 1, {v.id},
+            {}, {}, {}, realization_relation::exact_equal,
+            defining_relation_satisfied(relation, accepted_point(v))
+                ? realization_relation::exact_equal
+                : realization_relation::distinct,
+            {}};
+        obligation.defining_relation = relation_id;
+        add(std::move(obligation));
+      }
+    }
+    add({{},
+         realization_obligation_kind::finite_coordinate,
+         1,
+         {v.id},
+         {},
+         {},
+         {},
+         realization_relation::finite,
+         realization_relation::finite,
+         {}});
+    if (v.preserved_source)
+      add({{},
+           realization_obligation_kind::fixed_original_bits,
+           1,
+           {v.id},
+           {},
+           {},
+           {},
+           realization_relation::equal_bits,
+           realization_relation::equal_bits,
+           {}});
+  }
+  for (const auto &t : a.triangles)
+    add({{},
+         realization_obligation_kind::triangle_orientation,
+         1,
+         {t.vertices[0], t.vertices[1], t.vertices[2]},
+         {t.id},
+         {},
+         {t.patch},
+         t.exact_orientation == exact_sign::positive
+             ? realization_relation::positive
+             : realization_relation::negative,
+         t.exact_orientation == exact_sign::positive
+             ? realization_relation::positive
+             : realization_relation::negative,
+         {}});
+  for (const auto &edge : a.selected->payload->edges)
+    add({{},
+         realization_obligation_kind::selected_edge_order,
+         1,
+         {realization_vertex_id::from_canonical_value(
+              edge.lower.value_for_debug()),
+          realization_vertex_id::from_canonical_value(
+              edge.upper.value_for_debug())},
+         {},
+         {edge.id},
+         {},
+         realization_relation::distinct,
+         realization_relation::distinct,
+         {}});
+  const auto points = [&] {
+    std::vector<exact_point3> p;
+    for (const auto &v : a.vertices)
+      p.push_back(accepted_point(v));
+    return p;
+  }();
+  for (const auto &pair : a.pair_candidates) {
+      const auto &x = a.triangles[pair.lower.value_for_debug()];
+      const auto &y = a.triangles[pair.upper.value_for_debug()];
+      std::vector<realization_vertex_id> shared;
+      for (auto xv : x.vertices)
+        for (auto yv : y.vertices)
+          if (xv == yv)
+            shared.push_back(xv);
+      const auto rel = relation_for(
+          relate_triangles({points[x.vertices[0].value_for_debug()],
+                            points[x.vertices[1].value_for_debug()],
+                            points[x.vertices[2].value_for_debug()]},
+                           {points[y.vertices[0].value_for_debug()],
+                            points[y.vertices[1].value_for_debug()],
+                            points[y.vertices[2].value_for_debug()]}));
+      const auto expected =
+          shared.empty() ? realization_relation::disjoint
+                         : shared.size() == 1 ? realization_relation::point
+                                              : realization_relation::segment;
+      std::vector<realization_vertex_id> participants(x.vertices.begin(),
+                                                       x.vertices.end());
+      participants.insert(participants.end(), y.vertices.begin(), y.vertices.end());
+      std::sort(participants.begin(), participants.end());
+      participants.erase(std::unique(participants.begin(), participants.end()),
+                         participants.end());
+      add({{},
+           shared.empty()
+               ? realization_obligation_kind::nonadjacent_disjointness
+               : shared.size() == 1
+                     ? realization_obligation_kind::shared_vertex_relation
+                     : realization_obligation_kind::shared_edge_relation,
+           1,
+           participants,
+           {x.id, y.id},
+           {},
+           {x.patch, y.patch},
+           expected,
+           rel,
+           {}});
+  }
+  for (const auto &patch : a.selected->payload->patches)
+    add({{},
+         realization_obligation_kind::patch_embedding,
+         1,
+         {},
+         {},
+         {},
+         {patch.id},
+         realization_relation::embedded,
+         realization_relation::embedded,
+         {}});
+  add({{},
+       realization_obligation_kind::global_embedding,
+       1,
+       {},
+       {},
+       {},
+       {},
+       realization_relation::embedded,
+       realization_relation::embedded,
+       {}});
+}
+
+template <class T, class I>
+bool valid(const realized_boundary<T, I> &a, const realization_policy &policy,
+           bool constraint_evidence_ok) {
+  if (!a.selected || !a.symbolic || !a.constructions ||
+      a.owner != a.selected->owner || a.owner != a.symbolic->owner ||
+      a.selected->payload->arrangement->payload->symbolic.get() !=
+          a.symbolic.get() ||
+      a.selected_digest != a.selected->artifact_digest ||
+      a.kernel_policy_digest != a.symbolic->payload->kernel_policy_digest ||
+      a.policy_digest != realization_policy_digest(policy) ||
+      a.constructions.get() != a.symbolic->payload->constructions.get())
+    return false;
+  const auto &s = *a.selected->payload;
+  const auto &symbolic = *a.symbolic->payload;
+  const auto &validated = *symbolic.validated->payload;
+  if (a.constructions->owner != a.owner)
+    return false;
+  if (a.vertices.size() != s.vertices.size() ||
+      a.axis_domains.size() != 3 * a.vertices.size() ||
+      a.certificate.id.value_for_debug() != 0 ||
+      a.certificate.vertices != a.vertices.size() ||
+      a.certificate.triangles != a.triangles.size() ||
+       a.certificate.halfedges != a.halfedges.size() ||
+       a.certificate.obligations != a.obligations.size() ||
+       a.certificate.components != a.components.size() ||
+       a.certificate.pair_boxes != a.pair_boxes.size() ||
+       a.certificate.pair_candidates != a.pair_candidates.size() ||
+       a.certificate.triangulation_version != 1 ||
+       a.certificate.obligation_version != 1 ||
+      a.certificate.selected_digest != a.selected_digest ||
+      a.certificate.kernel_policy_digest != a.kernel_policy_digest ||
+      a.certificate.policy_digest != a.policy_digest ||
+      a.certificate.solver_version != policy.solver_version)
+    return false;
+  for (std::size_t i = 0; i < a.vertices.size(); ++i) {
+    const auto &v = a.vertices[i];
+    if (v.id.value_for_debug() != i || v.selected.value_for_debug() != i ||
+        s.vertices[i].symbolic != v.symbolic ||
+        v.symbolic.value_for_debug() >= symbolic.vertices.size())
+      return false;
+    const auto &sv = symbolic.vertices[v.symbolic.value_for_debug()];
+    if (!(v.exact_coordinate == sv.point) ||
+        v.exact_digest != exact_point_digest(sv.point) ||
+        v.owner_free_semantic_key != owner_free_vertex_key(sv.point) ||
+        v.derivations != sv.constructions ||
+        v.original_sources != sv.original_vertices)
+      return false;
+    if (!std::is_sorted(v.derivations.begin(), v.derivations.end()) ||
+        std::adjacent_find(v.derivations.begin(), v.derivations.end()) !=
+            v.derivations.end())
+      return false;
+    for (const auto derivation : v.derivations) {
+      if (derivation.value_for_debug() >= a.constructions->nodes.size())
+        return false;
+      const auto &node = a.constructions->nodes[derivation.value_for_debug()];
+      if (node.id != derivation ||
+          node.kind != construction_kind::exact_relation ||
+          node.exact_result.empty())
+        return false;
+      for (auto relation_id : node.defining_relations)
+        if (!relation_id.valid() ||
+            relation_id.value_for_debug() >= a.constructions->relations.size() ||
+            a.constructions->relations[relation_id.value_for_debug()].construction !=
+                node.id)
+          return false;
+    }
+    std::optional<std::array<coordinate_bits<T>, 3>> preserved;
+    if (!sv.original_vertices.empty()) {
+      const auto oi = sv.original_vertices.front().value_for_debug();
+      if (oi >= validated.vertices.size())
+        return false;
+      preserved = validated.vertices[oi].raw_bits;
+      for (auto source : sv.original_vertices)
+        if (source.value_for_debug() >= validated.vertices.size() ||
+            !(validated.vertices[source.value_for_debug()].exact_coordinate ==
+              sv.point))
+          return false;
+      if (v.preserved_source !=
+              std::optional<original_vertex_id>(sv.original_vertices.front()) ||
+          !v.preserved_source_bits ||
+          !same_bits(*preserved, *v.preserved_source_bits))
+        return false;
+    } else if (v.preserved_source || v.preserved_source_bits)
+      return false;
+    const std::array<exact_scalar, 3> target{
+        {sv.point.x, sv.point.y, sv.point.z}};
+    for (std::size_t axis = 0; axis < 3; ++axis) {
+      const auto &d = a.axis_domains[3 * i + axis];
+      auto expected = axis_candidates<T>(
+          target[axis], policy,
+          preserved ? std::optional<coordinate_bits<T>>((*preserved)[axis])
+                    : std::nullopt);
+      if (d.vertex != v.id || d.axis != axis || d.target != target[axis] ||
+          d.values.size() != expected.size() || d.values.empty() ||
+          v.accepted_axis_rank[axis] >= d.values.size() ||
+          v.accepted_bits[axis].bits !=
+              d.values[v.accepted_axis_rank[axis]].bits.bits)
+        return false;
+      for (std::size_t n = 0; n < expected.size(); ++n)
+        if (d.values[n].id != expected[n].id ||
+            d.values[n].bits.bits != expected[n].bits.bits ||
+            d.values[n].rank != expected[n].rank ||
+            d.values[n].step_distance != expected[n].step_distance ||
+            d.values[n].absolute_error != expected[n].absolute_error)
+          return false;
+    }
+    const bool singleton = a.axis_domains[3 * i].values.size() == 1 &&
+                           a.axis_domains[3 * i + 1].values.size() == 1 &&
+                           a.axis_domains[3 * i + 2].values.size() == 1;
+    const auto candidate_count = a.axis_domains[3 * i].values.size() *
+                                 a.axis_domains[3 * i + 1].values.size() *
+                                 a.axis_domains[3 * i + 2].values.size();
+    if (v.accepted_point_rank >= candidate_count)
+      return false;
+    const auto accepted =
+        singleton ? singleton_point_candidate(a.axis_domains[3 * i],
+                                              a.axis_domains[3 * i + 1],
+                                              a.axis_domains[3 * i + 2])
+                  : point_candidates(a.axis_domains[3 * i],
+                                     a.axis_domains[3 * i + 1],
+                                     a.axis_domains[3 * i + 2])
+                        .at(v.accepted_point_rank);
+    if (v.accepted_point_rank != accepted.rank ||
+        !same_bits(accepted.bits, v.accepted_bits) ||
+        accepted.axis_rank != v.accepted_axis_rank ||
+        bits_of(v.coordinate.x).bits != v.accepted_bits[0].bits ||
+        bits_of(v.coordinate.y).bits != v.accepted_bits[1].bits ||
+        bits_of(v.coordinate.z).bits != v.accepted_bits[2].bits)
+      return false;
+  }
+  std::vector<unsigned> halfedge_use(a.halfedges.size());
+  std::vector<std::tuple<selected_patch_id, projection_axis,
+                         std::array<realization_vertex_id, 3>>>
+      expected_triangles;
+  std::set<std::tuple<selected_patch_id, realization_vertex_id,
+                      realization_vertex_id>>
+      expected_hole_bridges;
+  std::map<std::pair<realization_vertex_id, realization_vertex_id>,
+           selected_edge_id>
+      selected_edges;
+  for (const auto &edge : s.edges) {
+    const auto lower = realization_vertex_id::from_canonical_value(
+        edge.lower.value_for_debug());
+    const auto upper = realization_vertex_id::from_canonical_value(
+        edge.upper.value_for_debug());
+    const auto endpoints = std::minmax(lower, upper);
+    if (!selected_edges.emplace(endpoints, edge.id).second)
+      return false;
+  }
+  for (const auto &patch : s.patches) {
+    if (patch.source.value_for_debug() >=
+        s.arrangement->payload->patches.size())
+      return false;
+    const auto projection = dominant_projection(
+        s.arrangement->payload->patches[patch.source.value_for_debug()].plane);
+    auto rings = selected_patch_rings(s, a, patch, projection);
+    if (!rings.has_value())
+      return false;
+    auto triangulated = triangulate_patch(std::move(rings.value()));
+    if (!triangulated.has_value())
+      return false;
+    for (const auto &bridge : triangulated.value().bridges)
+      expected_hole_bridges.insert(
+          bridge_key(patch.id, bridge.first, bridge.second));
+    for (const auto &triangle : triangulated.value().triangles)
+      expected_triangles.push_back({patch.id, projection, triangle});
+  }
+  if (expected_triangles.size() != a.triangles.size())
+    return false;
+  for (std::size_t i = 0; i < a.triangles.size(); ++i) {
+    const auto &t = a.triangles[i];
+    if (t.id.value_for_debug() != i ||
+        t.patch.value_for_debug() >= s.patches.size() ||
+        t.patch != std::get<0>(expected_triangles[i]) ||
+        t.projection != std::get<1>(expected_triangles[i]) ||
+        t.vertices != std::get<2>(expected_triangles[i]))
+      return false;
+    if (t.owner_free_semantic_key != owner_free_triangle_key(a, t))
+      return false;
+    const auto exact_orientation = orient2d(
+        project(a.vertices[t.vertices[0].value_for_debug()].exact_coordinate,
+                t.projection),
+        project(a.vertices[t.vertices[1].value_for_debug()].exact_coordinate,
+                t.projection),
+        project(a.vertices[t.vertices[2].value_for_debug()].exact_coordinate,
+                t.projection));
+    if (exact_orientation == exact_sign::zero ||
+        exact_orientation != t.exact_orientation)
+      return false;
+    for (std::size_t n = 0; n < t.halfedges.size(); ++n) {
+      const auto h = t.halfedges[n];
+      if (h.value_for_debug() >= a.halfedges.size())
+        return false;
+      const auto &halfedge = a.halfedges[h.value_for_debug()];
+      if (halfedge.triangle != t.id || halfedge.origin != t.vertices[n] ||
+          halfedge.destination != t.vertices[(n + 1) % t.vertices.size()])
+        return false;
+      ++halfedge_use[h.value_for_debug()];
+    }
+  }
+  std::map<std::pair<realization_vertex_id, realization_vertex_id>,
+           realization_halfedge_id>
+      directed_halfedges;
+  for (const auto &h : a.halfedges)
+    if (!directed_halfedges
+             .emplace(std::make_pair(h.origin, h.destination), h.id)
+             .second)
+      return false;
+  for (std::size_t i = 0; i < a.halfedges.size(); ++i) {
+    const auto &h = a.halfedges[i];
+    if (h.id.value_for_debug() != i || halfedge_use[i] != 1 ||
+        h.triangle.value_for_debug() >= a.triangles.size() ||
+        h.next.value_for_debug() >= a.halfedges.size() ||
+        h.previous.value_for_debug() >= a.halfedges.size() ||
+        a.halfedges[h.next.value_for_debug()].previous != h.id ||
+        a.halfedges[h.previous.value_for_debug()].next != h.id)
+      return false;
+    const auto selected_edge =
+        selected_edges.find(std::minmax(h.origin, h.destination));
+    const bool hole_bridge =
+        expected_hole_bridges.count(
+            bridge_key(a.triangles[h.triangle.value_for_debug()].patch,
+                       h.origin, h.destination)) != 0;
+    if ((selected_edge != selected_edges.end()) != bool(h.selected_edge) ||
+        (h.selected_edge && (*h.selected_edge != selected_edge->second ||
+                              h.role != realization_edge_role::selected_edge)) ||
+        (!h.selected_edge &&
+         h.role != (hole_bridge
+                        ? realization_edge_role::hole_bridge
+                        : realization_edge_role::triangulation_diagonal)))
+      return false;
+    const auto expected_twin =
+        directed_halfedges.find({h.destination, h.origin});
+    if ((expected_twin != directed_halfedges.end()) != bool(h.twin) ||
+        (h.twin && (*h.twin != expected_twin->second ||
+                    h.twin->value_for_debug() >= a.halfedges.size() ||
+                    a.halfedges[h.twin->value_for_debug()].twin != h.id)))
+      return false;
+  }
+  if (!verify_realization_exact_substitution(a) || !constraint_evidence_ok ||
+      !assignment_valid(a) ||
+      !a.search.accepted_assignment || a.search.exhausted)
+    return false;
+  if (a.components.size() != a.component_transcripts.size())
+    return false;
+  std::vector<int> vertex_component(a.vertices.size(), -1);
+  std::vector<int> obligation_component(a.obligations.size(), -1);
+  std::uint64_t replay_nodes = 0, replay_complete = 0;
+  for (std::size_t ci = 0; ci < a.components.size(); ++ci) {
+    const auto &component = a.components[ci];
+    const auto &transcript = a.component_transcripts[ci];
+    if (component.id.value_for_debug() != ci ||
+        transcript.component != component.id ||
+        transcript.accepted_ranks.size() != component.variables.size() ||
+        !std::is_sorted(component.variables.begin(), component.variables.end()) ||
+        !std::is_sorted(component.obligations.begin(), component.obligations.end()))
+      return false;
+    canonical_encoder graph;
+    ids(graph, component.variables);
+    ids(graph, component.obligations);
+    if (component.graph_digest != domain_digest(
+            {{'Y', 'G', 'B', 'G', 'R', 'F', '1', '1'}}, graph.bytes()))
+      return false;
+    canonical_encoder encoded;
+    encoded.id(transcript.component);
+    for (auto rank : transcript.accepted_ranks)
+      encoded.u64(rank);
+    ids(encoded, transcript.rejected_prefix_witnesses);
+    encoded.u64(transcript.visited_nodes);
+    encoded.u64(transcript.complete_assignments);
+    if (transcript.transcript_digest != domain_digest(
+            {{'Y', 'G', 'B', 'T', 'R', 'N', '1', '1'}}, encoded.bytes()))
+      return false;
+    replay_nodes += transcript.visited_nodes;
+    replay_complete += transcript.complete_assignments;
+    for (std::size_t n = 0; n < component.variables.size(); ++n) {
+      const auto vi = component.variables[n].value_for_debug();
+      if (vi >= a.vertices.size() || vertex_component[vi] != -1 ||
+          transcript.accepted_ranks[n] != a.vertices[vi].accepted_point_rank)
+        return false;
+      vertex_component[vi] = static_cast<int>(ci);
+    }
+    for (auto obligation_id : component.obligations) {
+      const auto oi = obligation_id.value_for_debug();
+      if (oi >= a.obligations.size() || obligation_component[oi] != -1)
+        return false;
+      obligation_component[oi] = static_cast<int>(ci);
+      for (auto vertex : a.obligations[oi].vertices)
+        if (vertex.value_for_debug() >= vertex_component.size() ||
+            vertex_component[vertex.value_for_debug()] != static_cast<int>(ci))
+          return false;
+    }
+    for (auto witness : transcript.rejected_prefix_witnesses)
+      if (witness.value_for_debug() >= a.obligations.size() ||
+          obligation_component[witness.value_for_debug()] != static_cast<int>(ci))
+        return false;
+  }
+  if (std::any_of(vertex_component.begin(), vertex_component.end(),
+                  [](int component) { return component < 0; }) ||
+      replay_nodes != a.search.visited_nodes ||
+      replay_complete != a.search.complete_assignments ||
+      !a.search.nearest_passed)
+    return false;
+  for (std::size_t oi = 0; oi < a.obligations.size(); ++oi)
+    if (!a.obligations[oi].vertices.empty() && obligation_component[oi] < 0)
+      return false;
+  if (a.pair_boxes.size() != a.triangles.size())
+    return false;
+  for (std::size_t i = 0; i < a.pair_boxes.size(); ++i) {
+    const auto &box = a.pair_boxes[i];
+    if (box.triangle.value_for_debug() != i || box.upper.x < box.lower.x ||
+        box.upper.y < box.lower.y || box.upper.z < box.lower.z)
+      return false;
+  }
+  std::uint64_t witnesses = 0;
+  for (const auto &o : a.obligations)
+    witnesses += !o.witness.empty();
+  if (a.certificate.witnesses != witnesses)
+    return false;
+  canonical_encoder domains;
+  for (const auto &d : a.axis_domains)
+    for (const auto &v : d.values)
+      bits(domains, v.bits);
+  if (a.search.domain_digest !=
+      domain_digest({{'Y', 'G', 'B', 'D', 'O', 'M', '1', '1'}},
+                    domains.bytes()))
+    return false;
+  canonical_encoder tri;
+  for (const auto &t : a.triangles) {
+    tri.id(t.patch);
+    for (auto v : t.vertices)
+      tri.id(v);
+  }
+  canonical_encoder obl;
+  for (const auto &o : a.obligations) {
+    obl.byte(static_cast<std::uint8_t>(o.kind));
+    obl.byte(static_cast<std::uint8_t>(o.actual));
+  }
+  canonical_encoder assignment;
+  for (const auto &v : a.vertices)
+    for (auto b : v.accepted_bits)
+      bits(assignment, b);
+  if (a.certificate.triangulation_digest !=
+          domain_digest({{'Y', 'G', 'B', 'T', 'R', 'I', '1', '1'}},
+                        tri.bytes()) ||
+      a.certificate.obligation_digest !=
+          domain_digest({{'Y', 'G', 'B', 'O', 'B', 'L', '1', '1'}},
+                        obl.bytes()) ||
+      a.certificate.assignment_digest !=
+          domain_digest({{'Y', 'G', 'B', 'A', 'S', 'N', '1', '1'}},
+                        assignment.bytes()))
+    return false;
+  canonical_encoder components;
+  for (const auto &component : a.components)
+    components.raw(component.graph_digest.bytes.data(), 16);
+  for (const auto &transcript : a.component_transcripts)
+    components.raw(transcript.transcript_digest.bytes.data(), 16);
+  canonical_encoder pairs;
+  for (const auto &box : a.pair_boxes) {
+    pairs.id(box.triangle);
+    point(pairs, box.lower);
+    point(pairs, box.upper);
+  }
+  for (const auto &pair : a.pair_candidates) {
+    pairs.id(pair.lower);
+    pairs.id(pair.upper);
+  }
+  if (a.certificate.component_digest != domain_digest(
+          {{'Y', 'G', 'B', 'C', 'M', 'P', '1', '1'}}, components.bytes()) ||
+      a.certificate.pair_digest != domain_digest(
+          {{'Y', 'G', 'B', 'P', 'A', 'R', '1', '1'}}, pairs.bytes()))
+    return false;
+  return true;
+}
+
+template <class T, class I>
+status_or<verification_report>
+verify_typed(const artifact_view &v, const verification_spec &s,
+             const verification_environment_view &e) noexcept {
+  try {
+    const auto *artifact = static_cast<const realized_boundary<T, I> *>(v.payload);
+    verification_report r;
+    r.checker_version = s.checker_version;
+    r.owner = v.owner;
+    r.stage = boolean_stage::geometry_realization;
+    r.slot = v.slot;
+    r.artifact_type_tag = v.artifact_type_tag;
+    r.artifact_schema = v.artifact_schema;
+    r.setup_digest = e.setup_digest;
+    r.artifact_digest = v.artifact_digest;
+    r.invariant_set_digest = s.invariant_set_digest;
+    const bool binding_ok = e.options && e.accountant && artifact &&
+                     v.owner == e.owner &&
+                     v.slot == artifact_slot::realized_boundary &&
+                     v.artifact_type_tag == type_tag<T, I>() &&
+                     v.artifact_schema == realized_boundary_schema &&
+                     v.artifact_digest == artifact->artifact_digest &&
+                     artifact->owner == e.owner &&
+                     artifact->setup_digest == e.setup_digest &&
+                     e.coordinate == (std::is_same<T, double>::value
+                                          ? coordinate_tag::binary64
+                                          : coordinate_tag::binary32) &&
+                     e.index == (std::is_same<I, std::uint64_t>::value
+                                     ? index_tag::uint64
+                                     : index_tag::uint32) &&
+                     artifact->selected && artifact->selected->payload &&
+                     artifact->symbolic && artifact->symbolic->payload;
+    r.outcome = verification_outcome::pass;
+    bool failed = false;
+    for (auto c : s.required_invariants) {
+      bool ok = true;
+      if (!failed) {
+        switch (c) {
+        case invariant_code::realization_binding:
+          ok = binding_ok;
+          break;
+        case invariant_code::realization_coordinates: {
+          auto evidence = verify_realization_constraint_evidence_checked(
+              *artifact, e.accountant);
+          if (!evidence.has_value()) return evidence.error();
+          ok = valid(*artifact, e.options->realization, evidence.value());
+          break;
+        }
+        case invariant_code::realization_triangulation:
+        case invariant_code::realization_domains:
+        case invariant_code::realization_obligations:
+        case invariant_code::realization_embedding:
+        case invariant_code::realization_search:
+          ok = true;
+          break;
+        case invariant_code::realization_canonical_encoding:
+          ok = semantic(*artifact) == artifact->canonical_bytes &&
+               invocation(*artifact) == artifact->artifact_bytes &&
+               artifact_digest_for(*artifact) == artifact->artifact_digest &&
+               artifact->certificate.semantic_digest == domain_digest(
+                   {{'Y', 'G', 'B', 'C', 'A', 'N', '1', '1'}},
+                   artifact->canonical_bytes);
+          break;
+        default:
+          ok = false;
+        }
+      }
+      const auto st = failed ? check_status::not_run_due_to_prior_failure
+                             : ok ? check_status::passed : check_status::failed;
+      r.results.push_back({c, st, {}, 0});
+      failed |= st == check_status::failed;
+    }
+    r.outcome = failed ? verification_outcome::invariant_failure
+                       : verification_outcome::pass;
+    if (artifact)
+      r.dependency_digests = {artifact->selected_digest,
+                              artifact->kernel_policy_digest,
+                              artifact->policy_digest};
+    if (artifact && artifact->symbolic)
+      r.dependency_digests.insert(r.dependency_digests.begin() + 1,
+                                  artifact->symbolic->artifact_digest);
+    auto bytes = encode_verification_report(r);
+    if (!bytes.has_value())
+      return bytes.error();
+    r.report_digest = domain_digest({{'Y', 'G', 'B', 'V', 'E', 'R', '0', '1'}},
+                                    bytes.value());
+    return r;
+  } catch (...) {
+    return make_error(boolean_error_code::internal_invariant_error,
+                      boolean_stage::geometry_realization,
+                      "realization_verifier_exception");
+  }
+}
+
+template <class T, class I>
+status_or<verification_report>
+callback(const artifact_view &v, const verification_spec &s,
+         const verification_environment_view &e) noexcept {
+  return verify_typed<T, I>(v, s, e);
+}
+
+} // namespace
+
+template <class T, class I>
+status_or<std::vector<realization_triangle>>
+triangulate_selected_boundary_for_realization(
+    const selected_exact_boundary<T, I> &selected) {
+  try {
+    realized_boundary<T, I> topology;
+    topology.vertices.reserve(selected.vertices.size());
+    const auto symbolic_artifact = selected.arrangement->payload->symbolic;
+    if (!symbolic_artifact)
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::geometry_realization,
+                        "approximate_symbolic_missing");
+    const auto &symbolic = *symbolic_artifact->payload;
+    for (const auto &source : selected.vertices) {
+      if (source.symbolic.value_for_debug() >= symbolic.vertices.size())
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::geometry_realization,
+                          "approximate_symbolic_range");
+      realization_vertex<T> vertex;
+      vertex.id = realization_vertex_id::from_canonical_value(
+          topology.vertices.size());
+      vertex.selected = source.id;
+      vertex.symbolic = source.symbolic;
+      vertex.exact_coordinate =
+          symbolic.vertices[source.symbolic.value_for_debug()].point;
+      topology.vertices.push_back(std::move(vertex));
+    }
+    for (const auto &patch : selected.patches) {
+      if (patch.source.value_for_debug() >=
+          selected.arrangement->payload->patches.size())
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::geometry_realization,
+                          "approximate_patch_source_range");
+      const auto projection = dominant_projection(
+          selected.arrangement->payload->patches[patch.source.value_for_debug()]
+              .plane);
+      auto rings = selected_patch_rings(selected, topology, patch, projection);
+      if (!rings.has_value())
+        return rings.error();
+      auto triangulated = triangulate_patch(std::move(rings.value()));
+      if (!triangulated.has_value())
+        return triangulated.error();
+      for (const auto &vertices : triangulated.value().triangles) {
+        realization_triangle triangle;
+        triangle.id = realization_triangle_id::from_canonical_value(
+            topology.triangles.size());
+        triangle.patch = patch.id;
+        triangle.vertices = vertices;
+        triangle.projection = projection;
+        triangle.exact_orientation = orient2d(
+            project(topology.vertices[vertices[0].value_for_debug()]
+                        .exact_coordinate,
+                    projection),
+            project(topology.vertices[vertices[1].value_for_debug()]
+                        .exact_coordinate,
+                    projection),
+            project(topology.vertices[vertices[2].value_for_debug()]
+                        .exact_coordinate,
+                    projection));
+        topology.triangles.push_back(std::move(triangle));
+      }
+    }
+    return topology.triangles;
+  } catch (const std::bad_alloc &) {
+    return make_error(boolean_error_code::resource_limit,
+                      boolean_stage::geometry_realization,
+                      "approximate_triangulation_allocation");
+  } catch (...) {
+    return make_error(boolean_error_code::internal_invariant_error,
+                      boolean_stage::geometry_realization,
+                      "approximate_triangulation_exception");
+  }
+}
+
+status_or<bool> register_geometry_realization_verifier(verifier_registry &r,
+                                                       coordinate_tag c,
+                                                       index_tag i) {
+  verifier_registration x;
+  x.slot = artifact_slot::realized_boundary;
+  x.artifact_type_tag = realized_boundary_type_tag +
+                        (static_cast<std::uint64_t>(c) << 8) +
+                        static_cast<std::uint64_t>(i);
+  x.artifact_schema = realized_boundary_schema;
+  x.mandatory = {invariant_code::realization_binding,
+                 invariant_code::realization_coordinates,
+                 invariant_code::realization_triangulation,
+                 invariant_code::realization_domains,
+                 invariant_code::realization_obligations,
+                 invariant_code::realization_embedding,
+                 invariant_code::realization_search,
+                 invariant_code::realization_canonical_encoding};
+  x.exhaustive = x.mandatory;
+  if (c == coordinate_tag::binary32 && i == index_tag::uint32)
+    x.callback = &callback<float, std::uint32_t>;
+  else if (c == coordinate_tag::binary32)
+    x.callback = &callback<float, std::uint64_t>;
+  else if (i == index_tag::uint32)
+    x.callback = &callback<double, std::uint32_t>;
+  else
+    x.callback = &callback<double, std::uint64_t>;
+  return r.register_verifier(std::move(x));
+}
+
+template <class T, class I>
+status_or<std::shared_ptr<const published_artifact<realized_boundary<T, I>>>>
+realize_selected_boundary(boolean_context<T, I> &ctx) {
+  try {
+    if (ctx.cancelled())
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization, "cancelled");
+    if (auto old = ctx.artifacts().latest(artifact_slot::realized_boundary))
+      return std::static_pointer_cast<
+          const published_artifact<realized_boundary<T, I>>>(old);
+    auto selected_result = select_boolean_boundary(ctx);
+    if (!selected_result.has_value())
+      return selected_result.error();
+    performance_scope producer(ctx.performance_collector_for_internal_use(),
+                               boolean_stage::geometry_realization,
+                               performance_role::producer);
+    auto selected = selected_result.value();
+    if (ctx.artifacts().latest_generation(
+            artifact_slot::selected_exact_boundary) != selected->generation)
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::geometry_realization, "stale_selection");
+    const auto &s = *selected->payload;
+    auto symbolic = s.arrangement->payload->symbolic;
+    if (!symbolic ||
+        s.constructions.get() != symbolic->payload->constructions.get())
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::geometry_realization,
+                        "dependency_binding");
+    const auto &svs = symbolic->payload->vertices;
+    const auto &validated = *symbolic->payload->validated->payload;
+    stage_transaction<realized_boundary<T, I>> tx(
+        ctx.owner(), boolean_stage::geometry_realization,
+        artifact_slot::realized_boundary,
+        std::make_unique<realized_boundary<T, I>>(),
+        ctx.performance_collector_for_internal_use());
+    auto &a = tx.draft();
+    a.owner = ctx.owner();
+    a.setup_digest = ctx.replay().setup;
+    a.selected_digest = selected->artifact_digest;
+    a.kernel_policy_digest = symbolic->payload->kernel_policy_digest;
+    a.policy_digest = realization_policy_digest(ctx.options().realization);
+    a.selected = selected;
+    a.symbolic = symbolic;
+    a.constructions = s.constructions;
+    if (a.constructions->owner != ctx.owner())
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::geometry_realization,
+                        "construction_owner");
+    for (const auto &source : s.vertices) {
+      if (source.symbolic.value_for_debug() >= svs.size())
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::geometry_realization,
+                          "selected_symbolic_range");
+      const auto &sv = svs[source.symbolic.value_for_debug()];
+      realization_vertex<T> v;
+      v.id = realization_vertex_id::from_canonical_value(a.vertices.size());
+      v.selected = source.id;
+      v.symbolic = source.symbolic;
+      v.exact_coordinate = sv.point;
+      v.exact_digest = exact_point_digest(sv.point);
+      v.owner_free_semantic_key = owner_free_vertex_key(sv.point);
+      v.derivations = sv.constructions;
+      v.original_sources = sv.original_vertices;
+      if (!std::is_sorted(v.derivations.begin(), v.derivations.end()) ||
+          std::adjacent_find(v.derivations.begin(), v.derivations.end()) !=
+              v.derivations.end())
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::geometry_realization,
+                          "construction_order");
+      for (auto id : v.derivations) {
+        if (id.value_for_debug() >= a.constructions->nodes.size())
+          return make_error(boolean_error_code::internal_invariant_error,
+                            boolean_stage::geometry_realization,
+                            "construction_range");
+        const auto &node = a.constructions->nodes[id.value_for_debug()];
+        if (node.id != id || node.kind != construction_kind::exact_relation ||
+            node.exact_result.empty())
+          return make_error(boolean_error_code::internal_invariant_error,
+                            boolean_stage::geometry_realization,
+                            "construction_evidence");
+      }
+      if (!sv.original_vertices.empty()) {
+        const auto oi = sv.original_vertices.front().value_for_debug();
+        if (oi >= validated.vertices.size())
+          return make_error(boolean_error_code::internal_invariant_error,
+                            boolean_stage::geometry_realization,
+                            "original_source_range");
+        v.preserved_source = sv.original_vertices.front();
+        v.preserved_source_bits = validated.vertices[oi].raw_bits;
+        for (auto id : sv.original_vertices)
+          if (id.value_for_debug() >= validated.vertices.size() ||
+              !(validated.vertices[id.value_for_debug()].exact_coordinate ==
+                sv.point))
+            return make_error(boolean_error_code::internal_invariant_error,
+                              boolean_stage::geometry_realization,
+                              "conflicting_original_derivation");
+      }
+      a.vertices.push_back(std::move(v));
+    }
+    for (const auto &edge : s.edges) {
+      a.vertices[edge.lower.value_for_debug()].selected_edges.push_back(
+          edge.id);
+      a.vertices[edge.upper.value_for_debug()].selected_edges.push_back(
+          edge.id);
+    }
+    std::set<std::tuple<selected_patch_id, realization_vertex_id,
+                        realization_vertex_id>>
+        hole_bridges;
+    for (const auto &patch : s.patches) {
+      if (patch.source.value_for_debug() >=
+          s.arrangement->payload->patches.size())
+        return make_error(boolean_error_code::internal_invariant_error,
+                          boolean_stage::geometry_realization,
+                          "selected_patch_source_range");
+      const auto projection = dominant_projection(
+          s.arrangement->payload->patches[patch.source.value_for_debug()]
+              .plane);
+      auto rings = selected_patch_rings(s, a, patch, projection);
+      if (!rings.has_value())
+        return rings.error();
+      for (const auto &ring : rings.value())
+        for (const auto &node : ring.nodes)
+          a.vertices[node.vertex.value_for_debug()].patches.push_back(patch.id);
+      auto triangulated = triangulate_patch(std::move(rings.value()));
+      if (!triangulated.has_value())
+        return triangulated.error();
+      for (const auto &bridge : triangulated.value().bridges)
+        hole_bridges.insert(bridge_key(patch.id, bridge.first, bridge.second));
+      for (const auto &vertices : triangulated.value().triangles) {
+        realization_triangle t;
+        t.id =
+            realization_triangle_id::from_canonical_value(a.triangles.size());
+        t.patch = patch.id;
+        t.vertices = vertices;
+        t.projection = projection;
+        t.exact_orientation = orient2d(
+            project(a.vertices[vertices[0].value_for_debug()].exact_coordinate,
+                    projection),
+            project(a.vertices[vertices[1].value_for_debug()].exact_coordinate,
+                    projection),
+            project(a.vertices[vertices[2].value_for_debug()].exact_coordinate,
+                    projection));
+        for (auto v : vertices)
+          a.vertices[v.value_for_debug()].triangles.push_back(t.id);
+        a.triangles.push_back(t);
+      }
+    }
+    std::map<std::pair<realization_vertex_id, realization_vertex_id>,
+             selected_edge_id>
+        selected_edges;
+    for (const auto &edge : s.edges)
+      selected_edges[std::minmax(realization_vertex_id::from_canonical_value(
+                                     edge.lower.value_for_debug()),
+                                 realization_vertex_id::from_canonical_value(
+                                     edge.upper.value_for_debug()))] = edge.id;
+    std::map<std::pair<realization_vertex_id, realization_vertex_id>,
+             realization_halfedge_id>
+        directed;
+    for (auto &t : a.triangles) {
+      for (std::size_t n = 0; n < 3; ++n) {
+        realization_halfedge h;
+        h.id =
+            realization_halfedge_id::from_canonical_value(a.halfedges.size());
+        h.triangle = t.id;
+        h.origin = t.vertices[n];
+        h.destination = t.vertices[(n + 1) % 3];
+        auto se = selected_edges.find(edge_key(h.origin, h.destination));
+        if (se != selected_edges.end()) {
+          h.role = realization_edge_role::selected_edge;
+          h.selected_edge = se->second;
+        } else if (hole_bridges.count(
+                       bridge_key(t.patch, h.origin, h.destination)))
+          h.role = realization_edge_role::hole_bridge;
+        t.halfedges[n] = h.id;
+        a.halfedges.push_back(h);
+      }
+      for (std::size_t n = 0; n < 3; ++n) {
+        auto &h = a.halfedges[t.halfedges[n].value_for_debug()];
+        h.next = t.halfedges[(n + 1) % 3];
+        h.previous = t.halfedges[(n + 2) % 3];
+        directed[{h.origin, h.destination}] = h.id;
+      }
+    }
+    for (auto &h : a.halfedges) {
+      auto twin = directed.find({h.destination, h.origin});
+      if (twin != directed.end())
+        h.twin = twin->second;
+    }
+    for (auto &triangle : a.triangles)
+      triangle.owner_free_semantic_key = owner_free_triangle_key(a, triangle);
+    std::vector<resource_reservation> realization_charges;
+    std::uint64_t candidate_count = 0;
+    for (auto &v : a.vertices) {
+      const std::array<exact_scalar, 3> target{
+          {v.exact_coordinate.x, v.exact_coordinate.y, v.exact_coordinate.z}};
+      for (std::size_t axis = 0; axis < 3; ++axis) {
+        realization_axis_domain<T> d;
+        d.vertex = v.id;
+        d.axis = axis;
+        d.target = target[axis];
+        d.values = axis_candidates<T>(target[axis], ctx.options().realization,
+                                      v.preserved_source_bits
+                                          ? std::optional<coordinate_bits<T>>((
+                                                *v.preserved_source_bits)[axis])
+                                          : std::nullopt);
+        if (d.values.empty())
+          return make_error(boolean_error_code::output_not_representable,
+                            boolean_stage::geometry_realization,
+                            "coordinate_out_of_range");
+        if (!d.values.front().absolute_error.is_zero()) {
+          auto error = make_error(boolean_error_code::output_not_representable,
+                                  boolean_stage::geometry_realization,
+                                  "exact_target_not_representable");
+          error.features.push_back(v.symbolic);
+          canonical_encoder diagnostic;
+          diagnostic.id(v.symbolic);
+          diagnostic.byte(static_cast<std::uint8_t>(axis));
+          encode(diagnostic, target[axis]);
+          bits(diagnostic, d.values.front().bits);
+          encode(diagnostic, d.values.front().absolute_error);
+          error.replay_payload = diagnostic.bytes();
+          return error;
+        }
+        auto sum = checked_add(candidate_count, d.values.size(),
+                               boolean_stage::geometry_realization);
+        if (!sum.has_value())
+          return sum.error();
+        candidate_count = sum.value();
+        a.axis_domains.push_back(std::move(d));
+      }
+    }
+    for (std::size_t i = 0; i < a.vertices.size(); ++i) {
+      auto xy = checked_multiply(a.axis_domains[3 * i].values.size(),
+                                 a.axis_domains[3 * i + 1].values.size(),
+                                 boolean_stage::geometry_realization);
+      if (!xy.has_value())
+        return xy.error();
+      auto xyz =
+          checked_multiply(xy.value(), a.axis_domains[3 * i + 2].values.size(),
+                           boolean_stage::geometry_realization);
+      if (!xyz.has_value())
+        return xyz.error();
+      auto sum = checked_add(candidate_count, xyz.value(),
+                             boolean_stage::geometry_realization);
+      if (!sum.has_value())
+        return sum.error();
+      candidate_count = sum.value();
+    }
+    auto candidate_charge = ctx.accountant().reserve_scoped(
+        resource_kind::candidates, candidate_count,
+        boolean_stage::geometry_realization);
+    if (!candidate_charge.has_value())
+      return candidate_charge.error();
+    realization_charges.push_back(std::move(candidate_charge.value()));
+    canonical_encoder domains;
+    for (const auto &d : a.axis_domains)
+      for (const auto &v : d.values)
+        bits(domains, v.bits);
+    a.search.domain_digest = domain_digest(
+        {{'Y', 'G', 'B', 'D', 'O', 'M', '1', '1'}}, domains.bytes());
+    const bool all_singleton = std::all_of(
+        a.axis_domains.begin(), a.axis_domains.end(),
+        [](const auto &domain) { return domain.values.size() == 1; });
+    for (std::size_t i = 0; i < a.vertices.size(); ++i) {
+      const auto candidate = all_singleton
+                                 ? singleton_point_candidate(
+                                       a.axis_domains[3 * i],
+                                       a.axis_domains[3 * i + 1],
+                                       a.axis_domains[3 * i + 2])
+                                 : point_candidates(a.axis_domains[3 * i],
+                                                    a.axis_domains[3 * i + 1],
+                                                    a.axis_domains[3 * i + 2])
+                                       .front();
+      a.vertices[i].accepted_bits = candidate.bits;
+      a.vertices[i].accepted_axis_rank = candidate.axis_rank;
+      a.vertices[i].accepted_point_rank = 0;
+    }
+    auto reserve = [&](resource_kind kind, std::uint64_t count) {
+      auto charge = ctx.accountant().reserve_scoped(
+          kind, count, boolean_stage::geometry_realization);
+      if (charge.has_value())
+        realization_charges.push_back(std::move(charge.value()));
+      return charge.has_value();
+    };
+    if (!reserve(resource_kind::realization_pair_boxes, a.triangles.size()))
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization,
+                        "realization_pair_box_limit");
+    auto axis_bounds = [&](realization_vertex_id vertex, std::size_t axis) {
+      const auto &domain = a.axis_domains[3 * vertex.value_for_debug() + axis];
+      if (domain.values.size() == 1)
+        return std::make_pair(domain.target, domain.target);
+      auto first = decode_coordinate<T>(domain.values.front().bits,
+                                        boolean_stage::geometry_realization)
+                       .value()
+                       .value;
+      auto lower = first, upper = first;
+      for (const auto &candidate : domain.values) {
+        const auto value = decode_coordinate<T>(candidate.bits,
+                                                boolean_stage::geometry_realization)
+                               .value()
+                               .value;
+        if (value < lower)
+          lower = value;
+        if (upper < value)
+          upper = value;
+      }
+      return std::make_pair(lower, upper);
+    };
+    for (const auto &triangle : a.triangles) {
+      realization_domain_box box;
+      box.triangle = triangle.id;
+      std::array<exact_scalar, 3> lower, upper;
+      for (std::size_t axis = 0; axis < 3; ++axis) {
+        auto bounds = axis_bounds(triangle.vertices.front(), axis);
+        lower[axis] = bounds.first;
+        upper[axis] = bounds.second;
+        for (std::size_t n = 1; n < triangle.vertices.size(); ++n) {
+          bounds = axis_bounds(triangle.vertices[n], axis);
+          if (bounds.first < lower[axis])
+            lower[axis] = bounds.first;
+          if (upper[axis] < bounds.second)
+            upper[axis] = bounds.second;
+        }
+      }
+      box.lower = {lower[0], lower[1], lower[2]};
+      box.upper = {upper[0], upper[1], upper[2]};
+      a.pair_boxes.push_back(std::move(box));
+    }
+    const auto pair_check_limit =
+        ctx.options().resources.realization_pair_checks;
+    const auto pair_candidate_limit =
+        ctx.options().resources.realization_pair_candidates;
+    bool pair_limited = false;
+    a.pair_candidates = detail::conservative_realization_triangle_pairs(
+        a.pair_boxes, nullptr,
+        pair_check_limit.unlimited
+            ? std::numeric_limits<std::uint64_t>::max()
+            : pair_check_limit.value,
+        pair_candidate_limit.unlimited
+            ? std::numeric_limits<std::uint64_t>::max()
+            : pair_candidate_limit.value,
+        &pair_limited);
+    if (pair_limited)
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization,
+                        "realization_pair_generation_limit");
+    const auto exact_pair_checks = a.pair_candidates.size();
+    if (!pair_check_limit.unlimited &&
+        exact_pair_checks > pair_check_limit.value)
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization,
+                        "realization_pair_check_limit");
+    auto canonical_boxes = a.pair_boxes;
+    std::sort(canonical_boxes.begin(), canonical_boxes.end(),
+              [](const auto &x, const auto &y) {
+                if (x.lower.x != y.lower.x)
+                  return x.lower.x < y.lower.x;
+                return x.triangle < y.triangle;
+              });
+    std::multiset<exact_scalar> canonical_active_upper;
+    std::uint64_t canonical_overlap_checks = 0;
+    for (const auto &box : canonical_boxes) {
+      while (!canonical_active_upper.empty() &&
+             *canonical_active_upper.begin() < box.lower.x)
+        canonical_active_upper.erase(canonical_active_upper.begin());
+      auto count = checked_add(canonical_overlap_checks,
+                               canonical_active_upper.size(),
+                               boolean_stage::geometry_realization);
+      if (!count.has_value())
+        return count.error();
+      canonical_overlap_checks = count.value();
+      canonical_active_upper.insert(box.upper.x);
+    }
+    auto canonical_pair_checks =
+        checked_add(canonical_overlap_checks, a.pair_candidates.size(),
+                    boolean_stage::geometry_realization);
+    if (!canonical_pair_checks.has_value())
+      return canonical_pair_checks.error();
+    a.search.pair_checks = canonical_pair_checks.value();
+    if (!reserve(resource_kind::realization_pair_candidates,
+                 a.pair_candidates.size()) ||
+        !reserve(resource_kind::realization_pair_checks, exact_pair_checks))
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization,
+                        "realization_pair_limit");
+    append_obligations(a);
+
+    std::vector<std::size_t> evaluation_representative(a.obligations.size());
+    std::map<digest, std::vector<std::size_t>> obligation_buckets;
+    const auto deduplicated_kind = [](realization_obligation_kind kind) {
+      return kind == realization_obligation_kind::defining_relation ||
+             kind == realization_obligation_kind::selected_edge_order ||
+             kind == realization_obligation_kind::shared_vertex_relation ||
+             kind == realization_obligation_kind::shared_edge_relation;
+    };
+    const auto equivalent_obligation = [&](const realization_obligation &x,
+                                            const realization_obligation &y) {
+      if (x.kind != y.kind || x.version != y.version ||
+          x.vertices != y.vertices || x.triangles != y.triangles ||
+          x.selected_edges != y.selected_edges ||
+          x.selected_patches != y.selected_patches ||
+          x.expected != y.expected || x.actual != y.actual)
+        return false;
+      if (!x.defining_relation || !y.defining_relation)
+        return x.defining_relation == y.defining_relation;
+      const auto &xr = a.constructions->relations[
+          x.defining_relation->value_for_debug()];
+      const auto &yr = a.constructions->relations[
+          y.defining_relation->value_for_debug()];
+      return xr.kind == yr.kind && xr.formula_version == yr.formula_version &&
+             xr.coefficients == yr.coefficients && xr.expected == yr.expected;
+    };
+    for (std::size_t i = 0; i < a.obligations.size(); ++i) {
+      evaluation_representative[i] = i;
+      const auto &obligation = a.obligations[i];
+      if (!deduplicated_kind(obligation.kind))
+        continue;
+      canonical_encoder encoded;
+      encoded.byte(static_cast<std::uint8_t>(obligation.kind));
+      encoded.u16(obligation.version);
+      ids(encoded, obligation.vertices);
+      ids(encoded, obligation.triangles);
+      ids(encoded, obligation.selected_edges);
+      ids(encoded, obligation.selected_patches);
+      encoded.byte(static_cast<std::uint8_t>(obligation.expected));
+      encoded.byte(static_cast<std::uint8_t>(obligation.actual));
+      if (obligation.defining_relation) {
+        const auto &relation = a.constructions->relations[
+            obligation.defining_relation->value_for_debug()];
+        encoded.byte(static_cast<std::uint8_t>(relation.kind));
+        encoded.u16(relation.formula_version);
+        for (const auto &coefficient : relation.coefficients)
+          encode(encoded, coefficient);
+        encoded.byte(static_cast<std::uint8_t>(relation.expected));
+      }
+      const auto key = domain_digest(
+          {{'Y', 'G', 'B', 'O', 'D', 'D', '1', '1'}}, encoded.bytes());
+      auto &bucket = obligation_buckets[key];
+      for (auto candidate : bucket)
+        if (equivalent_obligation(a.obligations[candidate], obligation)) {
+          evaluation_representative[i] = candidate;
+          break;
+        }
+      if (evaluation_representative[i] == i)
+        bucket.push_back(i);
+    }
+
+    std::uint64_t graph_edges = 0;
+    for (const auto &obligation : a.obligations) {
+      graph_edges += obligation.vertices.size();
+    }
+    if (!reserve(resource_kind::realization_graph_nodes,
+                 a.vertices.size() + a.obligations.size()) ||
+        !reserve(resource_kind::realization_graph_edges, graph_edges))
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization,
+                        "realization_graph_limit");
+    std::vector<detail::realization_solver_variable> solver_variables;
+    for (std::size_t i = 0; i < a.vertices.size(); ++i) {
+      if (all_singleton)
+        solver_variables.push_back({i, 1});
+      else {
+        const auto candidates = point_candidates(a.axis_domains[3 * i],
+                                                 a.axis_domains[3 * i + 1],
+                                                 a.axis_domains[3 * i + 2]);
+        solver_variables.push_back({i, candidates.size()});
+      }
+    }
+    std::vector<detail::realization_solver_constraint> solver_constraints;
+    for (const auto &obligation : a.obligations) {
+      std::vector<std::uint64_t> variables;
+      for (auto vertex : obligation.vertices)
+        variables.push_back(vertex.value_for_debug());
+      solver_constraints.push_back({obligation.id.value_for_debug(),
+                                    std::move(variables)});
+    }
+    auto evaluate_obligation = [&](std::uint64_t obligation_id,
+                                   const std::vector<std::pair<
+                                       std::uint64_t, std::uint64_t>> &values) {
+      const auto representative = evaluation_representative[obligation_id];
+      const auto &obligation = a.obligations[representative];
+      std::map<std::uint64_t, exact_point3> points;
+      for (const auto &value : values) {
+        if (all_singleton) {
+          if (value.second != 0)
+            return false;
+          points[value.first] = a.vertices[value.first].exact_coordinate;
+        } else {
+          const auto candidates = point_candidates(
+              a.axis_domains[3 * value.first],
+              a.axis_domains[3 * value.first + 1],
+              a.axis_domains[3 * value.first + 2]);
+          if (value.second >= candidates.size())
+            return false;
+          points[value.first] = decoded_point(candidates[value.second].bits);
+        }
+      }
+      auto point_for = [&](realization_vertex_id id) -> const exact_point3 & {
+        return points.at(id.value_for_debug());
+      };
+      bool valid = false;
+      if (obligation.kind == realization_obligation_kind::exact_target_equality)
+        valid = point_for(obligation.vertices.front()) ==
+                a.vertices[obligation.vertices.front().value_for_debug()].exact_coordinate;
+      else if (obligation.kind == realization_obligation_kind::defining_relation)
+        valid = obligation.defining_relation &&
+               defining_relation_satisfied(
+                   a.constructions->relations[obligation.defining_relation->value_for_debug()],
+                   point_for(obligation.vertices.front()));
+      else if (obligation.kind == realization_obligation_kind::distinct_vertices ||
+               obligation.kind == realization_obligation_kind::selected_edge_order)
+        valid = !(point_for(obligation.vertices[0]) ==
+                  point_for(obligation.vertices[1]));
+      else if (obligation.kind == realization_obligation_kind::triangle_orientation) {
+        const auto &triangle = a.triangles[obligation.triangles.front().value_for_debug()];
+        valid = orient2d(project(point_for(triangle.vertices[0]), triangle.projection),
+                         project(point_for(triangle.vertices[1]), triangle.projection),
+                         project(point_for(triangle.vertices[2]), triangle.projection)) ==
+                triangle.exact_orientation;
+      } else if (obligation.triangles.size() == 2) {
+        const auto &x = a.triangles[obligation.triangles[0].value_for_debug()];
+        const auto &y = a.triangles[obligation.triangles[1].value_for_debug()];
+        const auto relation = relation_for(relate_triangles(
+            {point_for(x.vertices[0]), point_for(x.vertices[1]), point_for(x.vertices[2])},
+            {point_for(y.vertices[0]), point_for(y.vertices[1]), point_for(y.vertices[2])}));
+        valid = relation == obligation.expected;
+      } else
+        valid = obligation.expected == obligation.actual;
+      return valid;
+    };
+    std::vector<std::optional<bool>> singleton_evaluations(a.obligations.size());
+    const auto attempt_limit = ctx.options().resources.realization_attempts;
+    const bool parallel_solver = attempt_limit.unlimited;
+    if (all_singleton && parallel_solver) {
+      for (const auto &constraint : solver_constraints) {
+        const auto representative =
+            evaluation_representative[constraint.id];
+        if (singleton_evaluations[representative]) continue;
+        std::vector<std::pair<std::uint64_t, std::uint64_t>> values;
+        values.reserve(constraint.variables.size());
+        for (auto variable : constraint.variables)
+          values.push_back({variable, 0});
+        singleton_evaluations[representative] =
+            evaluate_obligation(constraint.id, values);
+      }
+    }
+    auto evaluator = [&](std::uint64_t obligation_id,
+                         const std::vector<std::pair<std::uint64_t,
+                                                     std::uint64_t>> &values) {
+      if (all_singleton) {
+        const auto representative = evaluation_representative[obligation_id];
+        if (!singleton_evaluations[representative])
+          singleton_evaluations[representative] =
+              evaluate_obligation(obligation_id, values);
+        return *singleton_evaluations[representative];
+      }
+      return evaluate_obligation(obligation_id, values);
+    };
+    const auto component_limit = ctx.options().resources.realization_components;
+    const auto transcript_limit =
+        ctx.options().resources.realization_component_transcripts;
+    const auto trail_limit = ctx.options().resources.realization_solver_trail;
+    const auto bounded_components = [&] {
+      const auto component_max = component_limit.unlimited
+                                     ? std::numeric_limits<std::uint64_t>::max()
+                                     : component_limit.value;
+      const auto transcript_max = transcript_limit.unlimited
+                                      ? std::numeric_limits<std::uint64_t>::max()
+                                      : transcript_limit.value;
+      return std::min(component_max, transcript_max);
+    }();
+    const auto solved = detail::solve_realization_constraint_components(
+        std::move(solver_variables), std::move(solver_constraints), evaluator,
+        attempt_limit.unlimited ? std::numeric_limits<std::uint64_t>::max()
+                                : attempt_limit.value,
+        bounded_components,
+        trail_limit.unlimited ? std::numeric_limits<std::uint64_t>::max()
+                              : trail_limit.value,
+        [&] { return ctx.cancelled(); }, &ctx.executor());
+    if (ctx.cancelled())
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization, "cancelled");
+    if (solved.limited)
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization,
+                        "realization_search_limit");
+    if (!reserve(resource_kind::realization_attempts,
+                 all_singleton ? 0 : solved.visited_nodes) ||
+        !reserve(resource_kind::realization_components, solved.components.size()) ||
+        !reserve(resource_kind::realization_solver_trail, a.vertices.size()) ||
+        !reserve(resource_kind::realization_component_transcripts,
+                 solved.components.size()))
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization,
+                        "realization_search_limit");
+    std::uint64_t verifier_witnesses = 0;
+    for (const auto &component : solved.components)
+      verifier_witnesses += component.rejected_prefix_witnesses.size();
+    if (!reserve(resource_kind::realization_verifier_witnesses,
+                 verifier_witnesses))
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization,
+                        "realization_verifier_witness_limit");
+    a.search.visited_nodes = solved.visited_nodes;
+    a.search.complete_assignments = solved.complete_assignments;
+    if (!solved.accepted) {
+      a.search.exhausted = true;
+      return make_error(boolean_error_code::output_not_representable,
+                        boolean_stage::geometry_realization,
+                        "candidate_domain_exhausted");
+    }
+    for (std::size_t ci = 0; ci < solved.components.size(); ++ci) {
+      const auto &source = solved.components[ci];
+      realization_constraint_component component;
+      component.id = realization_constraint_component_id::from_canonical_value(ci);
+      for (auto id : source.variables)
+        component.variables.push_back(realization_vertex_id::from_canonical_value(id));
+      for (auto id : source.constraints)
+        component.obligations.push_back(realization_obligation_id::from_canonical_value(id));
+      canonical_encoder graph;
+      ids(graph, component.variables);
+      ids(graph, component.obligations);
+      component.graph_digest = domain_digest(
+          {{'Y', 'G', 'B', 'G', 'R', 'F', '1', '1'}}, graph.bytes());
+      realization_component_transcript transcript;
+      transcript.component = component.id;
+      transcript.accepted_ranks = source.accepted_ranks;
+      for (auto id : source.rejected_prefix_witnesses)
+        transcript.rejected_prefix_witnesses.push_back(
+            realization_obligation_id::from_canonical_value(id));
+      transcript.visited_nodes = source.visited_nodes;
+      transcript.complete_assignments = source.complete_assignments;
+      canonical_encoder encoded;
+      encoded.id(transcript.component);
+      for (auto rank : transcript.accepted_ranks)
+        encoded.u64(rank);
+      ids(encoded, transcript.rejected_prefix_witnesses);
+      encoded.u64(transcript.visited_nodes);
+      encoded.u64(transcript.complete_assignments);
+      transcript.transcript_digest = domain_digest(
+          {{'Y', 'G', 'B', 'T', 'R', 'N', '1', '1'}}, encoded.bytes());
+      for (std::size_t i = 0; i < source.variables.size(); ++i) {
+        const auto vi = source.variables[i];
+        const auto candidate = all_singleton
+                                   ? singleton_point_candidate(
+                                         a.axis_domains[3 * vi],
+                                         a.axis_domains[3 * vi + 1],
+                                         a.axis_domains[3 * vi + 2])
+                                   : point_candidates(a.axis_domains[3 * vi],
+                                                      a.axis_domains[3 * vi + 1],
+                                                      a.axis_domains[3 * vi + 2])
+                                         .at(source.accepted_ranks[i]);
+        a.vertices[vi].accepted_bits = candidate.bits;
+        a.vertices[vi].accepted_axis_rank = candidate.axis_rank;
+        a.vertices[vi].accepted_point_rank = candidate.rank;
+      }
+      a.components.push_back(std::move(component));
+      a.component_transcripts.push_back(std::move(transcript));
+    }
+    for (auto &vertex : a.vertices)
+      vertex.coordinate = {value_of_bits<T>(vertex.accepted_bits[0]),
+                           value_of_bits<T>(vertex.accepted_bits[1]),
+                           value_of_bits<T>(vertex.accepted_bits[2])};
+    if (!assignment_valid(a))
+      return make_error(boolean_error_code::output_not_representable,
+                        boolean_stage::geometry_realization,
+                        "candidate_domain_exhausted");
+    a.search.accepted_assignment = candidate_assignment_id::from_canonical_value(0);
+    a.search.nearest_passed = true;
+    a.certificate.id = realization_certificate_id::from_canonical_value(0);
+    a.certificate.solver_version = ctx.options().realization.solver_version;
+    a.certificate.vertices = a.vertices.size();
+    a.certificate.triangles = a.triangles.size();
+    a.certificate.halfedges = a.halfedges.size();
+    a.certificate.obligations = a.obligations.size();
+    a.certificate.components = a.components.size();
+    a.certificate.pair_boxes = a.pair_boxes.size();
+    a.certificate.pair_candidates = a.pair_candidates.size();
+    for (const auto &o : a.obligations)
+      a.certificate.witnesses += !o.witness.empty();
+    a.certificate.selected_digest = a.selected_digest;
+    a.certificate.kernel_policy_digest = a.kernel_policy_digest;
+    a.certificate.policy_digest = a.policy_digest;
+    canonical_encoder tri;
+    for (const auto &t : a.triangles) {
+      tri.id(t.patch);
+      for (auto v : t.vertices)
+        tri.id(v);
+    }
+    a.certificate.triangulation_digest =
+        domain_digest({{'Y', 'G', 'B', 'T', 'R', 'I', '1', '1'}}, tri.bytes());
+    canonical_encoder obl;
+    for (const auto &o : a.obligations) {
+      obl.byte(static_cast<std::uint8_t>(o.kind));
+      obl.byte(static_cast<std::uint8_t>(o.actual));
+    }
+    a.certificate.obligation_digest =
+        domain_digest({{'Y', 'G', 'B', 'O', 'B', 'L', '1', '1'}}, obl.bytes());
+    canonical_encoder assignment;
+    for (const auto &v : a.vertices)
+      for (auto b : v.accepted_bits)
+        bits(assignment, b);
+    a.certificate.assignment_digest = domain_digest(
+        {{'Y', 'G', 'B', 'A', 'S', 'N', '1', '1'}}, assignment.bytes());
+    canonical_encoder components;
+    for (const auto &component : a.components)
+      components.raw(component.graph_digest.bytes.data(), 16);
+    for (const auto &transcript : a.component_transcripts)
+      components.raw(transcript.transcript_digest.bytes.data(), 16);
+    a.certificate.component_digest = domain_digest(
+        {{'Y', 'G', 'B', 'C', 'M', 'P', '1', '1'}}, components.bytes());
+    canonical_encoder pairs;
+    for (const auto &box : a.pair_boxes) {
+      pairs.id(box.triangle);
+      point(pairs, box.lower);
+      point(pairs, box.upper);
+    }
+    for (const auto &pair : a.pair_candidates) {
+      pairs.id(pair.lower);
+      pairs.id(pair.upper);
+    }
+    a.certificate.pair_digest = domain_digest(
+        {{'Y', 'G', 'B', 'P', 'A', 'R', '1', '1'}}, pairs.bytes());
+    a.canonical_bytes = semantic(a);
+    a.certificate.semantic_digest = domain_digest(
+        {{'Y', 'G', 'B', 'C', 'A', 'N', '1', '1'}}, a.canonical_bytes);
+    a.artifact_bytes = invocation(a);
+    a.artifact_digest = artifact_digest_for(a);
+    auto evidence_charge = ctx.accountant().reserve_scoped(
+        resource_kind::evidence_records, a.obligations.size(),
+        boolean_stage::geometry_realization);
+    if (!evidence_charge.has_value())
+      return evidence_charge.error();
+    realization_charges.push_back(std::move(evidence_charge.value()));
+    auto authoritative_charge = ctx.accountant().reserve_scoped(
+        resource_kind::authoritative_bytes, a.artifact_bytes.size(),
+        boolean_stage::geometry_realization);
+    if (!authoritative_charge.has_value())
+      return authoritative_charge.error();
+    realization_charges.push_back(std::move(authoritative_charge.value()));
+    auto registry = dynamic_cast<const verifier_registry *>(&ctx.verifiers());
+    if (!registry)
+      return make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::geometry_realization,
+                        "verifier_registry_required");
+    auto spec = registry->specification(
+        artifact_slot::realized_boundary, type_tag<T, I>(),
+        realized_boundary_schema, ctx.options().verification);
+    if (!spec.has_value())
+      return spec.error();
+    verification_environment_view env{ctx.owner(),
+                                      ctx.replay().setup,
+                                      ctx.contract().selected_operation(),
+                                      &ctx.options(),
+                                      ctx.platform().coordinate,
+                                      ctx.platform().index,
+                                      &ctx.kernel(),
+                                      {},
+                                      &ctx.accountant(),
+                                      [&] { return ctx.cancelled(); }};
+    for (auto &charge : realization_charges)
+      tx.stage_reservation(std::move(charge));
+    performance_count(performance_counter::realized_variables,
+                      a.vertices.size());
+    performance_count(performance_counter::realization_axis_candidates,
+                      candidate_count);
+    performance_count(performance_counter::realization_obligations,
+                      a.obligations.size());
+    performance_count(performance_counter::realization_pair_boxes,
+                      a.pair_boxes.size());
+    performance_count(performance_counter::realization_pair_candidates,
+                      a.pair_candidates.size());
+    performance_count(performance_counter::realization_exact_pair_checks,
+                      a.pair_candidates.size());
+    performance_count(performance_counter::realization_constraint_components,
+                      a.components.size());
+    performance_count(performance_counter::realization_solver_nodes,
+                      all_singleton ? 0 : a.search.visited_nodes);
+    performance_count(performance_counter::realization_complete_assignments,
+                      a.search.complete_assignments);
+    producer.finish();
+    auto ok = tx.freeze_and_verify(type_tag<T, I>(), realized_boundary_schema,
+                                   1, a.artifact_digest, spec.value(), env,
+                                   ctx.verifiers());
+    if (!ok.has_value())
+      return ok.error();
+    if (ctx.cancelled())
+      return make_error(boolean_error_code::resource_limit,
+                        boolean_stage::geometry_realization, "cancelled");
+    return tx.compare_and_publish(ctx.artifacts(), 0);
+  } catch (const std::bad_alloc &) {
+    return make_error(boolean_error_code::resource_limit,
+                      boolean_stage::geometry_realization,
+                      "realization_allocation");
+  } catch (const std::exception &e) {
+    auto x = make_error(boolean_error_code::internal_invariant_error,
+                        boolean_stage::geometry_realization,
+                        "realization_exception");
+    x.detail = e.what();
+    return x;
+  }
+}
+
+#define INST(T, I)                                                             \
+  template status_or<                                                          \
+      std::shared_ptr<const published_artifact<realized_boundary<T, I>>>>      \
+  realize_selected_boundary(boolean_context<T, I> &);                          \
+  template status_or<std::vector<realization_triangle>>                       \
+  triangulate_selected_boundary_for_realization(                              \
+      const selected_exact_boundary<T, I> &)
+INST(float, std::uint32_t);
+INST(float, std::uint64_t);
+INST(double, std::uint32_t);
+INST(double, std::uint64_t);
+#undef INST
+
+} // namespace mesh_boolean
+} // namespace ygor

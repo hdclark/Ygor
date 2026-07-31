@@ -1,0 +1,8 @@
+# id	category	operation	operand_order	types	test_id	status
+C14-DEG-001	disjoint	all	AB+BA	all	C14.E2E.disjoint.float.u32	covered
+C14-DEG-002	equal	all	AB+BA	double-u32	C14.E2E.equal.identities	covered
+C14-DEG-003	strict_containment	all	AB+BA	double-u32	C14.META.directed.swap	covered
+C14-DEG-004	empty_result	intersection+difference+symdiff	AB+BA	all	C14.E2E.disjoint.double.u64	covered
+C14-DEG-005	vertex_touching_nonmanifold	union+symmetric_difference	AB+BA	all	C14.PLANGAP.G1a	covered
+C14-DEG-006	edge_touching_nonmanifold	union+symmetric_difference	AB+BA	all	C14.PLANGAP.G1b	covered
+C14-DEG-007	one_third_intersection	intersection	AB+BA	all	C14.PLANGAP.G2a	covered

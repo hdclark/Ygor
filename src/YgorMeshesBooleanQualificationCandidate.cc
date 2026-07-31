@@ -1,0 +1,8 @@
+#include "YgorMeshesBooleanQualificationCandidate.00.inc"
+#include "YgorMeshesBooleanQualificationCandidate.01.inc"
+#include "YgorMeshesBooleanQualificationCandidate.02.inc"
+#include "YgorMeshesBooleanQualificationCandidate.03.inc"
+#include "YgorMeshesBooleanQualificationCandidate.04.inc"
+#include "YgorMeshesBooleanQualificationCandidate.05.inc"
+#include "YgorMeshesBooleanQualificationCandidate.06.inc"
+#include "YgorMeshesBooleanQualificationCandidate.07.inc"

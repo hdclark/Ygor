@@ -1,0 +1,73 @@
+name: Mesh Boolean P6.1 qualification schemas
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - 'src/YgorMeshesBooleanQualification*'
+      - 'src/YgorMeshesBooleanProductContract*'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanQualificationSchemas.cc'
+      - 'tests/Test_MeshesBooleanProductContract.cc'
+      - 'tests/CMakeLists.txt'
+      - 'docs/MeshBooleanQualification.md'
+      - 'docs/MeshBooleanProductContract.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p6-qualification-schemas.yml'
+  pull_request:
+    paths:
+      - 'src/YgorMeshesBooleanQualification*'
+      - 'src/YgorMeshesBooleanProductContract*'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanQualificationSchemas.cc'
+      - 'tests/Test_MeshesBooleanProductContract.cc'
+      - 'tests/CMakeLists.txt'
+      - 'docs/MeshBooleanQualification.md'
+      - 'docs/MeshBooleanProductContract.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p6-qualification-schemas.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  qualification-schemas:
+    name: ${{ matrix.compiler }} qualification schemas
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
+      - name: Configure
+        env:
+          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+        run: >-
+          cmake -S . -B build-p6-qualification -G Ninja
+          -DBUILD_TESTING=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DWITH_EIGEN=OFF
+          -DWITH_GNU_GSL=OFF
+      - name: Build P6.1 targets
+        run: >-
+          cmake --build build-p6-qualification
+          --target Test_MeshesBooleanQualificationSchemas Test_MeshesBooleanProductContract
+          --parallel 2
+      - name: Run P6.1 schema and selector gates
+        run: >-
+          ctest --test-dir build-p6-qualification --output-on-failure
+          -R '^(MeshBooleanQualificationSchemas.Unit|MeshesBooleanProductContract)$'
+          --timeout 600
+      - name: Retain failing test log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesh-boolean-p6-qualification-${{ matrix.compiler }}-failure
+          path: build-p6-qualification/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+          retention-days: 7

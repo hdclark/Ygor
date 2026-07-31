@@ -1,0 +1,171 @@
+# Frozen candidate campaign execution and outcome closure (P6.10)
+
+Plan 16 P6.10 is the execution boundary between the previously frozen
+qualification inputs and the reproducible report assembled in P6.11. The C++17
+interfaces are `YgorMeshesBooleanQualificationCandidate.h` and
+`YgorMeshesBooleanQualificationCandidateRunner.h`.
+
+The interfaces record, execute, and validate evidence from a controlled
+campaign. They do not fabricate a campaign, treat a bounded CI smoke test as
+controlled-host qualification, promote a backend, or weaken any P6.2-P6.9 gate.
+The serialized schema remains version 1; checker version 5 names the stricter
+manifest-binding, outcome-specific failure, supplied-canonical-state, and
+explicit offline-deferral semantics described below.
+
+## Frozen campaign plan
+
+`qualification_candidate_campaign_plan` embeds the canonical P6.1 manifest and
+requires one passing, independently validated binding for every prerequisite:
+
+- permanent corpus;
+- construction-aware generation and operation chains;
+- independent backend comparison;
+- false-success accounting;
+- controlled CAD-like ingestion;
+- preparation/result/attribute suites;
+- compiler, sanitizer, determinism, resource, and fuzz matrix; and
+- performance, memory, resource, and cancellation methodology.
+
+The plan also contains the complete execution inventory. Every execution entry
+binds its source plan and case digests, full qualification dimensions, expected
+outcome set, permitted typed failures, and regression-promotion policy. Every
+backend, result representation, preparation mode, coordinate/index pair, and
+toolchain named by an execution must be explicitly present in the embedded
+manifest. Missing, duplicate, foreign, stale, or reordered input cannot change
+the canonical plan.
+Validation requires the supplied in-memory gate and execution order to encode to
+the stored canonical bytes; retaining old bytes after reordering or mutation is
+rejected rather than silently re-canonicalized. Only verified exact or
+certified-approximate success, expected typed failure, and explicitly contracted
+timeout/resource-limit outcomes may be frozen as expected. Resource outcomes
+must name only `resource_limit`; ordinary expected typed failures cannot name a
+resource limit, internal invariant failure, backend disagreement, or verifier
+disagreement, and the two failure classes require distinct frozen cases.
+Permitting a timeout/resource-limit outcome in the frozen case contract does not
+make the observation issue-free. Checker version 5 retains every such
+observation as a timeout/resource issue, and closure requires a reviewed,
+configuration-bound rerun resolution even when the normalized outcome itself
+matches the frozen contract.
+Unexpected typed failure, disagreement, false success, nondeterminism, and
+infrastructure failure are always anomaly evidence; the plan cannot normalize
+them away. A dirty repository manifest or stale checker version is rejected.
+
+## Controlled execution runner
+
+`run_qualification_candidate_campaign(...)` executes the frozen inventory in
+canonical order through an infrastructure-supplied case executor. Every returned
+observation is independently canonicalized and checked against the exact case
+identifier and digest before it can enter the campaign.
+
+Unexpected outcomes and performance/resource regressions automatically produce
+an unresolved issue bound to that exact final observation. A caller may provide
+retained historical issues and a reconciliation callback, but the ordinary
+candidate closure rules still require reviewed evidence, affected-configuration
+reruns, and permanent-regression promotion for engine defects.
+
+A controlled runner may explicitly defer named execution entries to a later
+offline allocation through `qualification_candidate_deferred_execution`. The
+entry remains in the frozen plan and is not passed to the online executor. The
+runner instead emits a canonical `infrastructure_failure` observation with the
+key `qualification_candidate.deferred_offline`, bound to the caller-supplied
+reason and evidence digest, and retains an unresolved infrastructure issue. A
+deferral is therefore publishable as partial candidate evidence but can never
+count as a passed case, make the campaign complete, or satisfy the closure gate.
+Unknown, duplicate, empty, or unbound deferral entries fail before any case is
+executed. The later offline run must execute the original frozen case and close
+the retained issue through the ordinary reviewed, configuration-bound rerun
+path.
+
+The focused deferral contract imports the canonical
+`make_default_qualification_matrix_plan()` inventory rather than maintaining a
+second hand-written fuzz list. It requires all eight P6.8 fuzz-duration cases,
+retains each case's matrix plan digest, case digest, exact configuration
+identifier, family, and 86,400 CPU-second floor, and binds every configuration to
+the embedded candidate manifest. The online runner must skip exactly those eight
+named cases and emit eight distinct canonical infrastructure observations and
+eight distinct unresolved blocking issues. This is an inventory and checker
+contract: it prevents silent omission or coalescing of an offline allocation but
+does not claim that any 24 CPU-hour run has occurred.
+
+Cancellation, executor errors, malformed observations, reconciliation errors,
+and rejected publication all return typed failures. The publication sink is
+invoked at most once and only after the entire campaign has been assembled and
+canonicalized. Sink implementations are required to publish transactionally.
+No partial campaign is passed to the sink.
+
+## Final observations and retained issues
+
+Each execution has one final canonical observation containing the normalized
+outcome, exact typed failure code where applicable, accounting evidence,
+semantic or failure digest, replay binding, run log, and any performance or
+resource regression evidence. Campaign validation and encoding also require the
+supplied observation and issue order, counters, and completion state to match the
+stored canonical bytes, so stale canonical bytes cannot mask in-memory mutation.
+
+Every unexpected typed failure, backend or verifier disagreement, false success,
+nondeterministic result, timeout/resource outcome, infrastructure failure, or
+performance/resource regression must be retained as an issue. An unresolved
+issue is explicitly blocking. Silence is not resolution.
+
+## Resolution requirements
+
+A resolved issue must name a reviewer and rationale, retain independent evidence,
+list every affected configuration, and bind one distinct rerun observation per
+configuration. The final observation for the case must be an allowed outcome,
+contain no remaining regression, and appear in the rerun evidence.
+
+Resolved engine defects additionally require a permanent-regression binding with
+minimized case, canonical case bytes, minimization transcript, promotion
+artifact, and distinct before/after permanent-corpus digests. Infrastructure
+resolutions are limited to infrastructure or timeout/resource issues. Policy
+differences are limited to backend disagreements and bind the reviewed policy or
+plan. Performance/resource resolutions bind the reviewed replacement gate; they
+cannot silently discard the original P6.9 threshold.
+
+## Closure gate
+
+`qualification_candidate_campaign_gate_passes(...)` requires:
+
+- a canonical frozen plan and all eight prerequisite gates;
+- exactly one final observation for every execution case;
+- all final outcomes and typed failure codes within their frozen contracts;
+- no remaining performance or resource regression;
+- every current anomaly bound to its exact retained issue;
+- every historical resolved issue bound to a successful affected-configuration
+  rerun; and
+- zero unresolved or missing evidence.
+
+## Manual controlled-campaign driver
+
+`scripts/run_mesh_boolean_p610_campaign.sh` is the restartable single-machine
+execution wrapper for the outstanding controlled campaign. It captures the exact
+repository and host state, runs the available non-fuzz qualification profiles,
+requires an actual dispatcher for every non-deferred frozen manifest entry,
+advances all eight frozen fuzz-duration allocations by measured CPU-time chunks,
+and retains every command, observation, log, timeout, disagreement,
+nondeterministic result, infrastructure problem, and other anomaly in a
+checksum-bound evidence directory. Passed steps are skipped on restart; failed
+and interrupted attempts remain immutable and require explicit reviewed
+resolution evidence.
+
+The driver is not a promotion mechanism. Missing oldest compilers, libc++, or an
+independent native/emulated architecture command remain blocking. Reduced smoke
+runs are permanently marked non-qualifying. The complete invocation, output
+schema, restart rules, command-override interface, and P6.11 review procedure are
+documented in `MeshBooleanP610ManualCampaign.md`.
+
+The focused `MeshBoolean.QualificationCandidate` test exercises complete closure,
+arrival-order independence, checker-version rejection, manifest-dimension
+binding, outcome-specific typed-failure rejection, stale canonical in-memory
+state, missing execution, unresolved false success, mandatory regression
+promotion, planned resource-limit retention and reviewed rerun closure, stale
+rerun/case bindings, performance regression blocking, canonical
+runner order, automatic anomaly retention, explicit offline deferral, exact
+binding of all eight frozen P6.8 fuzz allocations, deferred arrival-order
+independence, reviewed offline rerun closure, cancellation, and
+no-partial-publication behavior. Its standalone `tests/p610` build links only
+the contract, schema, candidate, runner, qualification-matrix, and digest support
+needed by this checker; it intentionally does not build or execute the Boolean
+producer. The GCC/Clang workflow is therefore a checker and runner smoke test
+only. Actual P6.10 campaign records must come from the controlled infrastructure
+named by the manifest and remain candidate evidence until P6.11 review.

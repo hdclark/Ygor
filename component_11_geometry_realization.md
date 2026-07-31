@@ -1,0 +1,138 @@
+# Component 11: Lazy Geometry Realization and Certification
+
+## 0. Purpose
+
+Realize each selected symbolic vertex once, convert exact coordinates to `vec3<T>`, and prove that the finite-precision embedding preserves the exact selected boundary's required topology and geometry. Explicitly reject results that cannot be represented safely in `T`.
+
+Exact-coordinate export is the non-converting Component 11 path. It wraps the
+durable exact authority in an immutable, versioned record while retaining
+canonical rational coordinates, constructions, selected surface occurrences,
+non-manifold topology, spherical links, and provenance. Its requested unsigned
+index type applies only to the dense selected strata; stable source and
+construction IDs remain 64-bit. Export performs capacity and resource checks,
+binds canonical bytes to the durable exact-result digest, and is independently
+replayed from serialized bytes. It does not invoke `exact_in_T`, round a
+coordinate, merge coincident occurrences, or require manifold topology.
+
+## 1. Input contract
+
+Accept a topology-authorized verified selected exact boundary, canonical symbolic registry, exact kernel, target `T`, explicit realization semantics, search limits, and all defining-relation and embedding obligations.
+
+Original vertices normally retain their exact input `T` bit patterns. Constructed vertices have exact rational coordinates/provenance. One symbolic ID must map to one output vertex candidate globally.
+
+## 2. Required behavior
+
+### Lazy exact evaluation
+
+- Evaluate exact Cartesian coordinates only for selected vertices and any witnesses needed by certification.
+- Memoize one exact coordinate and one eventual `T` coordinate per canonical symbolic ID.
+- Prove construction consistency when multiple provenance paths define the same vertex.
+
+### Candidate conversion and semantics
+
+- Under schema-v1 `exact_in_T`, decode the correctly rounded candidate and require exact equality to the symbolic rational on every axis. A mismatch is `output_not_representable`; neighboring search cannot alter this semantic requirement.
+- If certification fails, optionally search a deterministic finite neighborhood of representable values or solve a constrained rounding assignment.
+- Shared vertices are moved only as one global variable; facets cannot realize the same symbol differently.
+- Never snap distinct symbols together or split one symbol to satisfy local consumers.
+
+### Certification obligations
+
+Build an explicit finite set of exact sign/order constraints sufficient for the emitted mesh, including:
+
+- Distinct selected vertices remain distinct where topology requires it.
+- Every output facet remains non-zero-area, planar under the output facet contract, simple, and consistently oriented.
+- Vertex order along every selected edge/carrier is preserved.
+- Adjacent facets share bit-identical indexed vertices and compatible edges.
+- Required incidences remain incidences, and prohibited non-adjacent intersections are not introduced.
+- Accepted bits satisfy every source-plane, carrier, affine-parameter, equality, and carrier-order defining relation by exact substitution.
+- Local radial/seam ordering and selected patch side orientation are preserved.
+- The realized boundary remains embedded and subdivision-equivalent to the exact selected boundary.
+
+Evaluate certification against exact interpretations of candidate `T` values. Conservative interval separation may prove constraints, but uncertain constraints require exact evaluation.
+
+Polygonal facets create an additional constraint: independently rounded vertices that were exactly coplanar may cease to be coplanar. The policy must either find certified coplanar `T` representatives, emit a certified triangulation (triangles are always planar), or fail. Deterministic triangulated emission is the baseline reliable policy.
+
+### Impossibility behavior
+
+If an exact coordinate is not representable in `T`, return `output_not_representable` with the symbol, axis, exact target, nearest bits, and nonzero difference. Search exhaustion may be called policy-relative only for a future separately tagged approximate mode. Do not drop features, widen tolerances, or claim exact success.
+
+## 3. Output contract
+
+Produce either:
+
+- `realized_boundary<T>`: one `vec3<T>` per selected symbolic vertex, realized facets/cycles, exact-to-output maps, and a passed realization certificate; or
+- A typed failure with the minimal known conflicting constraints and exact provenance.
+
+Invariants:
+
+- Realization is a single global mapping from symbolic IDs to `T` bit patterns.
+- All mandatory certification predicates match their exact-boundary signs/relations.
+- No output coordinate is NaN or infinite.
+- Original-coordinate preservation follows the declared policy exactly.
+- Conversion and search order are deterministic across supported platforms.
+
+Resource-limit failure is distinct from a proven or policy-relative representability failure.
+
+## 4. Verification and definition of done
+
+- Tests include rational intersections not exactly representable in `T`, distinct intersections rounding to one point, tiny facets, huge dynamic range, subnormals, and rounding-induced inversions.
+- Known realizable cases certify; known impossible cases fail without partial output.
+- Every emitted certificate is independently replayed from serialized `T` bit patterns.
+- Different expression/provenance paths for one symbol emit bit-identical coordinates.
+- Ambient rounding-mode and thread-count changes do not affect output.
+
+Generate the complete obligation universe before solving. Build the bipartite variable-obligation graph, solve each connected component independently in canonical least-variable order, and compose the lexicographically first component assignments. Publish per-component variables, obligations, accepted ranks, rejected-prefix witnesses, `visited_nodes`, and `complete_assignments`; the verifier replays those certificates without a global DFS.
+
+Generate triangle-pair obligations through a deterministic conservative broad phase over exact candidate-domain AABBs. Equality counts as overlap; uncertain pairs are retained. Production uses `conservative_domain_aabb_v1`, exhaustive all-pairs remains a bounded oracle, and limits return `resource_limit` rather than incomplete pruning. The verifier independently reconstructs candidates with a different implementation family.
+
+## 5. Assessment-driven realization amendment
+
+Implement three distinct result paths. They must have distinct enums, result variants, certificates, error subcodes, and public documentation.
+
+### Exact-coordinate output
+
+Permit the durable exact stratified result to expose canonical rational coordinates or versioned exact construction records without converting to `T`. This path bypasses finite-precision realization but still requires exact-result verification, serialization checks, topology classification, and ownership/lifetime guarantees.
+
+### Strict `exact_in_T`
+
+Retain the existing semantics unchanged. A candidate succeeds only when every decoded `T` coordinate equals its exact symbolic target and every defining relation and embedding obligation passes. Neighbor search may optimize discovery of the same exact value but may not relax equality. This mode is strict/certified and must not be advertised as the ordinary CAD success path.
+
+### `certified_approximate_embedding_v1`
+
+Add a separately typed approximate mode under an explicit caller policy containing model units, maximum vertex displacement, optional per-axis limits, support-plane deviation limits for triangulated output, original-vertex movement policy, candidate/search limits, and required topology/embedding obligations.
+
+Approximate success must preserve one global variable per symbolic vertex, exact occurrence topology, orientation, non-degeneracy, required edge orders and incidences, and absence of new prohibited intersections. It must bind to the exact-result digest and report every relaxed geometric relation. The certificate records exact targets, emitted bit patterns, exact displacement vectors, maxima, obligation results, search transcript summary, and all policy-relative bounds.
+
+The result kind must state that the floating mesh is a certified nearby embedding, not the exact Boolean point set. No API may return this payload through the `exact_in_T` success alternative or describe it as exact geometry.
+
+Search exhaustion in approximate mode is a policy-relative `output_not_representable` subcode. It is not proof that no embedding exists outside the configured search/bounds. Exceeding the caller's displacement policy is `approximation_policy_rejected`; verifier disagreement or certificate mismatch is an internal blocking defect.
+
+Component 13 must independently regenerate the obligation universe and replay displacement/topology certificates from the exact result plus emitted `T` bits. `plan_16_qualification_release.md` governs promotion of any approximate policy to production use.
+
+### Implemented v1 details
+
+The context product evaluator accepts a complete `product_realization_policy`
+overload and retains its earlier strict overload. Candidate generation v1 is a
+bounded symmetric nearest-neighbor ULP enumeration. Optional axis limits use
+explicit presence fields. Global displacement is compared as exact squared
+Euclidean distance, and support-plane deviation is checked as
+`|ax+by+cz+d|^2 <= bound^2*(a^2+b^2+c^2)`.
+
+The producer reuses selected-boundary triangulation and component-solving
+machinery but emits a distinct `certified_approximate_certificate`. The
+standalone approximate verifier regenerates domains and mandatory
+topology/embedding obligations from the durable exact result and emitted bits;
+its isolation target does not link the approximate producer or solver.
+
+Durable exact-result schema 2 retains canonical original source coordinate bits
+and rejects conflicting sources. Original-preserving domains use those bits
+directly, including negative zero. Candidate policy distinguishes a per-vertex
+retained cap, a request-wide streamed candidate-evaluation limit, and a
+deterministic DFS node limit.
+
+The verifier independently reconstructs hole-aware triangulation from exact
+cycles, occurrence maps, patch adjacency, vertex-link cyclic sequences, and
+edge radial sequences. It inventories every defining relation reachable from
+each selected vertex and independently replays component search, counters, and
+rejected-prefix witnesses. Canonical approximate envelopes have bounded decoders
+and serialized replay; empty results use versioned nonempty zero-domain bytes.

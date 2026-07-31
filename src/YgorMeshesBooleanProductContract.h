@@ -1,0 +1,15 @@
+#pragma once
+#ifndef YGOR_MESHES_BOOLEAN_PRODUCT_CONTRACT_H_
+#define YGOR_MESHES_BOOLEAN_PRODUCT_CONTRACT_H_
+
+#include "YgorMeshesBooleanProductContractPolicies.h"
+#include "YgorMeshesBooleanQualification.h"
+#include "YgorMeshesBooleanQualificationCorpus.h"
+#include "YgorMeshesBooleanQualificationGeneration.h"
+#include "YgorMeshesBooleanQualificationAccounting.h"
+#include "YgorMeshesBooleanProductContractResult.h"
+#include "YgorMeshesBooleanExactResult.h"
+#include "YgorMeshesBooleanBackend.h"
+#include "YgorMeshesBooleanService.h"
+
+#endif

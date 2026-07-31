@@ -1,0 +1,74 @@
+name: Mesh Boolean P6.8 qualification matrix contracts
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - 'src/YgorMeshesBooleanQualificationMatrix.*'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanQualificationMatrix.cc'
+      - 'tests/CMakeLists.txt'
+      - 'tests/mesh_boolean/requirements.tsv'
+      - 'docs/MeshBooleanQualificationMatrix.md'
+      - 'docs/MeshBooleanQualification.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p6-matrix.yml'
+  pull_request:
+    paths:
+      - 'src/YgorMeshesBooleanQualificationMatrix.*'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanQualificationMatrix.cc'
+      - 'tests/CMakeLists.txt'
+      - 'tests/mesh_boolean/requirements.tsv'
+      - 'docs/MeshBooleanQualificationMatrix.md'
+      - 'docs/MeshBooleanQualification.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p6-matrix.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  matrix-contracts:
+    name: ${{ matrix.compiler }} P6.8 matrix contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
+      - name: Configure bounded checker smoke
+        env:
+          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+        run: >-
+          cmake -S . -B build-p6-matrix -G Ninja
+          -DBUILD_TESTING=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DMEMORY_CONSTRAINED_BUILD=ON
+          -DWITH_EIGEN=OFF
+          -DWITH_GNU_GSL=OFF
+          -DYGOR_BOOLEAN_TEST_TIER=continuous
+      - name: Build P6.8 target
+        run: >-
+          cmake --build build-p6-matrix
+          --target Test_MeshesBooleanQualificationMatrix
+          --parallel 2
+      - name: Run matrix schema and gate contracts
+        run: >-
+          ctest --test-dir build-p6-matrix --output-on-failure
+          -R '^MeshBoolean\.QualificationMatrix$'
+          --timeout 1200
+      - name: Retain failing test log
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesh-boolean-p6-matrix-${{ matrix.compiler }}-failure
+          path: build-p6-matrix/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+          retention-days: 7

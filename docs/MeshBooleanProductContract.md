@@ -1,0 +1,574 @@
+# Mesh Boolean product contract (schema 7)
+
+This document defines the product boundary introduced by Plan 15 P0, the
+durable exact-result authority introduced by P1, the explicit strict and
+normalized preparation services introduced by P2, the complete output modes
+introduced by P3, the capability-described backend boundary introduced by P4,
+the stable provenance and attribute-transfer contract introduced by P5.1,
+the conservative one-call service introduced by P5.2, the ordinary-caller
+and migration guidance introduced by P5.3, and the qualification evidence
+schemas introduced by P6.1. It does not promote any backend to production
+qualification.
+
+## Current support boundary
+
+The in-tree symbolic engine is identified as `experimental_exact_v1` and has
+maturity `experimental`. It is never selected by `qualified_default` unless a
+qualification manifest names the exact backend build, capability digest,
+preparation mode, result representation, and workload profile and binds a
+validated campaign manifest, complete machine result summary, and reviewed
+human report. Experimental or
+candidate backends require both `explicit_backend` (or another explicitly named
+producer policy) and `allow_experimental_backend=true` under
+`allow_explicit_unqualified` qualification policy.
+
+The evaluator requires strict, already-valid operands. Unknown-provenance STL,
+OBJ, scan, or CAD tessellations are not a supported end-to-end product workflow:
+passing such a mesh directly to an expert raw-operand API is an unsupported
+claim that the caller already established the complete strict B-rep contract.
+Such sources require an explicit preparation decision and, until a preparation
+profile is qualified, application review outside the Boolean engine.
+
+`strict_validation`, `diagnosis_only`, and `normalized` are distinct
+preparation contracts. No normalization operation is enabled by default. P2
+implements diagnosis-only preparation and individually selected policies for
+irrelevant-storage removal, exact duplicate consolidation, orientation repair,
+attribute-seam-aware near-duplicate consolidation, crack closure, non-planar
+facet handling, overlapping-facet resolution, sliver handling, and
+self-intersection handling. Sliver and self-intersection handling are currently
+explicit rejection policies, not remeshing. An implemented policy is not a
+qualified workflow or a general-purpose import healer.
+
+## Choosing a preparation path
+
+Choose the path from provenance and modeling intent before Boolean evaluation:
+
+- Use strict validation only when the producer guarantees the documented
+  closed, embedded, oriented, exactly planar B-rep contract. Failure rejects the
+  operand; strict validation never edits it.
+- Use diagnosis-only for an untrusted source when the application needs a
+  deterministic defect inventory before deciding what to do. Diagnosis performs
+  no edits. A returned prepared operand means the strict validator accepted the
+  unchanged mesh, not that its source profile is product-qualified.
+- Use one specific structural or geometry-changing policy only when the caller
+  has declared the model unit, tolerance where required, allowed edit class, and
+  application acceptance criteria. No repair class is inferred from defects and
+  the current service permits only one repair operation per request.
+
+Strict preparation is explicit:
+
+```cpp
+strict_validation_policy strict;
+auto prepared = validate_operand_strict(mesh, strict, boolean_options{}, kernel,
+                                        verifiers);
+if (!prepared.has_value()) {
+  // Reject: no Boolean request may use this operand as strict input.
+}
+```
+
+Diagnosis-only is the default normalization policy and does not heal the mesh:
+
+```cpp
+normalization_policy diagnosis;
+diagnosis.mode = normalization_mode::diagnosis_only;
+normalization_report report;
+auto prepared = normalize_operand(mesh, diagnosis, report);
+// Inspect report.unresolved_defects even when prepared has a value.
+// If prepared has no value, the report remains diagnostic evidence only.
+```
+
+A repair must name exactly one operation. For example, structural removal of
+irrelevant storage is requested as follows:
+
+```cpp
+normalization_policy repair;
+repair.mode = normalization_mode::structural_only;
+repair.enabled_operations = normalization_operation_bit(
+    normalization_operation::irrelevant_storage_removal);
+normalization_report report;
+auto prepared = normalize_operand(mesh, repair, report);
+```
+
+Before using a normalized `prepared_operand`, the application must inspect and
+accept the policy, source/output digests, unresolved defects, edits,
+displacements, topology changes, source mappings, reversibility, and strict
+validation certificate. It should persist the canonical report and may invoke
+`verify_normalization_report` to independently replay it. Reject the result if
+any edit, tolerance, unresolved defect, attribute conflict, unavailable mapping,
+or irreversibility exceeds the application's declared acceptance criteria. A
+successful normalization call proves only conformance to that selected policy
+and post-edit strict validation; it does not confer qualification.
+
+## Strict operand preparation
+
+`validate_operand_strict` runs the authoritative Component 2 validator and
+returns an immutable `prepared_operand<T,I>`. The prepared operand owns its
+input mesh, so later mutation or destruction of caller storage cannot change a
+request. Its certificate binds coordinate/index types, input and prepared
+digests, strict policy, exact-kernel policy, Component 2 semantic artifact,
+verification report, invariant set, and the fact that geometry was not changed.
+
+`encode_prepared_operand` and `decode_prepared_operand` provide canonical,
+resource-bounded serialization. Decoding rejects stale bindings, corruption,
+truncation, trailing bytes, type overflow, and non-canonical records. A backend
+request made from prepared operands verifies those bindings, retains immutable
+operand lifetimes, and reruns Component 2 validation in the request context.
+Prepared and raw paths therefore have equivalent strict topology semantics;
+prepared input is not a bypass around validation.
+
+Prepared-operand schema 3 additionally retains the immutable pre-normalization
+source whenever a normalization report is attached. This lets decoding and each
+later Boolean request independently replay source mappings and edits against the
+published output; the source is provenance evidence and is never evaluated as
+the backend operand.
+
+Strict preparation performs no tolerance operation, snapping, welding,
+orientation repair, or other healing. The normalization service separately
+supports `structural_only` with exactly one of
+`irrelevant_storage_removal`, `exact_duplicate_consolidation`, or
+`orientation_repair` enabled.
+Irrelevant-storage removal first requires a strict-valid source, removes
+vertices unreferenced by every facet, and stably compacts indices and aligned
+per-vertex storage. Exact duplicate consolidation retains the lowest source
+ordinal for exact floating-value coordinate classes (the two signed-zero
+encodings represent the same exact zero), requires all present normals and
+colours in a class to compare exactly equal, rewrites connectivity, and removes only
+facets that become identical under cyclic rotation or reversal. Conflicting
+attribute seams and any collapse or unrelated defect fail closed. Stored
+involved-face indices are treated as derived data and rebuilt when present.
+
+Orientation repair first solves exact opposite-edge-use parity independently
+for each closed orientable shell, then reconstructs the exact shell containment
+forest and enforces outward material shells at even depth and inward cavity
+shells at odd depth. It changes only facet ring direction: coordinates,
+undirected incidence, facet ordinals, attributes, and metadata remain unchanged.
+Open, non-manifold, non-orientable, intersecting, contacting, duplicate, or
+ambiguously nested geometry is not healed by this operation.
+
+The geometry-changing `seam_aware_vertex_consolidation` policy requires an
+explicit model unit and positive tolerance. Distances are compared as exact
+dyadic rationals against the binary64 policy tolerance. Vertices are considered
+in source order and merge into the lowest retained compatible ordinal; unequal
+present normals or colours preserve a seam and prohibit that merge. The
+operation does not remove facets or accept collapsed connectivity. Every actual
+move carries a canonical bounded squared-displacement record in the declared
+unit, and every merge carries source mapping and topology evidence.
+
+All normalization operations rerun full strict validation before publication
+and emit canonical source-to-prepared maps and edit evidence. Structural
+operations claim exact-zero displacement; seam-aware near-duplicate
+consolidation records every nonzero movement. Diagnosis-only remains the default
+and performs no edits. The legacy strict-policy field
+`remove_unused_storage=true` continues to fail closed so edits cannot bypass the
+normalization report.
+
+The geometry-changing `crack_closure` policy diagnoses every edge with one
+facet use and every non-edge pair of boundary vertices within the exact dyadic
+model tolerance. Closure is deliberately narrower than general welding: a
+candidate pair must be attribute-compatible, neither endpoint may have another
+candidate, the vertices must not already share an edge, and the higher source
+ordinal merges into the lower source ordinal. Every merge and nonzero movement
+is reported with canonical topology and bounded-displacement evidence. The
+operation never inserts or splits entities. Ambiguous matching, attribute
+conflicts, gaps outside tolerance, or cases requiring bridging geometry remain
+unchanged typed failures. Full Component 2 validation must accept the resulting
+closed, embedded, oriented solid before publication.
+
+The geometry-changing `nonplanar_facet_handling` operation requires exactly one
+non-default `nonplanar_facet_policy`. `triangulate` derives a deterministic
+projection from the first exact non-collinear support triple, requires every
+ring vertex to lie within the declared exact dyadic support-plane distance,
+and performs exact-predicate ear clipping without moving vertices. Each source
+facet maps to its first prepared descendant, while topology records enumerate
+and bind every generated triangle. `axis_aligned_refit` selects the coordinate
+axis having the smallest ring range, uses the first ring vertex as the plane
+anchor, and moves shared vertices only when all affected-facet proposals agree
+and each exact dyadic displacement is within tolerance. It preserves incidence
+and reports every moved vertex. Both modes fail closed on degenerate projection,
+conflicting refit proposals, tolerance rejection, index/resource limits, or any
+post-repair Component 2 failure. Neither mode is implicit and neither is a
+general best-fit surface reconstruction policy.
+
+The exact-zero `overlapping_facet_resolution` operation assigns ownership by
+lowest source facet ordinal and removes a later same-oriented coplanar facet
+only when its complete closed polygon is proved contained by one retained
+owner. It accepts no tolerance and moves no vertex. Removed facets and storage
+are mapped to their retained owner or the removed-ordinal sentinel, and every
+removal has canonical edit and topology evidence. Vertex normals and colours at
+coincident owner/loser vertices must agree exactly; disagreement is reported as
+an attribute conflict and fails closed. Opposite-oriented overlap is never
+interpreted as cancellation. Partial overlap that would require splitting or
+remeshing is diagnosed explicitly and remains unsupported by this policy. The
+result is published only after full strict Component 2 revalidation, and a
+valid input is an idempotent identity.
+
+Triangular slivers are diagnosed with an exact scale-aware test. For a triangle,
+the minimum altitude is the altitude to its longest edge; the
+`triangular_sliver_below_tolerance` defect is emitted exactly when that altitude
+is strictly below the caller's positive model tolerance. Exact-zero-area facets
+remain Component 2 contract failures, while nonzero slivers remain valid input
+under strict validation and diagnosis-only preparation. Enabling
+`sliver_handling` explicitly rejects a diagnosed sliver and publishes no edits.
+No edge collapse, facet deletion, or vertex movement is currently approved:
+each can change the regular closed solid or cross an attribute seam without a
+separate remeshing contract. Non-triangular facets are therefore not assigned a
+triangulation-dependent sliver label by this policy.
+
+Self-intersection diagnosis exactly tests non-adjacent edges of every planar
+source ring and every diagnosable planar facet pair. Pair findings distinguish
+intersections beyond an adjacent shared edge, intersections beyond a shared
+vertex, and intersections between topologically non-adjacent facets. Source
+facet and edge ordinals and the exact intersection dimension are retained in
+canonical report records and independently replayed. The explicitly selected
+`self_intersection_repair` operation currently rejects every such finding and
+publishes no edit, topology change, or displacement. No general cut/remesh is
+approved: intersecting sheets do not uniquely determine retained occupancy or
+shell ownership, and exact cut coordinates need not be representable in the
+source coordinate type. Inputs without a self-intersection remain an idempotent
+identity under this policy.
+
+## Authoritative result and representations
+
+`exact_result_handle` is an immutable, shared-lifetime owner populated from a
+verified `selected_exact_boundary`. It carries no `boolean_context` owner token
+and remains valid after the producing invocation is destroyed. Its canonical
+record owns exact rational coordinates, selected surface occurrences, local
+spherical links, topology obstructions, construction relations, side decisions,
+source contributors, and operation/backend/preparation provenance.
+
+`read_exact_result` independently reconstructs the result from canonical bytes;
+it does not trust producer-owned derived tables or context tokens. Decoding
+checks the canonical digest, all cross-references and certificate counts, exact
+topology, backend and preparation bindings, resource limits, and canonical
+re-encoding. `request_later_realization<T,I>` records a type- and policy-bound
+request against the retained exact-result digest. Exact-coordinate consumers
+can use the decoded rational boundary immediately or call
+`export_exact_coordinates<I>`. The immutable export owns canonical bytes and a
+fully decoded exact boundary independently of the originating context. It
+preserves selected surface occurrences, halfedge occurrence endpoints,
+spherical links, topology obstructions, construction records, and source and
+backend provenance; coincident coordinates never cause occurrence welding.
+
+Exact-coordinate export schema 2 embeds the authoritative exact-result record
+and binds it to the durable exact-result digest. Coordinates remain normalized
+canonical rationals and are never rounded to a floating-point type. The export
+index policy applies `I` to the dense selected vertex, occurrence, edge,
+halfedge, cycle, and patch strata. Stable source, construction, and provenance
+IDs remain 64-bit. The all-ones index value is reserved, so `entity_capacity`
+is the maximum dense collection size. Export fails with `index_overflow` or
+`resource_limit` before publication when that contract cannot be met.
+
+`decode_exact_coordinate_export` performs bounded canonical decoding and full
+embedded exact-result verification. `verify_serialized_exact_coordinate_export`
+uses a separate export-envelope parser, checks both digests and metadata, and
+replays the exact-result verifier from bytes. Both reject corruption,
+truncation, trailing bytes, stale bindings, and non-canonical encoding;
+`validate_exact_coordinate_export_binding` additionally rejects mutated
+in-memory boundary data. Strict finite-`T` realization and certified
+approximate embedding are integrated with the product envelope.
+
+`evaluate_boolean_product_result` is the expert productization path for the
+current in-tree backend. It publishes the verified exact authority before
+calling Components 11 and 12. A topology rejection or strict finite-`T`
+realization failure therefore returns an `exact_stratified` envelope with the
+failed realization attempt instead of erasing the exact success.
+
+The five-argument overload additionally accepts a complete
+`product_realization_policy`. The four-argument overload remains the strict
+`exact_in_T` compatibility path. Approximate requests must use the full-policy
+overload and are returned only as `certified_approximate_mesh`.
+
+`boolean_product_result<T,I>` is a tagged envelope with exactly three result
+representations:
+
+- `exact_stratified`: the authoritative exact boundary, including empty and
+  stratified non-manifold topology. It has no mesh payload.
+- `exact_in_T_mesh`: a strict mesh realization whose emitted binary floating
+  coordinates equal the exact targets. This remains a special-purpose mode,
+  not the ordinary CAD-output target.
+- `certified_approximate_mesh`: a separately tagged embedding bound to an
+  explicit displacement/tolerance policy and certificate. It never claims
+  exact point-set equality.
+
+A failed mesh realization may be recorded while the exact result remains a
+successful, retained product result. Schema 7 retains that authority
+unconditionally, and product-option validation rejects any policy that permits
+discarding it.
+
+## Stable provenance and attribute transfer
+
+P5.1 treats attributes as a publication layer over an already verified exact
+Boolean result. Attribute values, names, IDs, seams, normals, colours, metadata,
+or opaque payloads are never consulted by Components 3 through 10 and therefore
+cannot alter predicates, event identity, arrangement topology, side labels, or
+Boolean selection. The exact boundary remains authoritative when every
+attribute channel is omitted or rejected.
+
+`attribute_transfer_policy_contract` is versioned with the product options and
+separately freezes:
+
+- source body, shell, and facet identifier preservation;
+- material and per-face metadata merge behavior;
+- exact-source/equal-merge behavior for vertex normals and colours;
+- the prohibition on implicit interpolation for constructed vertices;
+- sharp-edge aggregation, texture-seam preservation, opaque-channel merging,
+  and compact construction provenance;
+- report-and-omit versus fail-closed conflict behavior; and
+- whether absent supported channels are emitted as explicit omissions.
+
+`omit_all_with_report` intentionally publishes no transferred values but still
+produces complete mappings and omission evidence. `preserve_supported_with_report`
+publishes every supported value permitted by the declared channel policy and
+records all omissions and conflicts. `require_lossless` requires conflict
+rejection and rejects any omission or conflict; it cannot be paired with a
+policy that deliberately omits a channel.
+
+The source side is a canonical two-operand `attribute_source_catalog`. Each
+catalog contains stable body, shell, facet, vertex, and undirected-edge entities,
+plus named byte-valued channels. Built-in mesh storage contributes vertex
+normals, vertex colours, and metadata as explicit source values; applications
+may provide additional canonical `source_attribute_input` records for materials,
+face metadata, sharp-edge tags, texture seams, and opaque channels. Duplicate or
+malformed source records, foreign operand references, non-existent source
+entities, non-canonical ordering, and resource-limit violations fail closed.
+
+For normalized prepared operands, the catalog composes P2's canonical
+source-to-prepared maps rather than treating repaired storage as the original
+source. Many-to-one duplicate consolidation therefore retains every original
+contributor, removed storage remains addressable in omission evidence, and
+output queries resolve to pre-normalization vertex, edge, facet, shell, and body
+identities. Geometry-changing preparation does not authorize attribute
+interpolation or conflict suppression.
+
+Durable exact-result schema/checker 3 retains source contributors for selected
+vertices, patches, and selected-edge geometry. Every exact vertex, edge, and
+patch receives an `attribute_exact_entity_mapping` containing its canonical
+source-entity set and compact construction-provenance digest. Split descendants
+copy a source value with `split_copy`; equal multi-source values use
+`merged_equal`; deterministic source sets, representative copies, any-source
+sharp tags, and compact construction records have distinct resolution kinds.
+Coincident derivations do not silently choose one source. Unequal values produce
+canonical conflict and omission records unless the policy requires immediate
+`attribute_transfer_conflict` failure.
+
+A source value attached only to a facet or feature removed by regularized
+selection is reported as `removed_internal_entity`; it is never silently lost.
+Constructed entities without a source value, prohibited interpolation, missing
+source mappings, absent supported channels, texture-seam mismatches, and
+policy-directed omissions likewise have typed reasons. Report counters are
+derived from the complete canonical issue list rather than trusted producer
+statistics.
+
+Mesh realizations add an `attribute_output_binding` from each public vertex to
+one exact selected vertex and each public face to one exact selected patch. The
+binding includes coordinate/index tags, exact-result digest, and canonical
+output digest. Strict and certified-approximate paths derive these mappings from
+their independently verified realization records; public output ordering is not
+used to infer source ownership. Output mappings reference the exact transfer
+records instead of duplicating or reinterpreting values.
+
+`attribute_transfer_report` owns the policy, policy digest, exact-result digest,
+optional output digest, both source catalogs, exact and output mappings, transfer
+records, issues, canonical bytes, and report digest. Encoding and decoding are
+resource-bounded and reject unknown enums, stale schemas, malformed lengths,
+truncation, trailing bytes, and non-canonical re-encoding.
+`verify_attribute_transfer_report` independently reconstructs contributor sets,
+construction digests, every transfer resolution, every omission/conflict, and
+every output mapping from the source catalogs, durable exact result, and optional
+mesh binding. `verify_serialized_attribute_transfer_report` starts from bytes and
+replays the same checks. The verifier is compiled as a separate translation
+unit with no access to producer-private transfer helpers; only the public
+canonical codec is shared at the serialization boundary.
+
+## Semantic policy versus search policy
+
+`product_realization_semantics` states what a success means.
+`realization_search_policy` states how candidates may be explored. They are
+separate fields and are validated against the requested representation.
+Changing nearest-value, neighbouring-value, candidate, or search-node limits
+cannot turn an exact request into approximate success.
+
+`certified_approximate_embedding_v1` uses candidate-generation version 1:
+correctly rounded nearest value followed by a symmetric predecessor/successor
+ULP neighborhood. Values and Cartesian candidates have deterministic exact
+error, ULP-step, rank, and bit-pattern tie breaks. `candidate_ulp_radius` and
+`max_candidates` is the retained valid Cartesian candidate cap per realized
+vertex. `max_candidate_evaluations` separately bounds all streamed Cartesian
+tuples examined across the request; cancellation and counter overflow are
+resource failures. `max_search_nodes` counts visited deterministic DFS nodes,
+including component roots, and is a resource limit rather than a backtrack
+count. Completed bounded-domain exhaustion returns
+`output_not_representable` with subcode `approximate_search_exhausted_subcode`;
+hitting the solver limit returns `resource_limit`.
+
+Schema 7 also requires explicit `max_obligations`, `max_triangle_pairs`,
+`max_predicate_checks`, `max_verifier_work`, `max_verifier_records`, and
+`max_verifier_bytes` values. Independent checked counters advance from actual
+bytes and records parsed, candidates materialized, topology and ear-clipping
+work, exact predicates executed, and search nodes replayed. Topology replay
+receives a verifier-owned charging callback and cannot use certificate counters
+for gating. Cancellation, arithmetic overflow, and reaching one of these limits
+return typed `resource_limit` failures rather than completed search exhaustion.
+
+Axis limits have separate `has_max_axis_displacement_*` presence fields. A
+present zero is a real zero bound. Global displacement uses exact squared
+Euclidean comparison. For support plane `(a,b,c,d)`, every triangulated vertex
+is checked exactly using
+`|ax+by+cz+d|^2 <= bound^2*(a^2+b^2+c^2)`.
+
+Durable exact-result schema/checker 3 records every original source's coordinate
+type and raw bits. Detachment and independent exact-result validation require
+each record to decode to the exact selected coordinate, but preserve differing
+source encodings such as signed zero. When original movement is disabled, an
+ambiguous set of source encodings returns policy-relative
+`output_not_representable`; when movement is allowed, ordinary candidate
+generation may proceed.
+
+Independent in-memory and serialized verification repeats the all-record
+identity check when movement is disabled. A certificate selecting only the
+first raw encoding is rejected even if its certificate bytes and digest were
+canonicalized after the forgery.
+
+The approximate payload contains a distinct
+`certified_approximate_certificate<T,I>`, not strict vertex bindings. It records
+exact targets, output bits, exact displacement vectors/maxima, exact selected
+strata counts, triangulation/support evidence, the complete mandatory
+obligation inventory, all relaxed relations, component assignments, search
+transcripts, and the durable exact-result digest. Mandatory topology,
+orientation, incidence, noncollapse, link/radial-order, and prohibited-
+intersection obligations are not caller-disableable.
+
+`verify_certified_approximate_embedding` independently reconstructs candidate
+domains, exact dyadic points, displacement/plane bounds, orientation,
+noncollapse, edge incidence, vertex links, patch partitions, triangle
+intersections, occurrence maps, patch adjacency, cyclic vertex links, edge
+radial sequences, obligations, relaxed relations, and all output/certificate
+digests. It independently rebuilds deterministic hole-aware triangulation from
+durable cycles and support planes; certificate-selected patches, projections,
+triangles, and orientations are never authoritative. Every defining relation
+reachable through a realized vertex's construction graph is inventoried, with
+canonical normalized squared residual evidence for every relaxation.
+
+The verifier also reruns component formation and deterministic DFS, checking
+variable order, accepted ranks, rejected-prefix witnesses, visited nodes,
+complete assignments, and component/search transcript digests. Empty output is
+a valid approximate mesh with versioned nonempty zero-domain bytes.
+
+`encode_certified_approximate_embedding` creates a canonical envelope containing
+the durable exact-result bytes, output bits/faces, and full certificate.
+`verify_serialized_certified_approximate_embedding` begins from those bytes,
+performs bounded canonical decoding, reruns verification, and requires identical
+re-encoding. Corruption, truncation, trailing/noncanonical data, and decode
+limits fail closed. `ygor_mesh_boolean_approximate_verifier_isolation` links no
+approximate producer, candidate search, solver, or realization object.
+
+## Backend selection and fallback
+
+The supported selection contracts are:
+
+- `explicit_backend`: one caller-named producer, no fallback.
+- `qualified_default`: only a profile in the bound qualification manifest.
+- `diagnostic_compare`: one declared producer plus independent comparators;
+  agreement is evidence and never majority-vote publication.
+- `explicit_fallback_chain`: a caller-ordered chain and an explicit allow-list
+  of failure categories.
+
+Fallback is rejected for internal invariant errors, capability mismatches,
+backend or verifier disagreement, stale bindings, replay mismatch, exact-result
+serialization errors, and qualification-policy violations. The implemented
+executor retains the primary failure, every producer attempt, the selected
+producer identity, and whether fallback was used. Diagnostic-only adapters are
+recorded in the execution envelope but never inserted into durable producer
+provenance and never participate in majority-vote publication.
+
+`boolean_backend<T, I>` consumes immutable prepared operands through a frozen,
+versioned request envelope. The registry freezes adapter identities, roles,
+versions, capability digests, and deterministic ordering before evaluation;
+lookup rejects version, capability, maturity, role, or implementation drift.
+Every successful attempt is adapter-verified before it can be published, and
+cancellation and diagnostic resource limits return typed failures without
+partial publication.
+
+The in-tree Components 3 through 10 are wrapped unchanged as the explicit-opt-in
+`experimental_exact_v1` producer. The independently implemented
+`independent_axis_aligned_box_v1` adapter is diagnostic-only and candidate
+maturity. Its declared workload profile is `axis_aligned_box_pair_v1`. It accepts
+strictly prepared, outward-oriented exact dyadic boxes, validates the complete
+corner/face/orientation conversion without tolerances, and independently
+constructs exact arrangement-cell occupancy, exact volume, connected-component,
+boundary, and output-bounds evidence. Unsupported non-box input is a typed
+capability mismatch rather than an approximate comparison.
+
+`qualified_default` selects only a frozen registry entry whose exact backend,
+capability digest, requested representation, preparation mode, and workload
+profile are bound by the supplied qualification manifest. The selector also
+binds the P6.1 campaign-manifest, normalized-result-summary, and reviewed-report
+digests; zero, stale, or substituted evidence is rejected before selection.
+`make_qualification_evidence_binding` accepts only a complete campaign with a
+`qualified` report decision and zero blocking outcomes or false successes. The
+canonical evidence schemas, material-change invalidation rules, and explicit
+compatibility-review contract are documented in
+`docs/MeshBooleanQualification.md`. No matching profile returns
+`backend_unqualified`; this implementation does not promote either adapter to a
+production-qualified general CAD profile.
+
+## Versioning and decoding
+
+Options, artifacts, errors, certificates, and replay bindings use schema 7.
+Canonical records contain an eight-byte domain tag, schema, exact payload
+length, and positional payload. Decoders reject:
+
+- unknown schema, enum, backend, capability, or error values;
+- malformed booleans, truncation, trailing bytes, and non-canonical duplicate
+  lists;
+- configured record, string, and vector limits before allocation;
+- stale capability, manifest, exact-result, and cross-layer digest bindings;
+- any reinterpretation of strict `exact_in_T` as approximate output.
+
+Backend provenance contains stable backend ID, adapter semantic version, build
+identifier, maturity, capability bits, and capability digest. Product results,
+exact results, realization certificate references, fallback records, and replay
+bindings carry or validate this provenance.
+
+## Error categories
+
+The product error schema retains the original engine categories and adds:
+`normalization_required`, `normalization_failed`, `backend_unavailable`,
+`backend_capability_mismatch`, `backend_disagreement`, `backend_unqualified`,
+`exact_result_serialization_error`, `attribute_transfer_conflict`,
+`approximation_policy_rejected`, and `qualification_policy_violation`.
+`stale_binding`, `replay_mismatch`, and `verifier_disagreement` are explicit
+fail-closed contract errors and are never fallback-authorized.
+
+## Current non-goals
+
+The current productized scope does not:
+
+- change Components 3 through 10 or their exact semantics;
+- automatically choose, combine, or qualify normalization repairs for an
+  unknown-provenance import;
+- execute finite-`T` realization from a deferred realization request (the
+  executable context product path is supported);
+- provide a general-purpose external CAD backend beyond the narrow
+  diagnostic-only axis-aligned-box profile;
+- claim any production-qualified backend/result/preparation profile.
+
+## One-call conservative service
+
+P5.2 adds `boolean_operation(a, b, op, boolean_service_options)` as the ordinary
+product entry point. It creates and owns the default exact kernel, mandatory
+verifier set, and backend registry, performs explicit strict or normalized
+preparation, evaluates the capability-described backend request, independently
+validates the execution envelope, and publishes one immutable
+`boolean_product_result`.
+
+Defaults do not authorize the experimental backend: `qualified_default`
+requires a matching manifest/profile, normalization is disabled, fallback is
+absent, exact stratified output is requested, mandatory verification is on, and
+exact authority is retained after a requested mesh realization fails. Explicit
+experimental use requires both backend selection and unqualified-use opt-in.
+Kernel, verifier, executor, backend-registry, and immutable result-store
+dependency injection remains available only through the separately documented
+`boolean_operation_expert` API. See `docs/MeshBooleanService.md` for the service
+contract and `docs/MeshBooleanMigration.md` for ordinary-caller migration,
+result handling, and the explicit unknown-provenance preparation boundary.

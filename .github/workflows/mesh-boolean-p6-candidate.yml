@@ -1,0 +1,96 @@
+name: Mesh Boolean P6.10 candidate campaign contracts
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - 'src/YgorMeshesBooleanQualificationCandidate.*'
+      - 'src/YgorMeshesBooleanQualificationCandidateRunner.*'
+      - 'tests/Test_MeshesBooleanQualificationCandidate.*'
+      - 'tests/CMakeLists.txt'
+      - 'tests/p610/CMakeLists.txt'
+      - 'tests/mesh_boolean/requirements.tsv'
+      - 'tests/MeshBooleanTestConfig.cc'
+      - 'scripts/run_mesh_boolean_p610_campaign.sh'
+      - 'docs/MeshBooleanQualificationCandidate.md'
+      - 'docs/MeshBooleanP610ManualCampaign.md'
+      - 'docs/MeshBooleanQualification.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p6-candidate.yml'
+  pull_request:
+    paths:
+      - 'src/YgorMeshesBooleanQualificationCandidate.*'
+      - 'src/YgorMeshesBooleanQualificationCandidateRunner.*'
+      - 'tests/Test_MeshesBooleanQualificationCandidate.*'
+      - 'tests/CMakeLists.txt'
+      - 'tests/p610/CMakeLists.txt'
+      - 'tests/mesh_boolean/requirements.tsv'
+      - 'tests/MeshBooleanTestConfig.cc'
+      - 'scripts/run_mesh_boolean_p610_campaign.sh'
+      - 'docs/MeshBooleanQualificationCandidate.md'
+      - 'docs/MeshBooleanP610ManualCampaign.md'
+      - 'docs/MeshBooleanQualification.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p6-candidate.yml'
+
+concurrency:
+  group: mesh-boolean-p6-candidate-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  candidate-contracts:
+    name: ${{ matrix.compiler }} P6.10 candidate contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
+      - name: Validate manual campaign driver
+        run: |
+          bash -n scripts/run_mesh_boolean_p610_campaign.sh
+          scripts/run_mesh_boolean_p610_campaign.sh --self-test
+      - name: Configure bounded checker smoke
+        env:
+          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+        run: >-
+          cmake -S tests/p610 -B build-p6-candidate -G Ninja
+          -DBUILD_TESTING=ON
+          -DYGOR_BUILD_BOOLEAN_TESTS=ON
+          -DYGOR_BUILD_BOOLEAN_BENCHMARKS=OFF
+          -DCMAKE_BUILD_TYPE=Debug
+          -DMEMORY_CONSTRAINED_BUILD=ON
+          -DWITH_EIGEN=OFF
+          -DWITH_GNU_GSL=OFF
+          -DYGOR_BOOLEAN_TEST_TIER=continuous
+      - name: Build P6.10 target
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake --build build-p6-candidate \
+            --target Test_MeshesBooleanQualificationCandidate \
+            --parallel 2 |& tee build-p6-candidate/build.log
+      - name: Run candidate closure contracts
+        run: >-
+          ctest --test-dir build-p6-candidate --output-on-failure
+          -R '^MeshBoolean\.QualificationCandidate$'
+          --timeout 1200
+      - name: Retain failing build and test logs
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesh-boolean-p6-candidate-${{ matrix.compiler }}-failure
+          path: |
+            build-p6-candidate/build.log
+            build-p6-candidate/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+          retention-days: 7

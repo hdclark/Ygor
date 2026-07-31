@@ -29,8 +29,9 @@ build_ci_debian_stable:
     - |
       ./compile_and_install.sh
       ./tests2/compile_and_run.sh
-      ./tests/compile.sh
-      for i in ./tests/test_* ./tests/report* ; do printf "== $i ==\n" ; timeout 5s "$i" || true ; done
+      cmake -S . -B build-contract -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Debug -DWITH_EIGEN=OFF -DWITH_GNU_GSL=OFF
+      cmake --build build-contract --parallel 2
+      cmake -E chdir build-contract ctest --output-on-failure -L mesh_boolean
 
 # CI build on Arch Linux.
 # Notes: reduced (or missing) optimization, some components may be missing.
@@ -55,5 +56,62 @@ build_ci_arch:
     - |
       su - builduser -c "cd '$(pwd)' && ./compile_and_install.sh -b build"
       ./tests2/compile_and_run.sh
-      ./tests/compile.sh
-      for i in ./tests/test_* ./tests/report* ; do printf "== $i ==\n" ; timeout 5s "$i" || true ; done
+      cmake -S . -B build-contract -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Release -DWITH_EIGEN=OFF -DWITH_GNU_GSL=OFF
+      cmake --build build-contract --parallel 2
+      cmake -E chdir build-contract ctest --output-on-failure -L mesh_boolean
+
+mesh_boolean_asan_ubsan:
+  stage: build_and_test
+  tags: [ygor, docker, linux]
+  image: "debian:stable"
+  before_script:
+    - "apt-get update --yes"
+    - "apt-get install --yes --no-install-recommends cmake make g++ libgsl-dev libeigen3-dev"
+  script:
+    - cmake -S . -B build-sanitize -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS='-fsanitize=address,undefined -fno-omit-frame-pointer' -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=address,undefined' -DCMAKE_SHARED_LINKER_FLAGS='-fsanitize=address,undefined'
+    - cmake --build build-sanitize --target Test_MeshesBooleanVerification --parallel 2
+    - cmake --build build-sanitize --target Test_MeshesBooleanInputTopology --parallel 2
+    - cmake --build build-sanitize --target Test_MeshesBooleanBroadPhase --parallel 2
+    - cmake --build build-sanitize --target Test_MeshesBooleanIntersectionEvents --parallel 2
+    - cmake --build build-sanitize --target Test_MeshesBooleanSymbolicRegistry --parallel 2
+    - cmake --build build-sanitize --target Test_MeshesBooleanCellClassification --parallel 2
+    - cmake --build build-sanitize --target Test_MeshesBooleanSelection --parallel 2
+    - cmake --build build-sanitize --target Test_MeshesBooleanRealization --parallel 2
+    - cmake --build build-sanitize --target Test_MeshesBooleanCellClassificationAdversarial --parallel 2
+    - cmake --build build-sanitize --target Test_MeshesBooleanSelectionAdversarial --parallel 2
+    - cmake -E chdir build-sanitize ctest --output-on-failure -R '^(MeshBooleanVerification.Unit|MeshBooleanInputTopology.Unit|MeshBooleanBroadPhase.Unit|MeshBooleanIntersectionEvents.Unit|MeshBooleanSymbolicRegistry.Unit|MeshBooleanCellClassification.(Unit|Adversarial)|MeshBooleanSelection.(Unit|Adversarial)|MeshBooleanRealization.Unit)$' --timeout 300
+
+mesh_boolean_tsan:
+  stage: build_and_test
+  tags: [ygor, docker, linux]
+  image: "debian:stable"
+  before_script:
+    - "apt-get update --yes"
+    - "apt-get install --yes --no-install-recommends cmake make g++ libgsl-dev libeigen3-dev"
+  script:
+    - cmake -S . -B build-tsan -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE=Debug -DCMAKE_CXX_FLAGS='-fsanitize=thread -fno-omit-frame-pointer' -DCMAKE_EXE_LINKER_FLAGS='-fsanitize=thread' -DCMAKE_SHARED_LINKER_FLAGS='-fsanitize=thread'
+    - cmake --build build-tsan --target Test_MeshesBooleanInputTopologyProperties --parallel 2
+    - cmake --build build-tsan --target Test_MeshesBooleanBroadPhaseProperties --parallel 2
+    - cmake --build build-tsan --target Test_MeshesBooleanIntersectionEventsProperties --parallel 2
+    - cmake --build build-tsan --target Test_MeshesBooleanSymbolicRegistryProperties --parallel 2
+    - cmake --build build-tsan --target Test_MeshesBooleanCellClassificationProperties --parallel 2
+    - cmake --build build-tsan --target Test_MeshesBooleanSelectionProperties --parallel 2
+    - cmake --build build-tsan --target Test_MeshesBooleanRealizationProperties --parallel 2
+    - cmake --build build-tsan --target Test_MeshesBooleanCellClassificationAdversarial --parallel 2
+    - cmake --build build-tsan --target Test_MeshesBooleanSelectionAdversarial --parallel 2
+    - cmake -E chdir build-tsan ctest --output-on-failure -R '^(MeshBooleanInputTopology.Properties|MeshBooleanBroadPhase.Properties|MeshBooleanIntersectionEvents.Properties|MeshBooleanSymbolicRegistry.Properties|MeshBooleanCellClassification.(Properties|Adversarial)|MeshBooleanSelection.(Properties|Adversarial)|MeshBooleanRealization.Properties)$' --timeout 300
+
+mesh_boolean_clang:
+  stage: build_and_test
+  tags: [ygor, docker, linux]
+  parallel:
+    matrix:
+      - BUILD_TYPE: [Debug, Release]
+  image: "debian:stable"
+  before_script:
+    - "apt-get update --yes"
+    - "apt-get install --yes --no-install-recommends cmake make clang libgsl-dev libeigen3-dev"
+  script:
+    - cmake -S . -B "build-clang-${BUILD_TYPE}" -DBUILD_TESTING=ON -DCMAKE_BUILD_TYPE="${BUILD_TYPE}" -DCMAKE_C_COMPILER=clang -DCMAKE_CXX_COMPILER=clang++ -DWITH_EIGEN=OFF -DWITH_GNU_GSL=OFF
+    - cmake --build "build-clang-${BUILD_TYPE}" --parallel 2
+    - cmake -E chdir "build-clang-${BUILD_TYPE}" ctest --output-on-failure -R '^(MeshBoolean\.PlanGap\.|MeshBoolean\.(Replay|Qualification)$|MeshBooleanIntersectionEvents\.(Unit|Properties)|MeshBooleanSymbolicRegistry\.(Unit|Properties)|MeshBooleanCellClassification\.(Unit|Properties|Adversarial)|MeshBooleanSelection\.(Unit|Properties|Adversarial)|MeshBooleanRealization\.(Unit|Properties))$' --timeout 600

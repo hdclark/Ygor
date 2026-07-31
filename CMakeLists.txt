@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.12.0 FATAL_ERROR)
 
 STRING(TIMESTAMP INVOCATION_TIMESTAMP "%Y%m%d.%H%M%S") # For a time-based version number.
 project(Ygor VERSION ${INVOCATION_TIMESTAMP} LANGUAGES CXX)
+include(CTest)
 
 ####################################################################################
 #                                  User Options
@@ -21,6 +22,12 @@ option(WITH_GNU_GSL   "Compile assuming the GNU GSL is available." ON)
 option(USE_LTO "Use link-time optimization when available." OFF)
 
 option(BUILD_SHARED_LIBS "Build shared-object/dynamically-loaded binaries." ON)
+option(YGOR_BUILD_BOOLEAN_TESTS "Build authoritative mesh Boolean tests." ON)
+option(YGOR_BOOLEAN_STRICT_FP "Use strict floating point for mesh Boolean code." ON)
+option(YGOR_BUILD_BOOLEAN_BENCHMARKS "Build mesh Boolean performance tools." ON)
+set(YGOR_BOOLEAN_TEST_TIER "continuous" CACHE STRING
+    "Mesh Boolean test tier: continuous, extended, or qualification")
+set_property(CACHE YGOR_BOOLEAN_TEST_TIER PROPERTY STRINGS continuous extended qualification)
 
 ####################################################################################
 #                                  Configuration
@@ -208,8 +215,10 @@ if(ARCH_IS_ARM OR ARCH_IS_ARM64)
 endif()
 
 
-# Workaround for GCCv8 std::filesystem sidecar library -- can be removed when GCCv8 no longer relevant.
-if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU")
+# Workaround for GCCv8 libstdc++'s std::filesystem sidecar library. Clang can
+# use the same libstdc++, so detect the library independently of the compiler.
+if("${CMAKE_CXX_COMPILER_ID}" STREQUAL "GNU" OR
+   "${CMAKE_CXX_COMPILER_ID}" MATCHES "Clang")
     foreach(lib_dir ${CMAKE_CXX_IMPLICIT_LINK_DIRECTORIES})
         #message("Searching directory ${lib_dir}")
         file(GLOB_RECURSE STD_FS_LIB "${lib_dir}*stdc++fs*")
@@ -261,6 +270,12 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})
 
 add_subdirectory(src)
 add_subdirectory(binaries)
+if(BUILD_TESTING)
+    add_subdirectory(tests)
+endif()
+if(BUILD_TESTING AND YGOR_BUILD_BOOLEAN_TESTS AND YGOR_BUILD_BOOLEAN_BENCHMARKS)
+    add_subdirectory(benchmarks)
+endif()
 
 
 ####################################################################################

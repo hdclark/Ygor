@@ -1,0 +1,1 @@
+Synthetic source-model placeholder for a redistributable licensed corpus record. The full source artifact is content-addressed and retrieved only under its recorded procedure.
