@@ -79,6 +79,7 @@ add_library(ygor_mesh_boolean_bounded_strict
     EventCoordinates.cc
     EventIncidence.cc
     BoundedCarrierOrdering.cc
+    IntersectionAggregation.cc
     SourceEdgeArrangements.cc
     TransverseCarrierArrangements.cc
     CoplanarCarrierArrangements.cc

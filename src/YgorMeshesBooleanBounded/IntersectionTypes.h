@@ -226,6 +226,9 @@ enum class intersection_aggregate_locus : std::uint8_t {
   overlap_boundary = 7,
   source_facet = 8,
   shell = 9,
+  conceptual_event = 10,
+  coplanar_component = 11,
+  source_edge_interval = 12,
 };
 
 enum class intersection_checkpoint : std::uint32_t {

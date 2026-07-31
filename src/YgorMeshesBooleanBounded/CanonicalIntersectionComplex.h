@@ -359,17 +359,36 @@ struct coplanar_region_incidence_record final {
   std::uint16_t reserved16 = 0;
 };
 
+struct crossing_subtotal_record final {
+  relation_feature_key source_feature{};
+  std::int64_t numeric_signed_sum = 0;
+  std::int32_t symbolic_signed_sum = 0;
+  operand_id symbolic_owner = operand_id::a;
+  std::uint8_t symbolic_owner_mask = 0;
+  bool mixed_symbolic_ownership = false;
+  intersection_range members{};
+  std::uint16_t schema_version = contract_versions::intersection_aggregate_schema;
+  std::uint16_t reserved16 = 0;
+};
+
 struct crossing_aggregate_record final {
   crossing_aggregate_id id{0};
   intersection_aggregate_locus locus =
       intersection_aggregate_locus::event_occurrence;
+  relation_feature_key source_feature{};
   std::uint64_t locus_ordinal = 0;
   std::int64_t numeric_signed_sum = 0;
   std::int32_t symbolic_signed_sum = 0;
+  std::int32_t entering_count = 0;
+  std::int32_t leaving_count = 0;
   operand_id symbolic_owner = operand_id::a;
+  std::uint8_t symbolic_owner_mask = 0;
+  bool mixed_symbolic_ownership = false;
+  bool zero_net_contact_retained = false;
   intersection_range members{};
   intersection_range facet_subtotals{};
   intersection_range shell_subtotals{};
+  bool member_order_verified = false;
   bool conserved = false;
   std::uint16_t schema_version = contract_versions::intersection_aggregate_schema;
   std::uint8_t reserved8 = 0;
@@ -379,9 +398,13 @@ struct contact_aggregate_record final {
   contact_aggregate_id id{0};
   intersection_aggregate_locus locus =
       intersection_aggregate_locus::event_occurrence;
+  relation_feature_key source_feature{};
   std::uint64_t locus_ordinal = 0;
   feature_relation_status contact_status = feature_relation_status::point_contact;
   relation_contact_dimension contact_dimension = relation_contact_dimension::point;
+  operand_id symbolic_owner = operand_id::a;
+  std::uint8_t symbolic_owner_mask = 0;
+  bool mixed_symbolic_ownership = false;
   intersection_range members{};
   bool zero_net_retained = false;
   bool tangent_retained = false;
@@ -576,8 +599,20 @@ public:
       const noexcept { return coplanar_region_incidence_; }
   const std::vector<crossing_aggregate_record> &crossing_aggregates()
       const noexcept { return crossing_aggregates_; }
+  const std::vector<event_incidence_id> &crossing_aggregate_members()
+      const noexcept { return crossing_aggregate_members_; }
+  const std::vector<crossing_subtotal_record> &crossing_facet_subtotals()
+      const noexcept { return crossing_facet_subtotals_; }
+  const std::vector<event_incidence_id> &crossing_facet_subtotal_members()
+      const noexcept { return crossing_facet_subtotal_members_; }
+  const std::vector<crossing_subtotal_record> &crossing_shell_subtotals()
+      const noexcept { return crossing_shell_subtotals_; }
+  const std::vector<event_incidence_id> &crossing_shell_subtotal_members()
+      const noexcept { return crossing_shell_subtotal_members_; }
   const std::vector<contact_aggregate_record> &contact_aggregates()
       const noexcept { return contact_aggregates_; }
+  const std::vector<event_incidence_id> &contact_aggregate_members()
+      const noexcept { return contact_aggregate_members_; }
   const std::vector<intersection_descriptor_record> &descriptors() const noexcept {
     return descriptors_;
   }
@@ -658,7 +693,13 @@ private:
   std::vector<coplanar_overlap_record> coplanar_overlaps_{};
   std::vector<coplanar_region_incidence_record> coplanar_region_incidence_{};
   std::vector<crossing_aggregate_record> crossing_aggregates_{};
+  std::vector<event_incidence_id> crossing_aggregate_members_{};
+  std::vector<crossing_subtotal_record> crossing_facet_subtotals_{};
+  std::vector<event_incidence_id> crossing_facet_subtotal_members_{};
+  std::vector<crossing_subtotal_record> crossing_shell_subtotals_{};
+  std::vector<event_incidence_id> crossing_shell_subtotal_members_{};
   std::vector<contact_aggregate_record> contact_aggregates_{};
+  std::vector<event_incidence_id> contact_aggregate_members_{};
   std::vector<intersection_descriptor_record> descriptors_{};
   std::vector<ordering_certificate_record> ordering_certificates_{};
   std::vector<intersection_diagnostic_record> diagnostics_{};
