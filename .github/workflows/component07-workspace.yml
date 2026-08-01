@@ -5,35 +5,25 @@ on:
     branches:
       - master
       - agent/component07-runner-base
-
-permissions:
-  contents: write
+  push:
+    branches:
+      - agent/bounded-manifold-mesh-boolean-plan
 
 jobs:
   export:
-    runs-on: ubuntu-24.04
-    timeout-minutes: 30
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: agent/bounded-manifold-mesh-boolean-plan
           fetch-depth: 0
-      - name: Publish validated Component 08 implementation
-        shell: bash
+      - name: Package checkout
         run: |
-          set -euo pipefail
-          cat .component08-verifier-patch/chunk-* > /tmp/component08-verifier.patch
-          printf '%s  %s\n' '5d3116cfab0ce8917f1967cd39ad354b6b21717f8090eb496d0dd039084d308a' /tmp/component08-verifier.patch | sha256sum --check -
-          git show fabcb8336cc5fa977ef26801c772a034d60ce72e:.github/workflows/component07-workspace.yml > .github/workflows/component07-workspace.yml
-          git show a025c81d0fd24ccf907294e74411c8ff6c28129c:.github/workflows/component08-workspace-export.yml > .github/workflows/component08-workspace-export.yml
-          git apply --check /tmp/component08-verifier.patch
-          git apply /tmp/component08-verifier.patch
-          rm -rf .component08-workspace-export .component08-verifier-patch
-          git restore --source=HEAD -- .github/workflows/component07-workspace.yml .github/workflows/component08-workspace-export.yml
-          rm -f .github/workflows/component08-verifier-validation.yml
-          git diff --check
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'Implement Component 08 independent verifier (plan 08)'
-          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
+          git status --short --branch
+          tar --exclude=.git --exclude=build -czf /tmp/ygor-component07-workspace.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ygor-component07-workspace
+          path: /tmp/ygor-component07-workspace.tar.gz
+          if-no-files-found: error
+          retention-days: 1
