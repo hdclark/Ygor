@@ -1,0 +1,36 @@
+name: Component 08 temporary workspace export
+
+on:
+  push:
+    branches:
+      - agent/bounded-manifold-mesh-boolean-plan
+
+permissions:
+  contents: write
+
+jobs:
+  export:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Export checkout into reviewable text chunks
+        shell: bash
+        run: |
+          set -euo pipefail
+          rm -rf .component08-workspace-export
+          mkdir -p .component08-workspace-export
+          tar --exclude=.git --exclude=build --exclude=.component08-workspace-export -czf /tmp/ygor-component08-workspace.tar.gz .
+          base64 /tmp/ygor-component08-workspace.tar.gz > /tmp/ygor-component08-workspace.b64
+          split -d -a 3 -l 800 /tmp/ygor-component08-workspace.b64 .component08-workspace-export/chunk-
+          sha256sum /tmp/ygor-component08-workspace.tar.gz | awk '{print $1}' > .component08-workspace-export/archive.sha256
+          wc -c < /tmp/ygor-component08-workspace.tar.gz | tr -d ' ' > .component08-workspace-export/archive.bytes
+          find .component08-workspace-export -name 'chunk-*' -type f | sort | sed 's#^.component08-workspace-export/##' > .component08-workspace-export/chunks.txt
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .component08-workspace-export
+          git commit -m 'Stage Component 08 workspace export'
+          git push
