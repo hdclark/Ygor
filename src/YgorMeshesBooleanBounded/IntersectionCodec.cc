@@ -416,10 +416,18 @@ bool read_cluster_key(canonical_reader &reader, source_edge_cluster_key &key,
 bool read_boundary_key(canonical_reader &reader, source_edge_boundary_key &key,
                        decode_budget &budget) {
   std::uint8_t kind = 0;
-  if (!reader.u8(kind) || !read_cluster_key(reader, key.cluster, budget))
+  if (!reader.u8(kind))
     return false;
   key.kind = static_cast<boundary_reference_kind>(kind);
-  return true;
+  switch (key.kind) {
+  case boundary_reference_kind::start_sentinel:
+  case boundary_reference_kind::end_sentinel:
+    key.cluster = {};
+    return true;
+  case boundary_reference_kind::cluster:
+    return read_cluster_key(reader, key.cluster, budget);
+  }
+  return false;
 }
 
 bool read_interval_key(canonical_reader &reader, source_edge_interval_key &key,

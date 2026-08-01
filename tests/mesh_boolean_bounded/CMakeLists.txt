@@ -383,3 +383,19 @@ ygor_apply_mesh_boolean_strict_fp(
     ygor_mesh_boolean_intersection_codec_tests)
 add_test(NAME mesh_boolean_bounded_component08_codec
     COMMAND ygor_mesh_boolean_intersection_codec_tests)
+
+add_executable(ygor_mesh_boolean_intersection_verifier_tests
+    TestIntersectionVerifier.cc
+    BroadPhaseFixtures.cc
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_include_directories(
+    ygor_mesh_boolean_intersection_verifier_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(
+    ygor_mesh_boolean_intersection_verifier_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(
+    ygor_mesh_boolean_intersection_verifier_tests)
+add_test(NAME mesh_boolean_bounded_component08_verifier
+    COMMAND ygor_mesh_boolean_intersection_verifier_tests)
