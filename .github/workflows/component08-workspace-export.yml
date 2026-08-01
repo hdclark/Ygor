@@ -1,4 +1,4 @@
-name: Component 08 temporary workspace export
+name: Apply Component 08 verifier slice
 
 on:
   push:
@@ -9,35 +9,47 @@ permissions:
   contents: write
 
 jobs:
-  export:
+  apply:
     if: github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
     steps:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Package clean checkout
+      - name: Reassemble and verify patch
         shell: bash
         run: |
           set -euo pipefail
-          tar --exclude=.git --exclude=build --exclude=.component08-workspace-export -czf /tmp/ygor-component08-workspace.tar.gz .
-          sha256sum /tmp/ygor-component08-workspace.tar.gz
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ygor-component08-workspace
-          path: /tmp/ygor-component08-workspace.tar.gz
-          if-no-files-found: error
-          retention-days: 1
-      - name: Publish run identifier
+          cat .component08-verifier-patch/chunk-* > /tmp/component08-verifier.patch
+          printf '%s  %s\n' 'beb10a160bcf5bdd849d625ee8c8fd7f35feab0436db94da32b7a8e788ff4490' /tmp/component08-verifier.patch | sha256sum --check -
+          git show a025c81d0fd24ccf907294e74411c8ff6c28129c:.github/workflows/component08-workspace-export.yml > .github/workflows/component08-workspace-export.yml
+          git apply --check /tmp/component08-verifier.patch
+          git apply /tmp/component08-verifier.patch
+          rm -rf .component08-workspace-export .component08-verifier-patch
+      - name: Configure strict C++17 build
+        run: >-
+          cmake -S . -B build
+          -DCMAKE_BUILD_TYPE=Release
+          -DBUILD_TESTING=ON
+          -DMEMORY_CONSTRAINED_BUILD=ON
+          -DWITH_EIGEN=OFF
+          -DWITH_GNU_GSL=OFF
+      - name: Build verifier target
+        run: >-
+          cmake --build build
+          --target ygor_mesh_boolean_intersection_verifier_tests
+          --parallel 2
+      - name: Run verifier regression
+        run: >-
+          ctest --test-dir build --output-on-failure
+          -R '^mesh_boolean_bounded_component08_verifier$'
+      - name: Commit validated implementation
         shell: bash
         run: |
           set -euo pipefail
-          mkdir -p .component08-workspace-export
-          printf '%s\n' "${GITHUB_RUN_ID}" > .component08-workspace-export/artifact-run-id
-          printf '%s\n' "${GITHUB_SHA}" > .component08-workspace-export/artifact-head-sha
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .component08-workspace-export/artifact-run-id .component08-workspace-export/artifact-head-sha
-          git commit -m 'Record Component 08 workspace artifact run'
+          git add -A
+          git commit -m 'Implement Component 08 independent verifier (plan 08)'
           git push

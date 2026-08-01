@@ -1,0 +1,223 @@
+er_invalid,
++                             "Component 08 verifier rejected transverse carrier");
++      return false;
++    }
++    for (std::uint64_t j = 0; j < carrier.relation_provenance.count; ++j) {
++      const auto id = artifact.carrier_relation_provenance()[
++          carrier.relation_provenance.begin + j];
++      if (id.ordinal() >= relation_count) {
++        error = verifier_error(intersection_subcode::transverse_carrier_invalid,
++                               "Component 08 carrier relation provenance is stale");
++        return false;
++      }
++      const auto status = relations.relations()[id.ordinal()].status;
++      if (status == feature_relation_status::coincidence_same_orientation ||
++          status == feature_relation_status::coincidence_opposite_orientation ||
++          status == feature_relation_status::overlap ||
++          status == feature_relation_status::containment) {
++        error = verifier_error(intersection_subcode::coplanar_routed_transverse,
++                               "Component 08 routed coplanar lineage through transverse carrier");
++        return false;
++      }
++    }
++    for (std::uint64_t j = 0; j < carrier.candidate_provenance.count; ++j)
++      if (artifact.carrier_candidate_provenance()[
++              carrier.candidate_provenance.begin + j]
++              .ordinal() >= candidate_count) {
++        error = verifier_error(intersection_subcode::transverse_carrier_invalid,
++                               "Component 08 carrier candidate provenance is stale");
++        return false;
++      }
++    for (std::uint64_t j = 0; j < carrier.memberships.count; ++j) {
++      const auto id = artifact.carrier_membership_index()[carrier.memberships.begin + j];
++      if (id.ordinal() >= membership_owner.size() ||
++          membership_owner[id.ordinal()] != intersection_invalid_ordinal ||
++          artifact.carrier_memberships()[id.ordinal()].carrier != carrier.id) {
++        error = verifier_error(intersection_subcode::transverse_carrier_invalid,
++                               "Component 08 carrier membership partition is invalid");
++        return false;
++      }
++      membership_owner[id.ordinal()] = carrier.id.ordinal();
++    }
++    for (std::uint64_t j = 0; j < carrier.clusters.count; ++j) {
++      const auto id = artifact.transverse_carrier_cluster_index()[carrier.clusters.begin + j];
++      if (id.ordinal() >= cluster_owner.size() ||
++          cluster_owner[id.ordinal()] != intersection_invalid_ordinal ||
++          artifact.carrier_clusters()[id.ordinal()].carrier != carrier.id) {
++        error = verifier_error(intersection_subcode::cluster_invalid,
++                               "Component 08 carrier cluster partition is invalid");
++        return false;
++      }
++      cluster_owner[id.ordinal()] = carrier.id.ordinal();
++    }
++    for (std::uint64_t j = 0; j < carrier.active_spans.count; ++j) {
++      const auto id = artifact.transverse_carrier_span_index()[carrier.active_spans.begin + j];
++      if (id.ordinal() >= span_owner.size() ||
++          span_owner[id.ordinal()] != intersection_invalid_ordinal ||
++          artifact.carrier_active_spans()[id.ordinal()].carrier != carrier.id) {
++        error = verifier_error(intersection_subcode::transverse_span_invalid,
++                               "Component 08 carrier span partition is invalid");
++        return false;
++      }
++      span_owner[id.ordinal()] = carrier.id.ordinal();
++    }
++  }
++
++  if (std::find(membership_owner.begin(), membership_owner.end(),
++                intersection_invalid_ordinal) != membership_owner.end() ||
++      std::find(cluster_owner.begin(), cluster_owner.end(),
++                intersection_invalid_ordinal) != cluster_owner.end() ||
++      std::find(span_owner.begin(), span_owner.end(),
++                intersection_invalid_ordinal) != span_owner.end()) {
++    error = verifier_error(intersection_subcode::transverse_carrier_invalid,
++                           "Component 08 transverse partition omitted a record");
++    return false;
++  }
++
++  for (const auto &membership : artifact.carrier_memberships()) {
++    if (membership.carrier.ordinal() >= artifact.transverse_carriers().size() ||
++        membership.occurrence.ordinal() >= artifact.occurrences().size() ||
++        membership.event.ordinal() >= artifact.events().size() ||
++        membership.parameter.ordinal() >= relations.interval_evidence().size() ||
++        membership.schema_version !=
++            contract_versions::intersection_carrier_membership_schema ||
++        membership.reserved16 != 0 || membership.reserved32 != 0) {
++      error = verifier_error(intersection_subcode::transverse_carrier_invalid,
++                             "Component 08 verifier rejected carrier membership");
++      return false;
++    }
++  }
++
++  for (const auto &cluster : artifact.carrier_clusters()) {
++    if (!add_pair_checks(cluster.occurrence_members.count, limits, pair_checks,
++                         work, error))
++      return false;
++    if (cluster.carrier.ordinal() >= artifact.transverse_carriers().size() ||
++        !valid_range(cluster.occurrence_members,
++                     artifact.carrier_cluster_occurrence_index().size()) ||
++        !valid_range(cluster.membership_members,
++                     artifact.carrier_cluster_membership_index().size()) ||
++        cluster.occurrence_members.count != cluster.membership_members.count ||
++        cluster.schema_version != contract_versions::intersection_cluster_schema) {
++      error = verifier_error(intersection_subcode::cluster_invalid,
++                             "Component 08 verifier rejected carrier cluster");
++      return false;
++    }
++    for (std::uint64_t j = 0; j < cluster.membership_members.count; ++j) {
++      const auto mid = artifact.carrier_cluster_membership_index()[
++          cluster.membership_members.begin + j];
++      const auto oid = artifact.carrier_cluster_occurrence_index()[
++          cluster.occurrence_members.begin + j];
++      if (mid.ordinal() >= artifact.carrier_memberships().size() ||
++          oid.ordinal() >= artifact.occurrences().size() ||
++          artifact.carrier_memberships()[mid.ordinal()].carrier !=
++              cluster.carrier ||
++          artifact.carrier_memberships()[mid.ordinal()].occurrence != oid) {
++        error = verifier_error(intersection_subcode::cluster_invalid,
++                               "Component 08 carrier cluster member mismatch");
++        return false;
++      }
++    }
++  }
++
++  for (const auto &span : artifact.carrier_active_spans()) {
++    if (span.carrier.ordinal() >= artifact.transverse_carriers().size() ||
++        span.left.ordinal() >= artifact.carrier_clusters().size() ||
++        span.right.ordinal() >= artifact.carrier_clusters().size() ||
++        span.left == span.right ||
++        artifact.carrier_clusters()[span.left.ordinal()].carrier != span.carrier ||
++        artifact.carrier_clusters()[span.right.ordinal()].carrier != span.carrier ||
++        span.activation == intersection_span_activation::unresolved ||
++        span.activation == intersection_span_activation::invalid ||
++        !valid_range(span.region_incidence,
++                     artifact.carrier_span_region_incidence().size()) ||
++        !valid_range(span.provenance,
++                     artifact.carrier_span_relation_provenance().size()) ||
++        span.schema_version != contract_versions::intersection_carrier_schema) {
++      error = verifier_error(intersection_subcode::transverse_span_invalid,
++                             "Component 08 verifier rejected carrier span");
++      return false;
++    }
++    for (std::uint64_t j = 0; j < span.provenance.count; ++j)
++      if (artifact.carrier_span_relation_provenance()[span.provenance.begin + j]
++              .ordinal() >= relation_count) {
++        error = verifier_error(intersection_subcode::transverse_span_invalid,
++                               "Component 08 span relation provenance is stale");
++        return false;
++      }
++    for (std::uint64_t j = 0; j < span.region_incidence.count; ++j)
++      if (artifact.carrier_span_region_incidence()[span.region_incidence.begin + j]
++              .ordinal() >= region_count) {
++        error = verifier_error(intersection_subcode::transverse_span_invalid,
++                               "Component 08 span region evidence is stale");
++        return false;
++      }
++    if (span.activation == intersection_span_activation::inactive &&
++        (span.classification_cut || span.contact_delimiter ||
++         span.output_edge_allowed)) {
++      error = verifier_error(intersection_subcode::unsupported_gap_connected,
++                             "Component 08 connected an inactive carrier gap");
++      return false;
++    }
++  }
++
++  (void)transverse;
++  return add_work(artifact.transverse_carriers().size() +
++                      artifact.carrier_memberships().size() +
++                      artifact.carrier_clusters().size() +
++                      artifact.carrier_active_spans().size(),
++                  limits, work, error);
++}
++
++template <class T, class I>
++bool audit_coplanar(
++    const signed_feature_relations<T, I> &relations,
++    const canonical_intersection_complex<T, I> &artifact,
++    const coplanar_carrier_arrangement_tables &coplanar,
++    const intersection_verifier_limits &limits, std::uint64_t &work,
++    bounded_boolean_error &error) {
++  if (!contiguous_ids<coplanar_support_id>(artifact.coplanar_supports()) ||
++      !contiguous_ids<collinear_overlap_carrier_id>(artifact.overlap_carriers()) ||
++      !contiguous_ids<coplanar_overlap_record_id>(artifact.coplanar_overlaps()) ||
++      !contiguous_ids<coplanar_region_incidence_id>(
++          artifact.coplanar_region_incidence()) ||
++      !strictly_sorted(artifact.coplanar_supports(),
++                       [](const auto &a, const auto &b) {
++                         return a.key < b.key;
++                       }) ||
++      !strictly_sorted(artifact.overlap_carriers(),
++                       [](const auto &a, const auto &b) {
++                         return a.key < b.key;
++                       }) ||
++      !strictly_sorted(artifact.coplanar_overlaps(),
++                       [](const auto &a, const auto &b) {
++                         return a.key < b.key;
++                       })) {
++    error = verifier_error(intersection_subcode::overlap_carrier_invalid,
++                           "Component 08 verifier rejected coplanar IDs/order");
++    return false;
++  }
++
++  const auto relation_count = relations.relations().size();
++  const auto candidate_count = relations.candidate_dispositions().size();
++  const auto component_count = relations.coplanar_overlap_components().size();
++  for (const auto &support : artifact.coplanar_supports()) {
++    if (!valid_coplanar_support_key(support.key) ||
++        support.key.first_facet != support.first_facet ||
++        support.key.second_facet != support.second_facet ||
++        support.key.support_lineage != support.support_lineage ||
++        support.key.opposite_orientation != support.opposite_orientation ||
++        support.key.symbolic_owner != support.symbolic_owner ||
++        support.first_facet.kind != relation_feature_kind::source_facet ||
++        support.second_facet.kind != relation_feature_kind::source_facet ||
++        support.first_facet.operand == support.second_facet.operand ||
++        support.schema_version != contract_versions::intersection_overlap_schema ||
++        support.reserved16 != 0 ||
++        !valid_range(support.original_boundary_edges,
++                     artifact.coplanar_support_original_boundary_edge_index().size()) ||
++        !valid_range(support.boundary_events,
++                     artifact.coplanar_support_boundary_event_index().size()) ||
++        !valid_range(support.boundary_carriers,
++                     artifact.coplanar_support_boundary_carrier_index().size()) ||
++        !valid_range(support.overlap_components,
++              

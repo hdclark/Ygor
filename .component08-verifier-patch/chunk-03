@@ -1,0 +1,233 @@
+urrence separation changed coordinate semantics");
++      return false;
++    }
++  }
++
++  for (std::size_t i = 0; i < artifact.seed_bindings().size(); ++i) {
++    const auto &binding = artifact.seed_bindings()[i];
++    if (binding.seed.ordinal() >= relations.event_seeds().size() ||
++        binding.canonical_seed_ordinal != binding.seed.ordinal() ||
++        !(binding.seed_key == relations.event_seeds()[binding.seed.ordinal()].key) ||
++        binding.event.ordinal() >= artifact.events().size() ||
++        binding.occurrence.ordinal() >= artifact.occurrences().size() ||
++        binding.relation.ordinal() >= relations.relations().size() ||
++        binding.construction.ordinal() >= relations.constructions().size() ||
++        binding.schema_version !=
++            contract_versions::intersection_seed_binding_schema ||
++        binding.reserved32 != 0 || !binding.compatibility_verified ||
++        !valid_range(binding.incidence, artifact.incidence_by_seed().size()) ||
++        !valid_range(binding.candidate_incidence,
++                     artifact.incidence_by_seed_candidate().size()) ||
++        artifact.seed_to_event()[binding.seed.ordinal()] != binding.event ||
++        artifact.seed_to_occurrence()[binding.seed.ordinal()] !=
++            binding.occurrence) {
++      error = verifier_error(
++          intersection_subcode::seed_mapping_incomplete,
++          "Component 08 verifier rejected seed binding");
++      return false;
++    }
++  }
++
++  return add_work(artifact.events().size() + artifact.occurrences().size() +
++                      artifact.seed_bindings().size() + artifact.incidence().size(),
++                  limits, work, error);
++}
++
++template <class T, class I>
++bool audit_source_edges(
++    const signed_feature_relations<T, I> &relations,
++    const canonical_intersection_complex<T, I> &artifact,
++    const event_interning_tables &interning,
++    const event_incidence_tables &incidence,
++    const source_edge_arrangement_tables &source_edges,
++    const intersection_verifier_limits &limits, std::uint64_t &pair_checks,
++    std::uint64_t &work, bounded_boolean_error &error) {
++  std::vector<source_edge_membership_proposal> proposals;
++  bounded_boolean_error local;
++  if (!collect_source_edge_membership_proposals(
++          relations.event_seeds(), relations.interval_evidence(), interning,
++          incidence, proposals, local)) {
++    error = verifier_error(
++        intersection_subcode::membership_incomplete,
++        "Component 08 verifier could not reconstruct source-edge memberships");
++    return false;
++  }
++  bool domains_ok = true;
++  const auto domains = source_domains(artifact, domains_ok);
++  const auto predecessor_domains = predecessor_source_domains(relations, domains_ok);
++  if (!domains_ok || !same_source_domains(domains, predecessor_domains) ||
++      !verify_source_edge_arrangements<T>(domains, proposals, source_edges,
++                                          local)) {
++    error = verifier_error(
++        intersection_subcode::source_edge_partition_invalid,
++        "Component 08 source-edge arrangement reconstruction failed");
++    return false;
++  }
++
++  if (!contiguous_ids<source_edge_membership_id>(
++          artifact.source_edge_memberships()) ||
++      !contiguous_ids<source_edge_sequence_id>(artifact.source_edge_sequences()) ||
++      !contiguous_ids<source_edge_cluster_id>(artifact.source_edge_clusters()) ||
++      !contiguous_ids<source_edge_interval_id>(artifact.source_edge_intervals()) ||
++      !strictly_sorted(artifact.source_edge_memberships(),
++                       [](const auto &a, const auto &b) {
++                         return a.key < b.key;
++                       }) ||
++      !strictly_sorted(artifact.source_edge_sequences(),
++                       [](const auto &a, const auto &b) {
++                         return a.source_edge < b.source_edge;
++                       })) {
++    error = verifier_error(
++        intersection_subcode::source_edge_sequence_invalid,
++        "Component 08 verifier rejected source-edge canonical order");
++    return false;
++  }
++
++  for (const auto &membership : artifact.source_edge_memberships()) {
++    if (membership.occurrence.ordinal() >= artifact.occurrences().size() ||
++        membership.event.ordinal() >= artifact.events().size() ||
++        membership.parameter.ordinal() >= relations.interval_evidence().size() ||
++        !(membership.key.occurrence ==
++            artifact.occurrences()[membership.occurrence.ordinal()].key) ||
++        membership.key.source_edge.kind != relation_feature_kind::source_edge ||
++        (membership.key.occurrence.event.authoritative_source_feature.kind ==
++             relation_feature_kind::source_edge &&
++         membership.key.source_edge !=
++             membership.key.occurrence.event.authoritative_source_feature) ||
++        !valid_range(membership.contributions, artifact.incidence().size()) ||
++        membership.schema_version !=
++            contract_versions::intersection_source_edge_membership_schema ||
++        membership.reserved16 != 0) {
++      error = verifier_error(
++          intersection_subcode::membership_incomplete,
++          "Component 08 verifier rejected source-edge membership");
++      return false;
++    }
++    if (membership.internal_diagonal_discovery &&
++        !membership.bookkeeping_only) {
++      error = verifier_error(
++          intersection_subcode::internal_diagonal_public_ownership,
++          "Component 08 internal diagonal became public membership");
++      return false;
++    }
++  }
++
++  for (const auto &sequence : artifact.source_edge_sequences()) {
++    if (!valid_range(sequence.clusters,
++                     artifact.source_edge_sequence_cluster_index().size()) ||
++        !valid_range(sequence.memberships,
++                     artifact.source_edge_membership_sequence_index().size()) ||
++        !valid_range(sequence.intervals,
++                     artifact.source_edge_sequence_interval_index().size()) ||
++        !valid_range(sequence.aggregates,
++                     artifact.crossing_aggregates().size()) ||
++        !valid_range(sequence.descriptors, artifact.descriptors().size()) ||
++        sequence.schema_version !=
++            contract_versions::intersection_source_edge_sequence_schema ||
++        sequence.reserved8 != 0 || sequence.reserved32 != 0 ||
++        !sequence.canonical_forward) {
++      error = verifier_error(
++          intersection_subcode::source_edge_sequence_invalid,
++          "Component 08 verifier rejected source-edge sequence");
++      return false;
++    }
++  }
++
++  for (const auto &cluster : artifact.source_edge_clusters()) {
++    if (!add_pair_checks(cluster.member_occurrences.count, limits, pair_checks,
++                         work, error))
++      return false;
++    if (cluster.sequence.ordinal() >= artifact.source_edge_sequences().size() ||
++        cluster.key.source_edge !=
++            artifact.source_edge_sequences()[cluster.sequence.ordinal()]
++                .source_edge ||
++        !valid_range(cluster.member_occurrences,
++                     artifact.source_edge_cluster_occurrence_index().size()) ||
++        !valid_range(cluster.membership_ids,
++                     artifact.source_edge_cluster_membership_index().size()) ||
++        cluster.member_occurrences.count != cluster.key.members.size() ||
++        cluster.schema_version != contract_versions::intersection_cluster_schema ||
++        cluster.key.reserved != 0) {
++      error = verifier_error(intersection_subcode::cluster_invalid,
++                             "Component 08 verifier rejected source cluster");
++      return false;
++    }
++  }
++
++  for (const auto &interval : artifact.source_edge_intervals()) {
++    if (interval.sequence.ordinal() >= artifact.source_edge_sequences().size() ||
++        interval.key.source_edge !=
++            artifact.source_edge_sequences()[interval.sequence.ordinal()]
++                .source_edge ||
++        interval.length_disposition == intersection_interval_length::uncertain ||
++        interval.length_disposition == intersection_interval_length::overlap ||
++        !valid_range(interval.provenance, artifact.incidence().size()) ||
++        !valid_range(interval.descriptors, artifact.descriptors().size()) ||
++        interval.schema_version !=
++            contract_versions::intersection_source_edge_interval_schema ||
++        interval.reserved16 != 0) {
++      error = verifier_error(
++          intersection_subcode::source_edge_partition_invalid,
++          "Component 08 verifier rejected source-edge interval");
++      return false;
++    }
++  }
++
++  return add_work(proposals.size() + artifact.source_edge_memberships().size() +
++                      artifact.source_edge_clusters().size() +
++                      artifact.source_edge_intervals().size(),
++                  limits, work, error);
++}
++
++template <class T, class I>
++bool audit_transverse(
++    const signed_feature_relations<T, I> &relations,
++    const canonical_intersection_complex<T, I> &artifact,
++    const transverse_carrier_arrangement_tables &transverse,
++    const intersection_verifier_limits &limits, std::uint64_t &pair_checks,
++    std::uint64_t &work, bounded_boolean_error &error) {
++  if (!contiguous_ids<transverse_carrier_id>(artifact.transverse_carriers()) ||
++      !contiguous_ids<carrier_membership_id>(artifact.carrier_memberships()) ||
++      !contiguous_ids<carrier_cluster_id>(artifact.carrier_clusters()) ||
++      !contiguous_ids<carrier_active_span_id>(artifact.carrier_active_spans()) ||
++      !strictly_sorted(artifact.transverse_carriers(),
++                       [](const auto &a, const auto &b) {
++                         return a.key < b.key;
++                       })) {
++    error = verifier_error(intersection_subcode::transverse_carrier_invalid,
++                           "Component 08 verifier rejected transverse IDs/order");
++    return false;
++  }
++
++  const auto relation_count = relations.relations().size();
++  const auto candidate_count = relations.candidate_dispositions().size();
++  const auto region_count = relations.source_facet_regions().size();
++  std::vector<std::uint64_t> membership_owner(artifact.carrier_memberships().size(),
++                                              intersection_invalid_ordinal);
++  std::vector<std::uint64_t> cluster_owner(artifact.carrier_clusters().size(),
++                                           intersection_invalid_ordinal);
++  std::vector<std::uint64_t> span_owner(artifact.carrier_active_spans().size(),
++                                        intersection_invalid_ordinal);
++
++  for (const auto &carrier : artifact.transverse_carriers()) {
++    if (!valid_transverse_carrier_key(carrier.key) ||
++        carrier.construction.ordinal() >= relations.constructions().size() ||
++        carrier.key.construction != carrier.construction ||
++        carrier.schema_version != contract_versions::intersection_carrier_schema ||
++        carrier.reserved16 != 0 || carrier.reserved32 != 0 ||
++        !valid_range(carrier.relation_provenance,
++                     artifact.carrier_relation_provenance().size()) ||
++        !valid_range(carrier.candidate_provenance,
++                     artifact.carrier_candidate_provenance().size()) ||
++        !valid_range(carrier.memberships,
++                     artifact.carrier_membership_index().size()) ||
++        !valid_range(carrier.clusters,
++                     artifact.transverse_carrier_cluster_index().size()) ||
++        !valid_range(carrier.active_spans,
++                     artifact.transverse_carrier_span_index().size()) ||
++        !valid_range(carrier.region_incidence,
++                     artifact.carrier_span_region_incidence().size()) ||
++        !valid_range(carrier.aggregates,
++                     artifact.crossing_aggregates().size()) ||
++        !valid_range(carrier.descriptors, artifact.descriptors().size())) {
++      error = verifier_error(intersection_subcode::transverse_carri

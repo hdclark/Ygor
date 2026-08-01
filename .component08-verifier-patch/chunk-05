@@ -1,0 +1,228 @@
+       artifact.coplanar_support_overlap_index().size()) ||
++        !valid_range(support.region_incidence,
++                     artifact.coplanar_support_region_index().size()) ||
++        !valid_range(support.provenance,
++                     artifact.coplanar_support_relation_provenance().size())) {
++      error = verifier_error(intersection_subcode::overlap_carrier_invalid,
++                             "Component 08 verifier rejected coplanar support");
++      return false;
++    }
++    for (std::uint64_t j = 0; j < support.provenance.count; ++j)
++      if (artifact.coplanar_support_relation_provenance()[support.provenance.begin + j]
++              .ordinal() >= relation_count) {
++        error = verifier_error(intersection_subcode::overlap_carrier_invalid,
++                               "Component 08 coplanar relation provenance is stale");
++        return false;
++      }
++    for (std::uint64_t j = 0; j < support.original_boundary_edges.count; ++j) {
++      const auto &feature = artifact.coplanar_support_original_boundary_edge_index()[
++          support.original_boundary_edges.begin + j];
++      if (feature.kind != relation_feature_kind::source_edge ||
++          (feature.operand != support.first_facet.operand &&
++           feature.operand != support.second_facet.operand)) {
++        error = verifier_error(intersection_subcode::unrelated_feature_incidence,
++                               "Component 08 coplanar support owns unrelated boundary edge");
++        return false;
++      }
++    }
++  }
++
++  for (const auto &carrier : artifact.overlap_carriers()) {
++    if (!valid_collinear_overlap_carrier_key(carrier.key) ||
++        carrier.key.first_edge.kind != relation_feature_kind::source_edge ||
++        carrier.key.second_edge.kind != relation_feature_kind::source_edge ||
++        carrier.start_occurrence.ordinal() >= artifact.occurrences().size() ||
++        carrier.end_occurrence.ordinal() >= artifact.occurrences().size() ||
++        carrier.first_parameter_evidence.ordinal() >=
++            relations.interval_evidence().size() ||
++        carrier.second_parameter_evidence.ordinal() >=
++            relations.interval_evidence().size() ||
++        carrier.symbolic_owner != carrier.key.symbolic_owner ||
++        !carrier.parameter_correspondence_verified ||
++        carrier.schema_version != contract_versions::intersection_overlap_schema ||
++        carrier.reserved8 != 0 || carrier.reserved16 != 0 ||
++        !valid_range(carrier.provenance,
++                     artifact.overlap_carrier_relation_provenance().size()) ||
++        !valid_range(carrier.source_provenance,
++                     artifact.overlap_carrier_source_provenance().size()) ||
++        !valid_range(carrier.contributions, artifact.incidence().size()) ||
++        !valid_range(carrier.descriptors, artifact.descriptors().size())) {
++      error = verifier_error(intersection_subcode::overlap_carrier_invalid,
++                             "Component 08 verifier rejected overlap carrier");
++      return false;
++    }
++    if (carrier.zero_length &&
++        carrier.start_occurrence != carrier.end_occurrence) {
++      error = verifier_error(intersection_subcode::overlap_carrier_invalid,
++                             "Component 08 zero-length overlap has distinct endpoints");
++      return false;
++    }
++  }
++
++  for (const auto &overlap : artifact.coplanar_overlaps()) {
++    if (!valid_coplanar_overlap_key(overlap.key) ||
++        overlap.support.ordinal() >= artifact.coplanar_supports().size() ||
++        overlap.component07_component.ordinal() >= component_count ||
++        !(overlap.key.support ==
++            artifact.coplanar_supports()[overlap.support.ordinal()].key) ||
++        overlap.key.component_kind != overlap.kind ||
++        overlap.key.symbolic_owner != overlap.symbolic_owner ||
++        overlap.key.sheet_mask != overlap.sheet_mask ||
++        overlap.sheet_mask == 0 ||
++        overlap.schema_version != contract_versions::intersection_overlap_schema ||
++        overlap.reserved16 != 0 ||
++        !valid_range(overlap.boundary_events,
++                     artifact.coplanar_overlap_boundary_event_index().size()) ||
++        !valid_range(overlap.boundary_carriers,
++                     artifact.coplanar_overlap_boundary_carrier_index().size()) ||
++        !valid_range(overlap.provenance,
++                     artifact.coplanar_overlap_relation_provenance().size())) {
++      error = verifier_error(intersection_subcode::overlap_carrier_invalid,
++                             "Component 08 verifier rejected overlap component");
++      return false;
++    }
++    const auto &predecessor =
++        relations.coplanar_overlap_components()[overlap.component07_component.ordinal()];
++    if (predecessor.kind != overlap.kind ||
++        predecessor.sheet_mask != overlap.sheet_mask ||
++        predecessor.closed != overlap.closed ||
++        predecessor.distinct_sheet_occurrences !=
++            overlap.distinct_sheet_occurrences) {
++      error = verifier_error(intersection_subcode::overlap_carrier_invalid,
++                             "Component 08 overlap disagrees with Component 07 lineage");
++      return false;
++    }
++  }
++
++  for (const auto &region : artifact.coplanar_region_incidence()) {
++    if (region.support.ordinal() >= artifact.coplanar_supports().size() ||
++        region.component.ordinal() >= artifact.coplanar_overlaps().size() ||
++        region.first_facet.kind != relation_feature_kind::source_facet ||
++        region.second_facet.kind != relation_feature_kind::source_facet ||
++        region.first_triangle.kind != relation_feature_kind::source_triangle ||
++        region.second_triangle.kind != relation_feature_kind::source_triangle ||
++        region.sheet_mask == 0 || !region.coverage_complete ||
++        region.schema_version != contract_versions::intersection_overlap_schema ||
++        region.reserved8 != 0 || region.reserved16 != 0 ||
++        !valid_range(region.boundary_events,
++                     artifact.coplanar_region_boundary_event_index().size()) ||
++        !valid_range(region.boundary_carriers,
++                     artifact.coplanar_region_boundary_carrier_index().size()) ||
++        !valid_range(region.coverage_witnesses,
++                     artifact.coplanar_region_coverage_witness_index().size())) {
++      error = verifier_error(intersection_subcode::overlap_carrier_invalid,
++                             "Component 08 verifier rejected coplanar region incidence");
++      return false;
++    }
++    for (std::uint64_t j = 0; j < region.coverage_witnesses.count; ++j) {
++      const auto &feature = artifact.coplanar_region_coverage_witness_index()[
++          region.coverage_witnesses.begin + j];
++      if (!valid_relation_feature_key(feature, false)) {
++        error = verifier_error(intersection_subcode::unrelated_feature_incidence,
++                               "Component 08 region coverage witness is malformed");
++        return false;
++      }
++      if (feature.kind == relation_feature_kind::facet_internal_diagonal &&
++          !region.internal_diagonal_coverage_only) {
++        error = verifier_error(intersection_subcode::internal_diagonal_public_ownership,
++                               "Component 08 internal diagonal escaped coverage-only role");
++        return false;
++      }
++    }
++  }
++
++  for (const auto id : artifact.coplanar_support_candidate_provenance())
++    if (id.ordinal() >= candidate_count) {
++      error = verifier_error(intersection_subcode::overlap_carrier_invalid,
++                             "Component 08 coplanar candidate provenance is stale");
++      return false;
++    }
++  for (const auto id : artifact.overlap_carrier_candidate_provenance())
++    if (id.ordinal() >= candidate_count) {
++      error = verifier_error(intersection_subcode::overlap_carrier_invalid,
++                             "Component 08 overlap candidate provenance is stale");
++      return false;
++    }
++
++  (void)coplanar;
++  return add_work(artifact.coplanar_supports().size() +
++                      artifact.overlap_carriers().size() +
++                      artifact.coplanar_overlaps().size() +
++                      artifact.coplanar_region_incidence().size(),
++                  limits, work, error);
++}
++
++template <class T, class I>
++bool audit_aggregates_and_descriptors(
++    const signed_feature_relations<T, I> &relations,
++    const canonical_intersection_complex<T, I> &artifact,
++    const event_interning_tables &interning,
++    const event_incidence_tables &incidence,
++    const source_edge_arrangement_tables &source_edges,
++    const transverse_carrier_arrangement_tables &transverse,
++    const coplanar_carrier_arrangement_tables &coplanar,
++    const intersection_aggregate_tables &aggregates,
++    const intersection_verifier_limits &limits, std::uint64_t &work,
++    bounded_boolean_error &error) {
++  bounded_boolean_error local;
++  if (!verify_intersection_aggregates(
++          relations.event_seeds(), interning, incidence, source_edges,
++          transverse, coplanar, aggregates, local)) {
++    error = verifier_error(intersection_subcode::aggregate_mismatch,
++                           "Component 08 aggregate reconstruction failed");
++    return false;
++  }
++
++  const auto base = project_descriptors(artifact, false);
++  const auto full = project_descriptors(artifact, true);
++  if (!verify_intersection_descriptors(
++          relations.event_seeds(), interning, incidence, source_edges,
++          transverse, coplanar, aggregates, base, local)) {
++    error = verifier_error(intersection_subcode::descriptor_mismatch,
++                           "Component 08 base descriptor reconstruction failed");
++    return false;
++  }
++  if (!verify_intersection_source_topology_descriptors(
++          *relations.candidates()->manifolds(), relations.crossings(),
++          relations.event_seeds(), interning, incidence, base, full, local)) {
++    error = verifier_error(
++        intersection_subcode::facet_reconciliation_failed,
++        "Component 08 source-topology descriptor reconstruction failed");
++    return false;
++  }
++
++  if (!contiguous_ids<crossing_aggregate_id>(artifact.crossing_aggregates()) ||
++      !contiguous_ids<contact_aggregate_id>(artifact.contact_aggregates()) ||
++      !contiguous_ids<intersection_descriptor_id>(artifact.descriptors()) ||
++      !strictly_sorted(artifact.descriptors(), [](const auto &a, const auto &b) {
++        return a.key < b.key;
++      })) {
++    error = verifier_error(intersection_subcode::descriptor_mismatch,
++                           "Component 08 aggregate/descriptor IDs are not canonical");
++    return false;
++  }
++
++  for (const auto &record : artifact.crossing_aggregates()) {
++    if (!valid_range(record.members, artifact.crossing_aggregate_members().size()) ||
++        !valid_range(record.facet_subtotals,
++                     artifact.crossing_facet_subtotals().size()) ||
++        !valid_range(record.shell_subtotals,
++                     artifact.crossing_shell_subtotals().size()) ||
++        !record.member_order_verified || !record.conserved ||
++        record.schema_version != contract_versions::intersection_aggregate_schema ||
++        record.reserved8 != 0) {
++      error = verifier_error(intersection_subcode::aggregate_mismatch,
++                             "Component 08 verifier rejected crossing aggregate");
++      return false;
++    }
++    std::int64_t numeric = 0;
++    std::int64_t symbolic = 0;
++    for (std::uint64_t j = 0; j < record.members.count; ++j) {
++      const auto id = artifact.crossing_aggregate_members()[record.members.begin + j];
++      if (id.ordinal() >= artifact.incidence().size()) {
++        error = verifier_error(intersection_subcode::aggregate_mismatch,
++                               "Component 08 crossing aggregate member is stale");
++        return false;
++      }
++      const auto &member = artifact.incidence()[id.ordinal()];
++      if ((member.numeric_crossing > 0 &&

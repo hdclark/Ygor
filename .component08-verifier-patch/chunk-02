@@ -1,0 +1,261 @@
+::max(), 1};
++    }
++    out.records.push_back(std::move(copy));
++  }
++  return out;
++}
++
++template <class Artifact>
++std::vector<source_edge_domain_record> source_domains(const Artifact &artifact,
++                                                       bool &ok) {
++  std::vector<source_edge_domain_record> out;
++  out.reserve(artifact.source_edge_sequences().size());
++  for (const auto &sequence : artifact.source_edge_sequences()) {
++    source_edge_domain_record domain;
++    domain.source_edge = sequence.source_edge;
++    domain.start_vertex = sequence.start.source_vertex;
++    domain.end_vertex = sequence.end.source_vertex;
++    if (sequence.start.source_edge != sequence.source_edge ||
++        sequence.end.source_edge != sequence.source_edge ||
++        domain.source_edge.kind != relation_feature_kind::source_edge ||
++        domain.start_vertex.kind != relation_feature_kind::source_vertex ||
++        domain.end_vertex.kind != relation_feature_kind::source_vertex ||
++        domain.source_edge.operand != domain.start_vertex.operand ||
++        domain.source_edge.operand != domain.end_vertex.operand) {
++      ok = false;
++      return {};
++    }
++    out.push_back(domain);
++  }
++  if (!strictly_sorted(out, [](const auto &a, const auto &b) {
++        return a.source_edge < b.source_edge;
++      }))
++    ok = out.size() < 2;
++  return out;
++}
++
++
++template <class T, class I>
++std::vector<source_edge_domain_record> predecessor_source_domains(
++    const signed_feature_relations<T, I> &relations, bool &ok) {
++  std::vector<source_edge_domain_record> domains;
++  for (const auto operand : {operand_id::a, operand_id::b}) {
++    const auto &table = relations.candidates()->primitive_table(operand);
++    for (const auto &edge : table.edges) {
++      if (edge.edge_class != canonical_edge_class::source_edge ||
++          !edge.source_feature_owner)
++        continue;
++      source_edge_domain_record domain;
++      domain.source_edge.operand = operand;
++      domain.source_edge.kind = relation_feature_kind::source_edge;
++      domain.source_edge.primary = edge.semantic_key.primary;
++      domain.source_edge.secondary = edge.semantic_key.secondary;
++      domain.start_vertex.operand = operand;
++      domain.start_vertex.kind = relation_feature_kind::source_vertex;
++      domain.start_vertex.primary = edge.semantic_key.primary;
++      domain.end_vertex.operand = operand;
++      domain.end_vertex.kind = relation_feature_kind::source_vertex;
++      domain.end_vertex.primary = edge.semantic_key.secondary;
++      if (!valid_relation_feature_key(domain.source_edge, false) ||
++          !valid_relation_feature_key(domain.start_vertex, false) ||
++          !valid_relation_feature_key(domain.end_vertex, false)) {
++        ok = false;
++        return {};
++      }
++      domains.push_back(domain);
++    }
++  }
++  std::sort(domains.begin(), domains.end(), [](const auto &a, const auto &b) {
++    return a.source_edge < b.source_edge;
++  });
++  for (std::size_t i = 1; i < domains.size(); ++i)
++    if (!(domains[i - 1].source_edge < domains[i].source_edge)) {
++      ok = false;
++      return {};
++    }
++  return domains;
++}
++
++bool same_source_domains(const std::vector<source_edge_domain_record> &a,
++                         const std::vector<source_edge_domain_record> &b) {
++  if (a.size() != b.size())
++    return false;
++  for (std::size_t i = 0; i < a.size(); ++i)
++    if (a[i].source_edge != b[i].source_edge ||
++        a[i].start_vertex != b[i].start_vertex ||
++        a[i].end_vertex != b[i].end_vertex)
++      return false;
++  return true;
++}
++template <class Relations, class Artifact>
++bounded_boolean_digest semantic_reconstruction_digest(
++    const Relations &relations, const Artifact &artifact) {
++  canonical_writer writer;
++  writer.u64(0x3156464954434553ULL); // "SECTIFV1", little-endian tag.
++  writer.u16(contract_versions::intersection_verifier);
++  for (const auto byte : relations.digest().bytes)
++    writer.u8(byte);
++  for (std::size_t i = 1; i <= 6; ++i)
++    for (const auto byte : artifact.section_digests()[i].bytes)
++      writer.u8(byte);
++  writer.u64(artifact.events().size());
++  writer.u64(artifact.occurrences().size());
++  writer.u64(artifact.incidence().size());
++  writer.u64(artifact.source_edge_intervals().size());
++  writer.u64(artifact.carrier_active_spans().size());
++  writer.u64(artifact.coplanar_overlaps().size());
++  writer.u64(artifact.descriptors().size());
++  return sha256::digest(writer.bytes());
++}
++
++
++template <class T, class I>
++bool audit_event_partition(
++    const signed_feature_relations<T, I> &relations,
++    const canonical_intersection_complex<T, I> &artifact,
++    const event_interning_tables &interning,
++    const event_coordinate_tables &coordinates,
++    const event_incidence_tables &incidence,
++    const intersection_verifier_limits &limits, std::uint64_t &pair_checks,
++    std::uint64_t &work, bounded_boolean_error &error) {
++  std::vector<normalized_event_seed_proposal> proposals;
++  bounded_boolean_error local;
++  if (!normalize_event_seed_records(relations.event_seeds(),
++                                    relations.constructions(), proposals,
++                                    local) ||
++      !add_work(proposals.size(), limits, work, error)) {
++    if (error.summary == nullptr || error.summary[0] == '\0')
++      error = verifier_error(
++          intersection_subcode::malformed_seed,
++          "Component 08 verifier could not normalize predecessor seeds");
++    return false;
++  }
++
++  if (!verify_event_interning_tables(proposals, interning, local) ||
++      !verify_event_coordinates(proposals, relations.constructions(),
++                                relations.construction_ledger(), interning,
++                                coordinates, local) ||
++      !verify_event_incidence_records(
++          relations.event_seeds(), relations.event_seed_incidence(),
++          relations.event_seed_candidate_incidence(),
++          relations.relations().size(),
++          relations.candidate_dispositions().size(), interning, incidence,
++          local)) {
++    error = verifier_error(
++        intersection_subcode::verifier_rejection,
++        "Component 08 independent event/incidence reconstruction failed");
++    return false;
++  }
++
++  if (!contiguous_ids<event_id>(artifact.events()) ||
++      !contiguous_ids<event_occurrence_id>(artifact.occurrences()) ||
++      !contiguous_ids<event_seed_binding_id>(artifact.seed_bindings()) ||
++      !contiguous_ids<event_incidence_id>(artifact.incidence()) ||
++      artifact.seed_bindings().size() != relations.event_seeds().size() ||
++      artifact.seed_to_event().size() != relations.event_seeds().size() ||
++      artifact.seed_to_occurrence().size() != relations.event_seeds().size() ||
++      !strictly_sorted(artifact.events(), [](const auto &a, const auto &b) {
++        return a.key < b.key;
++      }) ||
++      !strictly_sorted(artifact.occurrences(),
++                       [](const auto &a, const auto &b) {
++                         return a.key < b.key;
++                       }) ||
++      !strictly_sorted(artifact.incidence(), [](const auto &a, const auto &b) {
++        return a.key < b.key;
++      })) {
++    error = verifier_error(
++        intersection_subcode::occurrence_merge_or_split,
++        "Component 08 verifier rejected canonical event partition");
++    return false;
++  }
++
++  for (const auto &event : artifact.events()) {
++    if (!add_pair_checks(event.occurrences.count, limits, pair_checks, work,
++                         error))
++      return false;
++    if (!valid_intersection_event_key(event.key) ||
++        event.schema_version != contract_versions::intersection_event_schema ||
++        event.reserved16 != 0 || event.reserved32 != 0 ||
++        !valid_range(event.construction_witnesses,
++                     artifact.construction_witness_index().size()) ||
++        !valid_range(event.occurrences, artifact.occurrences().size()) ||
++        !valid_range(event.seed_bindings,
++                     artifact.event_binding_index().size()) ||
++        !valid_range(event.incidence, artifact.incidence_by_event().size()) ||
++        !valid_range(event.crossing_aggregates,
++                     artifact.crossing_aggregates().size()) ||
++        !valid_range(event.contact_aggregates,
++                     artifact.contact_aggregates().size())) {
++      error = verifier_error(
++          intersection_subcode::malformed_event_key,
++          "Component 08 verifier rejected event record or range");
++      return false;
++    }
++    if (event.point.schema_version != contract_versions::intersection_event_schema ||
++        event.point.reserved16 != 0 || event.point.reserved32 != 0) {
++      error = verifier_error(intersection_subcode::missing_authoritative_point,
++                             "Component 08 verifier rejected event point");
++      return false;
++    }
++    if (event.point.kind == bounded_point_reference_kind::source_point) {
++      if (!valid_relation_feature_key(event.point.source_vertex, false) ||
++          event.point.source_vertex.kind != relation_feature_kind::source_vertex ||
++          event.point.construction.ordinal() >= relations.constructions().size() ||
++          event.point.precision_ledger.ordinal() >=
++              relations.construction_ledger().size()) {
++        error = verifier_error(
++            intersection_subcode::source_vertex_point_mismatch,
++            "Component 08 verifier rejected reused source point");
++        return false;
++      }
++    } else if (event.point.kind ==
++               bounded_point_reference_kind::constructed_point) {
++      if (event.point.construction.ordinal() >= relations.constructions().size() ||
++          event.point.precision_ledger.ordinal() >=
++              relations.construction_ledger().size()) {
++        error = verifier_error(
++            intersection_subcode::missing_authoritative_point,
++            "Component 08 verifier rejected constructed point lineage");
++        return false;
++      }
++    } else {
++      error = verifier_error(intersection_subcode::missing_authoritative_point,
++                             "Component 08 verifier rejected point kind");
++      return false;
++    }
++  }
++
++  for (const auto &occurrence : artifact.occurrences()) {
++    if (occurrence.event.ordinal() >= artifact.events().size() ||
++        occurrence.key.event !=
++            artifact.events()[occurrence.event.ordinal()].key ||
++        !valid_intersection_occurrence_key(occurrence.key) ||
++        occurrence.schema_version !=
++            contract_versions::intersection_occurrence_schema ||
++        occurrence.reserved16 != 0 ||
++        !valid_range(occurrence.seed_bindings,
++                     artifact.occurrence_binding_index().size()) ||
++        !valid_range(occurrence.incidence,
++                     artifact.incidence_by_occurrence().size()) ||
++        !valid_range(occurrence.source_edge_memberships,
++                     artifact.source_edge_memberships().size()) ||
++        !valid_range(occurrence.carrier_memberships,
++                     artifact.carrier_memberships().size()) ||
++        !valid_range(occurrence.cluster_memberships,
++                     artifact.source_edge_clusters().size() +
++                         artifact.carrier_clusters().size()) ||
++        !valid_range(occurrence.aggregate_contributions,
++                     artifact.incidence().size()) ||
++        !valid_range(occurrence.descriptors, artifact.descriptors().size())) {
++      error = verifier_error(
++          intersection_subcode::malformed_occurrence_key,
++          "Component 08 verifier rejected occurrence record or range");
++      return false;
++    }
++    if (occurrence.topology_separate &&
++        !occurrence.may_share_output_coordinate) {
++      // Separation is topological, not a forced coordinate perturbation.
++      error = verifier_error(
++          intersection_subcode::occurrence_semantic_conflict,
++          "Component 08 occ
