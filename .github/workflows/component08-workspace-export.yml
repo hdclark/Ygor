@@ -6,8 +6,7 @@ on:
       - agent/bounded-manifold-mesh-boolean-plan
 
 permissions:
-  contents: read
-  issues: write
+  contents: write
 
 jobs:
   export:
@@ -31,9 +30,14 @@ jobs:
           if-no-files-found: error
           retention-days: 1
       - name: Publish run identifier
-        env:
-          GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
-          gh api "repos/${GITHUB_REPOSITORY}/issues/90/comments" \
-            -f body="Component 08 workspace artifact ready from run ${GITHUB_RUN_ID} at commit ${GITHUB_SHA}."
+          set -euo pipefail
+          mkdir -p .component08-workspace-export
+          printf '%s\n' "${GITHUB_RUN_ID}" > .component08-workspace-export/artifact-run-id
+          printf '%s\n' "${GITHUB_SHA}" > .component08-workspace-export/artifact-head-sha
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .component08-workspace-export/artifact-run-id .component08-workspace-export/artifact-head-sha
+          git commit -m 'Record Component 08 workspace artifact run'
+          git push
