@@ -10,50 +10,26 @@ on:
       - agent/bounded-manifold-mesh-boolean-plan
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   export:
     runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
+          ref: agent/bounded-manifold-mesh-boolean-plan
           fetch-depth: 0
-      - name: Reassemble and verify Component 08 patch
+      - name: Audit staged Component 08 patch
         shell: bash
         run: |
           set -euo pipefail
           cat .component08-verifier-patch/chunk-* > /tmp/component08-verifier.patch
-          printf '%s  %s\n' 'beb10a160bcf5bdd849d625ee8c8fd7f35feab0436db94da32b7a8e788ff4490' /tmp/component08-verifier.patch | sha256sum --check -
+          sha256sum /tmp/component08-verifier.patch
+          wc -c /tmp/component08-verifier.patch
           git show fabcb8336cc5fa977ef26801c772a034d60ce72e:.github/workflows/component07-workspace.yml > .github/workflows/component07-workspace.yml
           git show a025c81d0fd24ccf907294e74411c8ff6c28129c:.github/workflows/component08-workspace-export.yml > .github/workflows/component08-workspace-export.yml
           git apply --check /tmp/component08-verifier.patch
-          git apply /tmp/component08-verifier.patch
-          rm -rf .component08-workspace-export .component08-verifier-patch
-      - name: Configure strict C++17 build
-        run: >-
-          cmake -S . -B build
-          -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_TESTING=ON
-          -DMEMORY_CONSTRAINED_BUILD=ON
-          -DWITH_EIGEN=OFF
-          -DWITH_GNU_GSL=OFF
-      - name: Build verifier target
-        run: >-
-          cmake --build build
-          --target ygor_mesh_boolean_intersection_verifier_tests
-          --parallel 2
-      - name: Run verifier regression
-        run: >-
-          ctest --test-dir build --output-on-failure
-          -R '^mesh_boolean_bounded_component08_verifier$'
-      - name: Commit validated implementation
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -A
-          git commit -m 'Implement Component 08 independent verifier (plan 08)'
-          git push
+          echo 'PATCH_APPLY_CHECK_OK'
+          exit 1
