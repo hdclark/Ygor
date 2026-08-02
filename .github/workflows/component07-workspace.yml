@@ -1,9 +1,9 @@
 name: Component 07 workspace export
 
 on:
-  push:
+  pull_request:
     branches:
-      - agent/bounded-manifold-mesh-boolean-plan
+      - agent/component07-runner-base
 
 permissions:
   contents: write
