@@ -3,74 +3,27 @@ name: Component 07 workspace export
 on:
   pull_request:
     branches:
+      - master
       - agent/component07-runner-base
-
-permissions:
-  contents: write
+  push:
+    branches:
+      - agent/bounded-manifold-mesh-boolean-plan
 
 jobs:
   export:
-    if: github.actor != 'github-actions[bot]'
-    runs-on: ubuntu-24.04
-    timeout-minutes: 180
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: agent/bounded-manifold-mesh-boolean-plan
           fetch-depth: 0
-      - name: Reconstruct and verify Component 08 Step 16 patch
-        shell: bash
+      - name: Package checkout
         run: |
-          set -euo pipefail
-          cat .component08-step16-patch/gz-00 \
-              .component08-step16-patch/gz-01-* \
-              .component08-step16-patch/gz-02-* > /tmp/component08-step16.patch.gz.b64
-          base64 --decode /tmp/component08-step16.patch.gz.b64 > /tmp/component08-step16.patch.gz
-          printf '%s  %s\n' 'cdc124a96ae69fcf8081f6dcf5c240ffecdfdedce5b1350786bd590e73be279f' /tmp/component08-step16.patch.gz | sha256sum --check -
-          gzip --decompress --stdout /tmp/component08-step16.patch.gz > /tmp/component08-step16.patch
-          printf '%s  %s\n' '8f9a1b5b9d893eb2b3b2f6aaa6ce6ba3e3e2d42c4b72579068caae18f06ddecc' /tmp/component08-step16.patch | sha256sum --check -
-          git apply --check /tmp/component08-step16.patch
-          git apply /tmp/component08-step16.patch
-          rm -rf .component08-step16-patch
-          git restore --source=HEAD -- .github/workflows/component07-workspace.yml
-          git diff --check
-      - name: Configure strict C++17 build
-        run: >-
-          cmake -S . -B build
-          -DCMAKE_BUILD_TYPE=Release
-          -DBUILD_TESTING=ON
-          -DMEMORY_CONSTRAINED_BUILD=ON
-          -DWITH_EIGEN=OFF
-          -DWITH_GNU_GSL=OFF
-      - name: Build all Component 08 targets
-        run: >-
-          cmake --build build --parallel 2 --target
-          ygor_mesh_boolean_intersection_key_tests
-          ygor_mesh_boolean_intersection_interning_tests
-          ygor_mesh_boolean_intersection_preflight_tests
-          ygor_mesh_boolean_intersection_coordinate_tests
-          ygor_mesh_boolean_intersection_incidence_tests
-          ygor_mesh_boolean_source_edge_arrangement_tests
-          ygor_mesh_boolean_transverse_carrier_arrangement_tests
-          ygor_mesh_boolean_coplanar_carrier_arrangement_tests
-          ygor_mesh_boolean_bounded_carrier_ordering_tests
-          ygor_mesh_boolean_intersection_aggregation_tests
-          ygor_mesh_boolean_intersection_descriptor_tests
-          ygor_mesh_boolean_intersection_topology_descriptor_tests
-          ygor_mesh_boolean_intersection_canonicalization_tests
-          ygor_mesh_boolean_intersection_codec_tests
-          ygor_mesh_boolean_intersection_verifier_tests
-          ygor_mesh_boolean_intersection_qualification_tests
-      - name: Run complete Component 08 qualification
-        run: >-
-          ctest --test-dir build --output-on-failure
-          -R '^mesh_boolean_bounded_component08_'
-      - name: Commit validated implementation
-        shell: bash
-        run: |
-          set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add .
-          git commit -m 'Add Component 08 qualification foundation (plan 08)'
-          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
+          git status --short --branch
+          tar --exclude=.git --exclude=build -czf /tmp/ygor-component07-workspace.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ygor-component07-workspace
+          path: /tmp/ygor-component07-workspace.tar.gz
+          if-no-files-found: error
+          retention-days: 1
