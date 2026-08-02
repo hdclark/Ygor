@@ -174,6 +174,34 @@ void test_source_direction_involution() {
              reverse_source_edge_interval_key(interval)) == interval);
 }
 
+void test_interval_validity_uses_semantic_sequence_order() {
+  const auto edge =
+      feature(operand_id::a, relation_feature_kind::source_edge, 3);
+
+  source_edge_cluster_key lexical_later;
+  lexical_later.source_edge = edge;
+  lexical_later.members = {occurrence_key(91)};
+  require(valid_source_edge_cluster_key(lexical_later));
+
+  source_edge_cluster_key lexical_earlier;
+  lexical_earlier.source_edge = edge;
+  lexical_earlier.members = {occurrence_key(17)};
+  require(valid_source_edge_cluster_key(lexical_earlier));
+  require(lexical_earlier < lexical_later);
+
+  source_edge_interval_key interval;
+  interval.source_edge = edge;
+  interval.left.kind = boundary_reference_kind::cluster;
+  interval.left.cluster = lexical_later;
+  interval.right.kind = boundary_reference_kind::cluster;
+  interval.right.cluster = lexical_earlier;
+  interval.canonical_ordinal = 4;
+
+  // The interval is valid because bounded parameter evidence, not lineage-key
+  // lexicography, establishes sequence order.
+  require(valid_source_edge_interval_key(interval));
+}
+
 void test_owner_checked_artifact_view() {
   static_assert(std::is_final_v<canonical_intersection_complex<float,
                                                                std::uint32_t>>);
@@ -188,6 +216,7 @@ int main() {
   test_canonical_encoding_and_order();
   test_operand_exchange_involution();
   test_source_direction_involution();
+  test_interval_validity_uses_semantic_sequence_order();
   test_owner_checked_artifact_view();
   return 0;
 }

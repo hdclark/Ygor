@@ -399,3 +399,27 @@ ygor_apply_mesh_boolean_strict_fp(
     ygor_mesh_boolean_intersection_verifier_tests)
 add_test(NAME mesh_boolean_bounded_component08_verifier
     COMMAND ygor_mesh_boolean_intersection_verifier_tests)
+
+add_executable(ygor_mesh_boolean_intersection_qualification_tests
+    TestIntersectionQualification.cc
+    BroadPhaseFixtures.cc
+    qualification/ExactUnsignedInteger.cc
+    qualification/ExactInteger.cc
+    qualification/ExactRational.cc
+    qualification/ExactFloatImport.cc
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_include_directories(
+    ygor_mesh_boolean_intersection_qualification_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(
+    ygor_mesh_boolean_intersection_qualification_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(
+    ygor_mesh_boolean_intersection_qualification_tests)
+foreach(intersection_qualification_suite
+        exact fuzz resources cancellation concurrency structural)
+    add_test(NAME mesh_boolean_bounded_component08_qualification_${intersection_qualification_suite}
+        COMMAND ygor_mesh_boolean_intersection_qualification_tests
+                ${intersection_qualification_suite})
+endforeach()

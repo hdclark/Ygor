@@ -84,6 +84,7 @@ add_library(ygor_mesh_boolean_bounded_strict
     IntersectionCanonicalization.cc
     IntersectionCodec.cc
     IntersectionVerifier.cc
+    IntersectionBuild.cc
     SourceEdgeArrangements.cc
     TransverseCarrierArrangements.cc
     CoplanarCarrierArrangements.cc

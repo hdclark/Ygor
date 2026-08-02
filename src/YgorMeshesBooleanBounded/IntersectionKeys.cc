@@ -282,9 +282,13 @@ bool valid_source_edge_interval_key(const source_edge_interval_key &key) noexcep
   if (key.right.kind == boundary_reference_kind::cluster &&
       !valid_source_edge_cluster_key(key.right.cluster))
     return false;
+  // Boundary identity keys are lineage ordered, not parameter ordered.
+  // Semantic left/right order is established by the bounded ordering provider
+  // and recorded by canonical_ordinal plus comparison certificates. Reject
+  // only impossible sentinel placements here; comparing cluster keys would
+  // incorrectly make topology order depend on occurrence lineage.
   return key.left.kind != boundary_reference_kind::end_sentinel &&
-         key.right.kind != boundary_reference_kind::start_sentinel &&
-         !(key.right < key.left);
+         key.right.kind != boundary_reference_kind::start_sentinel;
 }
 
 bool valid_intersection_descriptor_key(
