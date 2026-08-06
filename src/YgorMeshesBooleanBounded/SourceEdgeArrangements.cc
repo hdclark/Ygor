@@ -56,6 +56,71 @@ source_facet_use_role facet_role_for(
   return source_facet_use_role::none;
 }
 
+std::uint64_t parameter_lineage_for(
+    const relation_interval_evidence_record &parameter) noexcept {
+  if (parameter.trace_root != 0)
+    return parameter.trace_root;
+  if (parameter.id.ordinal() == std::numeric_limits<std::uint64_t>::max())
+    return 0;
+  // Component 07 permits a zero arithmetic trace root when no separately
+  // allocated trace node was required.  The canonical interval-evidence ID is
+  // still immutable proof lineage, so use its one-based identity for ordering
+  // certificates instead of rejecting otherwise complete evidence.
+  return parameter.id.ordinal() + 1;
+}
+
+bool direct_seed_incidence_range(
+    const event_incidence_tables &incidence, const intersection_range &indexed,
+    event_seed_binding_id seed, intersection_range &direct) noexcept {
+  direct = {};
+  if (!checked_range(indexed.begin, indexed.count, incidence.by_seed.size()))
+    return false;
+  if (indexed.count == 0)
+    return true;
+  const auto first = incidence.by_seed[indexed.begin].ordinal();
+  if (!checked_range(first, indexed.count, incidence.records.size()))
+    return false;
+  for (std::uint64_t offset = 0; offset < indexed.count; ++offset) {
+    const auto id = incidence.by_seed[indexed.begin + offset];
+    if (id.ordinal() != first + offset ||
+        incidence.records[id.ordinal()].seed_binding != seed)
+      return false;
+  }
+  direct = intersection_range{first, indexed.count};
+  return true;
+}
+
+bool direct_incident_facet_range(
+    const event_incidence_tables &incidence, const intersection_range &indexed,
+    intersection_range &direct) noexcept {
+  direct = {};
+  bool found = false;
+  std::uint64_t first = 0;
+  std::uint64_t count = 0;
+  for (std::uint64_t offset = 0; offset < indexed.count; ++offset) {
+    const auto id = incidence.by_seed[indexed.begin + offset];
+    if (id.ordinal() >= incidence.records.size())
+      return false;
+    const auto &record = incidence.records[id.ordinal()];
+    const bool incident_facet =
+        record.kind == event_incidence_kind::source_facet &&
+        record.source_feature_owner && !record.bookkeeping_only &&
+        record.candidate.ordinal() == intersection_invalid_ordinal;
+    if (!incident_facet)
+      continue;
+    if (!found) {
+      found = true;
+      first = id.ordinal();
+    } else if (id.ordinal() != first + count) {
+      return false;
+    }
+    ++count;
+  }
+  if (found)
+    direct = intersection_range{first, count};
+  return true;
+}
+
 template <class T>
 bool decode_parameter(const source_edge_membership_proposal &proposal,
                       finite_interval<T> &value) noexcept {
@@ -162,6 +227,7 @@ bool equal_tables(const source_edge_arrangement_tables &a,
 
 bool collect_source_edge_membership_proposals(
     const std::vector<relation_event_seed_record> &seeds,
+    const std::vector<relation_construction_record> &constructions,
     const std::vector<relation_interval_evidence_record> &interval_evidence,
     const event_interning_tables &interning,
     const event_incidence_tables &incidence,
@@ -179,6 +245,7 @@ bool collect_source_edge_membership_proposals(
     const auto &seed = seeds[i];
     const auto &binding = interning.seed_bindings[i];
     if (seed.id.ordinal() != i || binding.seed != seed.id ||
+        seed.construction.ordinal() >= constructions.size() ||
         !checked_range(incidence.seed_ranges[i].begin,
                        incidence.seed_ranges[i].count,
                        incidence.by_seed.size())) {
@@ -188,6 +255,30 @@ bool collect_source_edge_membership_proposals(
       return false;
     }
     const auto range = incidence.seed_ranges[i];
+    const auto &construction = constructions[seed.construction.ordinal()];
+    if (construction.id != seed.construction ||
+        construction.source_relation != seed.source_relation ||
+        !checked_range(construction.interval_evidence_begin,
+                       construction.interval_evidence_count,
+                       interval_evidence.size())) {
+      error = arrangement_error(
+          intersection_subcode::membership_incomplete,
+          "Component 08 source-edge construction authority is malformed",
+          intersection_checkpoint::source_edge_membership_proposals);
+      return false;
+    }
+    intersection_range contribution_range;
+    intersection_range incident_facet_range;
+    if (!direct_seed_incidence_range(incidence, range, binding.id,
+                                     contribution_range) ||
+        !direct_incident_facet_range(incidence, range,
+                                     incident_facet_range)) {
+      error = arrangement_error(
+          intersection_subcode::membership_incomplete,
+          "Component 08 source-edge incidence is not canonically contiguous",
+          intersection_checkpoint::source_edge_membership_proposals);
+      return false;
+    }
     for (std::uint64_t offset = 0; offset < range.count; ++offset) {
       const auto id = incidence.by_seed[range.begin + offset];
       if (id.ordinal() >= incidence.records.size()) {
@@ -209,7 +300,19 @@ bool collect_source_edge_membership_proposals(
         return false;
       }
       const relation_interval_evidence_record *parameter = nullptr;
-      for (const auto &candidate : interval_evidence) {
+      const auto evidence_end = construction.interval_evidence_begin +
+                                construction.interval_evidence_count;
+      for (std::uint64_t evidence_ordinal =
+               construction.interval_evidence_begin;
+           evidence_ordinal < evidence_end; ++evidence_ordinal) {
+        const auto &candidate = interval_evidence[evidence_ordinal];
+        if (candidate.id.ordinal() != evidence_ordinal) {
+          error = arrangement_error(
+              intersection_subcode::parameter_invalid,
+              "Component 08 source-edge parameter ID is not canonical",
+              intersection_checkpoint::source_edge_membership_proposals);
+          return false;
+        }
         if (candidate.source_relation == seed.source_relation &&
             candidate.kind == kind &&
             candidate.occurrence == seed.key.occurrence) {
@@ -222,9 +325,14 @@ bool collect_source_edge_membership_proposals(
           parameter = &candidate;
         }
       }
-      if (parameter == nullptr || !parameter->has_parameter_metadata ||
+      const auto parameter_lineage =
+          parameter != nullptr ? parameter_lineage_for(*parameter) : 0;
+      if (parameter == nullptr || !parameter->has_rounded_nominal ||
+          !parameter->has_parameter_metadata ||
           !parameter->within_authorized_boundary ||
-          parameter->trace_root == 0) {
+          parameter->domain == parameter_domain_status::invalid ||
+          parameter->domain == parameter_domain_status::outside ||
+          parameter_lineage == 0) {
         error = arrangement_error(intersection_subcode::parameter_invalid,
                                   "Component 08 source-edge parameter is missing",
                                   intersection_checkpoint::source_edge_membership_proposals);
@@ -246,7 +354,7 @@ bool collect_source_edge_membership_proposals(
               ? intersection_membership_role::endpoint
               : intersection_membership_role::interior;
       proposal.key.parameter_evidence = parameter->id;
-      proposal.key.parameter_lineage = parameter->trace_root;
+      proposal.key.parameter_lineage = parameter_lineage;
       proposal.key.relation_lineage = seed.source_relation.ordinal() + 1;
       proposal.key.facet_use_role = facet_role_for(seed);
       proposal.occurrence = binding.occurrence;
@@ -258,7 +366,8 @@ bool collect_source_edge_membership_proposals(
       proposal.domain = parameter->domain;
       proposal.exact_zero = parameter->exact_zero;
       proposal.exact_one = parameter->exact_one;
-      proposal.contributions = binding.incidence;
+      proposal.contributions = contribution_range;
+      proposal.incident_facet_uses = incident_facet_range;
       proposal.exact_equal_eligible =
           parameter->exact_zero == exact_relation_status::exact_zero ||
           parameter->exact_one == exact_relation_status::exact_zero;

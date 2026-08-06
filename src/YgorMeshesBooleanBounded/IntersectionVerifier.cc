@@ -724,8 +724,8 @@ bool audit_source_edges(
   std::vector<source_edge_membership_proposal> proposals;
   bounded_boolean_error local;
   if (!collect_source_edge_membership_proposals(
-          relations.event_seeds(), relations.interval_evidence(), interning,
-          incidence, proposals, local)) {
+          relations.event_seeds(), relations.constructions(),
+          relations.interval_evidence(), interning, incidence, proposals, local)) {
     error = verifier_error(
         intersection_subcode::membership_incomplete,
         "Component 08 verifier could not reconstruct source-edge memberships");

@@ -47,6 +47,7 @@ struct source_edge_arrangement_tables final {
 
 bool collect_source_edge_membership_proposals(
     const std::vector<relation_event_seed_record> &seeds,
+    const std::vector<relation_construction_record> &constructions,
     const std::vector<relation_interval_evidence_record> &interval_evidence,
     const event_interning_tables &interning,
     const event_incidence_tables &incidence,

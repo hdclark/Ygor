@@ -63,12 +63,19 @@ cache.
 ## Current fail-closed integration boundary
 
 The stage driver publishes fully verified empty/no-intersection complexes and
-source-topology descriptors.  The complete Component 07-to-Component 08
-proposal adapters are not yet integrated.  A non-empty crossing fixture is
-therefore required to fail at the earliest missing source-edge parameter
-handoff (`parameter_invalid`, checkpoint 11); later explicit transverse and
-coplanar gates remain as secondary protection.  No partial event registry is
+source-topology descriptors.  The Component 07 source-edge adapter now binds
+each event seed through its authoritative construction-scoped interval-evidence
+range, preserves canonical evidence/relation lineage, and publishes direct
+canonical contribution and incident-facet-use ranges.  A zero arithmetic trace
+root is accepted only when the immutable canonical interval-evidence identity
+provides the ordering lineage; no coordinate-derived fallback is permitted.
+
+The overlapping-box fixture is required to pass source-edge proposal ingestion
+and then fail at the explicit transverse-carrier gate (`membership_incomplete`,
+checkpoint 14).  Qualification also rejects missing and ambiguous evidence
+inside the authoritative construction range and proves that matching evidence
+outside that range cannot authorize a membership.  No partial event registry is
 published and every reservation is released.  The remaining Plan 08 work must
-supply those adapters, add non-empty exact/metamorphic qualification, and only
-then remove the gates and integrate the stage into the bounded Boolean
-pipeline.
+supply the transverse and coplanar adapters, add their non-empty
+exact/metamorphic qualification, and only then remove the gates and integrate
+the stage into the bounded Boolean pipeline.

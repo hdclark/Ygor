@@ -156,8 +156,8 @@ artifact_type make_artifact(const relation_type &relations) {
 
   std::vector<bounded::source_edge_membership_proposal> memberships;
   require(bounded::collect_source_edge_membership_proposals(
-              relations.event_seeds(), relations.interval_evidence(),
-              interning, incidence, memberships, error),
+              relations.event_seeds(), relations.constructions(),
+              relations.interval_evidence(), interning, incidence, memberships, error),
           "Component 08 verifier fixture source memberships failed");
   bounded::source_edge_arrangement_tables source_edges;
   require(bounded::build_source_edge_arrangements<double>(

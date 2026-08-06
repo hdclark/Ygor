@@ -3,6 +3,9 @@
 
 #include "YgorMeshesBooleanBounded/CanonicalBytes.h"
 #include "YgorMeshesBooleanBounded/FloatingBits.h"
+#include "YgorMeshesBooleanBounded/EventIncidence.h"
+#include "YgorMeshesBooleanBounded/EventInterning.h"
+#include "YgorMeshesBooleanBounded/EventNormalization.h"
 #include "YgorMeshesBooleanBounded/IntersectionBuild.h"
 #include "YgorMeshesBooleanBounded/IntersectionPreflight.h"
 #include "YgorMeshesBooleanBounded/RelationBuild.h"
@@ -667,6 +670,130 @@ void test_execution_determinism_and_fail_closed_gate() {
             "Component 08 execution mode or worker count changed semantics");
 
   const auto transverse = transverse_stage_fixture();
+  std::vector<bounded::normalized_event_seed_proposal> normalized;
+  bounded_boolean_error adapter_error;
+  require(bounded::normalize_event_seed_records(
+              transverse.relations->event_seeds(),
+              transverse.relations->constructions(), normalized, adapter_error),
+          "nonempty source-edge adapter normalization failed");
+  bounded::event_interning_tables interning;
+  require(bounded::intern_normalized_event_seeds(
+              normalized, interning, adapter_error),
+          "nonempty source-edge adapter interning failed");
+  bounded::event_incidence_tables incidence;
+  require(bounded::build_event_incidence(
+              *transverse.relations, interning, incidence, adapter_error),
+          "nonempty source-edge adapter incidence failed");
+
+  std::vector<bounded::source_edge_membership_proposal> memberships;
+  require(bounded::collect_source_edge_membership_proposals(
+              transverse.relations->event_seeds(),
+              transverse.relations->constructions(),
+              transverse.relations->interval_evidence(), interning, incidence,
+              memberships, adapter_error),
+          "Component 07 source-edge lineage did not adapt into memberships");
+  require(memberships.size() == transverse.relations->event_seeds().size(),
+          "source-edge adapter did not publish exactly one owned membership per seed");
+  for (const auto &membership : memberships) {
+    require(membership.key.parameter_lineage != 0 &&
+                membership.parameter == membership.key.parameter_evidence &&
+                membership.contributions.count != 0 &&
+                membership.incident_facet_uses.count == 1,
+            "source-edge adapter omitted parameter or incidence lineage");
+    require(membership.contributions.begin <= incidence.records.size() &&
+                membership.contributions.count <=
+                    incidence.records.size() - membership.contributions.begin &&
+                membership.incident_facet_uses.begin < incidence.records.size(),
+            "source-edge adapter published an invalid direct incidence range");
+    const auto &facet =
+        incidence.records[membership.incident_facet_uses.begin];
+    require(facet.kind == bounded::event_incidence_kind::source_facet &&
+                facet.source_feature_owner && !facet.bookkeeping_only,
+            "source-edge adapter lost the incident source-facet use");
+  }
+
+  auto unrelated_evidence = transverse.relations->interval_evidence();
+  const auto &first_seed = transverse.relations->event_seeds().front();
+  const auto &first_construction =
+      transverse.relations->constructions()[first_seed.construction.ordinal()];
+  std::size_t unrelated = unrelated_evidence.size();
+  for (std::size_t i = 0; i < unrelated_evidence.size(); ++i) {
+    if (i < first_construction.interval_evidence_begin ||
+        i >= first_construction.interval_evidence_begin +
+                 first_construction.interval_evidence_count) {
+      bool owned_by_seed_construction = false;
+      for (const auto &seed : transverse.relations->event_seeds()) {
+        const auto &construction =
+            transverse.relations->constructions()[seed.construction.ordinal()];
+        if (i >= construction.interval_evidence_begin &&
+            i < construction.interval_evidence_begin +
+                    construction.interval_evidence_count) {
+          owned_by_seed_construction = true;
+          break;
+        }
+      }
+      if (!owned_by_seed_construction) {
+        unrelated = i;
+        break;
+      }
+    }
+  }
+  require(unrelated != unrelated_evidence.size(),
+          "source-edge adapter fixture lacks unrelated evidence");
+  const auto &authoritative =
+      unrelated_evidence[first_construction.interval_evidence_begin];
+  unrelated_evidence[unrelated].source_relation = first_seed.source_relation;
+  unrelated_evidence[unrelated].kind = authoritative.kind;
+  unrelated_evidence[unrelated].occurrence = authoritative.occurrence;
+  unrelated_evidence[unrelated].has_rounded_nominal = true;
+  unrelated_evidence[unrelated].has_parameter_metadata = true;
+  unrelated_evidence[unrelated].within_authorized_boundary = true;
+  unrelated_evidence[unrelated].domain = authoritative.domain;
+  require(bounded::collect_source_edge_membership_proposals(
+              transverse.relations->event_seeds(),
+              transverse.relations->constructions(), unrelated_evidence,
+              interning, incidence, memberships, adapter_error),
+          "unrelated global evidence escaped construction-scoped authority");
+
+  auto missing_constructions = transverse.relations->constructions();
+  missing_constructions[first_seed.construction.ordinal()]
+      .interval_evidence_count = 0;
+  require(!bounded::collect_source_edge_membership_proposals(
+              transverse.relations->event_seeds(), missing_constructions,
+              transverse.relations->interval_evidence(), interning, incidence,
+              memberships, adapter_error) &&
+              adapter_error.subcode == static_cast<std::uint32_t>(
+                  bounded::intersection_subcode::parameter_invalid),
+          "missing construction-scoped parameter evidence did not fail closed");
+
+  auto ambiguous_evidence = transverse.relations->interval_evidence();
+  const auto duplicate_ordinal =
+      first_construction.interval_evidence_begin + 1;
+  require(duplicate_ordinal <
+              first_construction.interval_evidence_begin +
+                  first_construction.interval_evidence_count,
+          "source-edge adapter fixture lacks ambiguity mutation space");
+  auto &duplicate = ambiguous_evidence[duplicate_ordinal];
+  duplicate.source_relation = authoritative.source_relation;
+  duplicate.kind = authoritative.kind;
+  duplicate.occurrence = authoritative.occurrence;
+  duplicate.has_rounded_nominal = true;
+  duplicate.has_parameter_metadata = true;
+  duplicate.within_authorized_boundary = true;
+  duplicate.rounded_nominal_bits = authoritative.rounded_nominal_bits;
+  duplicate.lower_bits = authoritative.lower_bits;
+  duplicate.upper_bits = authoritative.upper_bits;
+  duplicate.domain = authoritative.domain;
+  duplicate.exact_zero = authoritative.exact_zero;
+  duplicate.exact_one = authoritative.exact_one;
+  require(!bounded::collect_source_edge_membership_proposals(
+              transverse.relations->event_seeds(),
+              transverse.relations->constructions(), ambiguous_evidence,
+              interning, incidence, memberships, adapter_error) &&
+              adapter_error.subcode == static_cast<std::uint32_t>(
+                  bounded::intersection_subcode::parameter_invalid),
+          "ambiguous construction-scoped parameter evidence did not fail closed");
+
   bounded::resource_manager resources(resource_policy::conservative_defaults());
   auto outcome = bounded::build_canonical_intersection_complex(
       transverse.broad.predecessor.context,
@@ -674,9 +801,9 @@ void test_execution_determinism_and_fail_closed_gate() {
       stage_capabilities(transverse, resources));
   if (outcome.has_value() ||
       outcome.error()->subcode != static_cast<std::uint32_t>(
-          bounded::intersection_subcode::parameter_invalid) ||
+          bounded::intersection_subcode::membership_incomplete) ||
       outcome.error()->checkpoint != static_cast<std::uint32_t>(
-          bounded::intersection_checkpoint::source_edge_membership_proposals)) {
+          bounded::intersection_checkpoint::transverse_carriers)) {
     const auto summary = outcome.has_value()
                              ? std::string("unexpected success")
                              : std::string(outcome.error()->summary) +
@@ -685,11 +812,11 @@ void test_execution_determinism_and_fail_closed_gate() {
                                    " checkpoint=" +
                                    std::to_string(outcome.error()->checkpoint);
     throw std::runtime_error(
-        "unintegrated nonempty Component 08 proposal ingestion did not fail closed: " +
+        "nonempty Component 08 stage did not advance through source-edge adaptation: " +
         summary);
   }
   require_no_live_resources(
-      resources, "fail-closed nonempty stage gate leaked resources");
+      resources, "fail-closed transverse stage gate leaked resources");
 }
 
 std::uint64_t arrangement_storage_bytes(
