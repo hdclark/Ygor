@@ -1,0 +1,77 @@
+name: Component 08 transverse publisher
+
+on:
+  push:
+    branches:
+      - agent/bounded-manifold-mesh-boolean-plan
+    paths:
+      - .github/component08-transverse.patch
+
+permissions:
+  contents: write
+
+concurrency:
+  group: component08-transverse-publisher
+  cancel-in-progress: false
+
+jobs:
+  apply-validate-publish:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - name: Check out PR branch
+        uses: actions/checkout@v4
+        with:
+          repository: hdclark/Ygor
+          ref: agent/bounded-manifold-mesh-boolean-plan
+          fetch-depth: 0
+
+      - name: Verify and apply validated patch
+        shell: bash
+        run: |
+          set -euo pipefail
+          echo "cfd7bfacf32644e357944ceb928f2d6b49afe5ee001c4689bf1d2f46684184b6  .github/component08-transverse.patch" | sha256sum --check --strict
+          git apply --check .github/component08-transverse.patch
+          git apply --index .github/component08-transverse.patch
+          rm .github/component08-transverse.patch .github/workflows/component08-transverse-publisher.yml
+          git add .
+          git diff --check --cached
+
+      - name: Configure strict C++17 build
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake -S . -B /tmp/ygor-component08-transverse \
+            -DBUILD_TESTING=ON \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DMEMORY_CONSTRAINED_BUILD=ON \
+            -DWITH_EIGEN=OFF \
+            -DWITH_GNU_GSL=OFF
+
+      - name: Build focused Component 08 targets
+        shell: bash
+        run: |
+          set -euo pipefail
+          cmake --build /tmp/ygor-component08-transverse \
+            --target \
+              ygor_mesh_boolean_intersection_qualification_tests \
+              ygor_mesh_boolean_transverse_carrier_arrangement_tests \
+            --parallel 2
+
+      - name: Run focused Component 08 qualification
+        shell: bash
+        run: |
+          set -euo pipefail
+          ctest --test-dir /tmp/ygor-component08-transverse --output-on-failure \
+            -R '^mesh_boolean_bounded_component08_(transverse_carriers|qualification_(exact|fuzz|resources|cancellation|concurrency|structural))$'
+
+      - name: Publish validated Plan 08 slice
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add .
+          git diff --check --cached
+          git commit -m 'Advance Component 08 transverse lineage adapter (plan 08)'
+          git push origin HEAD:agent/bounded-manifold-mesh-boolean-plan
