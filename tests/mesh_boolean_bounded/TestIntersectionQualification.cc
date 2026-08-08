@@ -11,6 +11,7 @@
 #include "YgorMeshesBooleanBounded/RelationBuild.h"
 #include "YgorMeshesBooleanBounded/Sha256.h"
 #include "YgorMeshesBooleanBounded/SourceEdgeArrangements.h"
+#include "YgorMeshesBooleanBounded/TransverseRelationAdapter.h"
 
 #include <algorithm>
 #include <array>
@@ -794,6 +795,15 @@ void test_execution_determinism_and_fail_closed_gate() {
                   bounded::intersection_subcode::parameter_invalid),
           "ambiguous construction-scoped parameter evidence did not fail closed");
 
+  std::vector<bounded::transverse_carrier_proposal> carrier_proposals;
+  require(!bounded::collect_component07_transverse_carrier_proposals(
+              *transverse.relations, carrier_proposals, adapter_error) &&
+              adapter_error.subcode == static_cast<std::uint32_t>(
+                  bounded::intersection_subcode::transverse_carrier_invalid),
+          "Component 07 carrier construction without geometric lineage did not fail closed");
+  require(carrier_proposals.empty(),
+          "failed transverse carrier adaptation leaked partial proposals");
+
   bounded::resource_manager resources(resource_policy::conservative_defaults());
   auto outcome = bounded::build_canonical_intersection_complex(
       transverse.broad.predecessor.context,
@@ -801,7 +811,7 @@ void test_execution_determinism_and_fail_closed_gate() {
       stage_capabilities(transverse, resources));
   if (outcome.has_value() ||
       outcome.error()->subcode != static_cast<std::uint32_t>(
-          bounded::intersection_subcode::membership_incomplete) ||
+          bounded::intersection_subcode::transverse_carrier_invalid) ||
       outcome.error()->checkpoint != static_cast<std::uint32_t>(
           bounded::intersection_checkpoint::transverse_carriers)) {
     const auto summary = outcome.has_value()
@@ -812,11 +822,11 @@ void test_execution_determinism_and_fail_closed_gate() {
                                    " checkpoint=" +
                                    std::to_string(outcome.error()->checkpoint);
     throw std::runtime_error(
-        "nonempty Component 08 stage did not advance through source-edge adaptation: " +
+        "nonempty Component 08 stage did not fail closed on missing predecessor carrier lineage: " +
         summary);
   }
   require_no_live_resources(
-      resources, "fail-closed transverse stage gate leaked resources");
+      resources, "fail-closed transverse lineage handoff leaked resources");
 }
 
 std::uint64_t arrangement_storage_bytes(

@@ -16,6 +16,7 @@
 #include "SourceEdgeArrangements.h"
 #include "Transaction.h"
 #include "TransverseCarrierArrangements.h"
+#include "TransverseRelationAdapter.h"
 
 #include <algorithm>
 #include <cstddef>
@@ -92,19 +93,6 @@ std::vector<source_edge_domain_record> source_edge_domains(
       }),
       domains.end());
   return domains;
-}
-
-template <class T, class I>
-bool has_transverse_lineage(const signed_feature_relations<T, I> &relations) {
-  if (relations.source_facet_stage()) {
-    for (const auto &record : relations.source_facet_stage()->relations)
-      if (record.has_transverse_carrier)
-        return true;
-  }
-  for (const auto &construction : relations.constructions())
-    if (construction.kind == relation_construction_kind::bounded_carrier)
-      return true;
-  return false;
 }
 
 template <class T, class I>
@@ -404,12 +392,21 @@ private:
   bool build_transverse() {
     if (!check_cancel(intersection_checkpoint::transverse_carriers))
       return false;
-    if (intersection_build_detail::has_transverse_lineage(*relations_))
+
+    std::vector<transverse_carrier_proposal> carrier_proposals;
+    if (!collect_component07_transverse_carrier_proposals(
+            *relations_, carrier_proposals, error_) ||
+        !verify_component07_transverse_carrier_proposals(
+            *relations_, carrier_proposals, error_))
+      return false;
+
+    if (!carrier_proposals.empty())
       return fail(
-          intersection_subcode::membership_incomplete,
+          intersection_subcode::parameter_invalid,
           bounded_boolean_error_category::internal_invariant_error,
-          "Component 08 transverse proposal ingestion is not yet integrated",
+          "Component 07 transverse carrier lineage lacks the Plan 07 section 15.5 bounded carrier membership parameters required by Component 08",
           intersection_checkpoint::transverse_carriers);
+
     return build_transverse_carrier_arrangements<T>({}, {}, {}, transverse_,
                                                      error_) &&
            verify_transverse_carrier_arrangements<T>({}, {}, {}, transverse_,

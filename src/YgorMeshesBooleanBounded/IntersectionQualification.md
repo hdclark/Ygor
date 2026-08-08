@@ -71,11 +71,23 @@ root is accepted only when the immutable canonical interval-evidence identity
 provides the ordering lineage; no coordinate-derived fallback is permitted.
 
 The overlapping-box fixture is required to pass source-edge proposal ingestion
-and then fail at the explicit transverse-carrier gate (`membership_incomplete`,
-checkpoint 14).  Qualification also rejects missing and ambiguous evidence
-inside the authoritative construction range and proves that matching evidence
-outside that range cannot authorize a membership.  No partial event registry is
-published and every reservation is released.  The remaining Plan 08 work must
-supply the transverse and coplanar adapters, add their non-empty
-exact/metamorphic qualification, and only then remove the gates and integrate
-the stage into the bounded Boolean pipeline.
+and then enter the Component 07 facet/facet carrier adapter.  The adapter validates
+the verified predecessor stage, canonical facet-pair request, detailed transverse
+support, authoritative bounded-carrier construction, candidate witnesses,
+residual disposition, and precision evidence before constructing any Component 08
+carrier key.  The current predecessor artifact then fails closed at checkpoint 14
+with `transverse_carrier_invalid` because its carrier construction publishes a zero
+`geometric_lineage`, while the frozen Component 08 carrier key requires a nonzero
+lineage.  No hash, dense-ID surrogate, or coordinate-derived identity is invented.
+Qualification also rejects missing and ambiguous source-edge evidence inside the
+authoritative construction range and proves that matching evidence outside that
+range cannot authorize a membership.  No partial carrier proposal or event
+registry is published and every reservation is released.
+
+After Component 07 supplies the missing immutable carrier lineage, the next
+fail-closed boundary is the Plan 07 section 15.5 bounded carrier membership
+parameter and source-facet-region handoff already required by the Component 08
+stage.  Component 08 does not project retained point coordinates onto the carrier
+as a fallback.  The coplanar adapter, non-empty exact/metamorphic qualification,
+and final bounded Boolean pipeline integration remain gated until those
+predecessor contracts exist.

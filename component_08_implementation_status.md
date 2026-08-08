@@ -24,6 +24,10 @@ all Plan 08 definition-of-done gates and the pipeline integration are complete.
 - construction-scoped Component 07 source-edge parameter adaptation, including
   canonical zero-trace evidence lineage and direct contribution/facet-use
   ranges, qualified on a non-empty crossing fixture and authority mutations;
+- Component 07 facet/facet transverse carrier adapter ingestion wired into the
+  stage, including verified-stage/request/support/construction validation and a
+  qualified fail-closed check for the predecessor's currently missing nonzero
+  carrier geometric lineage;
 - committed semantic golden projection, deterministic fixed-seed fuzzing and
   shrinking, capability/manager resource boundaries, complete cancellation
   matrix, execution-mode/worker-count identity, and sparse/dense structural
@@ -31,8 +35,12 @@ all Plan 08 definition-of-done gates and the pipeline integration are complete.
 
 ## Remaining Plan 08 work
 
-1. Adapt immutable Component 07 transverse carrier lineage into the complete
-   Component 08 carrier/membership/region proposal schemas.
+1. Complete the transverse adapter after Component 07 publishes a nonzero
+   immutable geometric lineage for its facet/facet carrier construction, then
+   the Plan 07 section 15.5 bounded carrier membership parameters and required
+   source-facet-region ownership evidence.  Component 08 intentionally fails
+   closed rather than replacing either missing lineage or missing parameters
+   with hashes, dense-ID surrogates, or coordinate-derived reprojection.
 2. Adapt immutable Component 07 coplanar event/arc/component lineage into
    coplanar support, collinear overlap, dual-parameter, ownership, and region
    proposals.

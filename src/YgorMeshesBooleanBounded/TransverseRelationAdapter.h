@@ -25,11 +25,6 @@ inline bool checked_range(std::uint64_t begin, std::uint64_t count,
   return begin <= size && count <= size - static_cast<std::size_t>(begin);
 }
 
-inline const source_facet_source_facet_relation_record<float> *
-unused_float_record_type_anchor() noexcept {
-  return nullptr;
-}
-
 template <class T>
 const source_facet_source_facet_relation_record<T> *find_stage_relation(
     const candidate_source_facet_relation_stage<T> &stage,
@@ -136,13 +131,18 @@ bool collect_component07_transverse_carrier_proposals(
             relation_construction_precedence::source_facet_source_facet_carrier ||
         construction->coordinate_space !=
             relation_construction_coordinate_space::world_3d ||
-        construction->component_count != 6 ||
-        construction->geometric_lineage == 0 || !construction->finite ||
+        construction->component_count != 6 || !construction->finite ||
         !construction->tolerance_compatible ||
         !construction->precision_evidence_complete) {
       error = transverse_relation_adapter_detail::adapter_error(
           intersection_subcode::transverse_carrier_invalid,
           "Component 08 transverse adapter found incomplete authoritative carrier construction");
+      return false;
+    }
+    if (construction->geometric_lineage == 0) {
+      error = transverse_relation_adapter_detail::adapter_error(
+          intersection_subcode::transverse_carrier_invalid,
+          "Component 07 transverse carrier construction lacks the nonzero geometric lineage required by the Component 08 carrier key");
       return false;
     }
 
