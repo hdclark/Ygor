@@ -1,0 +1,18 @@
+- [x] Component 1: contract, IDs, errors, resources, transactions, and replay.
+- [x] Component 3: precision model and bounded arithmetic, together with the exact test oracle.
+- [x] Component 2: input topology, shell semantics, and independent validation.
+- [x] Component 2: validate partial implementation.
+- [x] Component 4: source polygon triangulation and provenance.
+- [x] Component 5: canonical halfedge topology.
+- [x] Component 6: broad phase, gated against exhaustive enumeration.
+- [x] Component 7: relation kernel and frozen symbolic perturbation matrix, including canonical edge/edge, edge/facet, facet/facet and coplanar relations; compute-once truth/construction/crossing/symbolic/event lineage; the complete 34,560-rule symbolic matrix; transactional codec/decode; versioned replay and retained diagnostics; owner-free serial/parallel semantic identity; independent exact-rational source-edge differential qualification; deterministic campaign/shrinking and structural gates; full count/resource and 28-checkpoint cancellation matrices; and allocation-free Component 08-10 handoff proving Component 10 alone performs final selection.
+- [ ] Component 8: canonical event registry and shared construction lineage.
+- [ ] Component 9: connectivity and winding classification.
+- [ ] Component 10: Boolean selection and topological occurrence accounting.
+- [ ] Component 11: paired output edges and polygonal face cycles.
+- [ ] Component 12: degeneracy-tolerant triangulation.
+- [ ] Component 13: budgeted cleanup and simplification.
+- [ ] Component 14: output assembly and canonical serialization.
+- [ ] Component 15: full independent final verification and replay diagnostics.
+- [ ] Component 17: performance optimization and deterministic concurrency.
+- [ ] Component 16: full qualification matrix and release report.

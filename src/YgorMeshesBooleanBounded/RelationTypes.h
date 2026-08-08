@@ -1,0 +1,461 @@
+#pragma once
+
+#include "BroadPhaseTypes.h"
+#include "PredicateResults.h"
+#include "Resources.h"
+
+#include <array>
+#include <cstdint>
+#include <limits>
+
+namespace ygor::mesh_boolean::bounded {
+
+struct relation_request_tag;
+struct feature_relation_tag;
+struct relation_dependency_tag;
+struct relation_imported_geometry_tag;
+struct relation_bounded_primitive_tag;
+struct relation_exact_relation_tag;
+struct relation_truth_lineage_tag;
+struct relation_interval_evidence_tag;
+struct relation_source_facet_region_tag;
+struct relation_construction_tag;
+struct relation_construction_ledger_tag;
+struct symbolic_relation_decision_tag;
+struct relation_event_seed_tag;
+struct relation_event_seed_incidence_tag;
+struct relation_coplanar_event_node_tag;
+struct relation_coplanar_oriented_arc_tag;
+struct relation_coplanar_overlap_component_tag;
+struct relation_candidate_disposition_tag;
+struct relation_candidate_partition_tag;
+struct relation_verifier_evidence_tag;
+struct relation_diagnostic_tag;
+struct relation_replay_checkpoint_tag;
+
+using relation_request_id = strong_id<relation_request_tag>;
+using feature_relation_id = strong_id<feature_relation_tag>;
+using relation_dependency_id = strong_id<relation_dependency_tag>;
+using relation_imported_geometry_id = strong_id<relation_imported_geometry_tag>;
+using relation_bounded_primitive_id = strong_id<relation_bounded_primitive_tag>;
+using relation_exact_relation_id = strong_id<relation_exact_relation_tag>;
+using relation_truth_lineage_id = strong_id<relation_truth_lineage_tag>;
+using relation_interval_evidence_id = strong_id<relation_interval_evidence_tag>;
+using relation_source_facet_region_id = strong_id<relation_source_facet_region_tag>;
+using relation_construction_id = strong_id<relation_construction_tag>;
+using relation_construction_ledger_id =
+    strong_id<relation_construction_ledger_tag>;
+using symbolic_relation_decision_id = strong_id<symbolic_relation_decision_tag>;
+using relation_event_seed_id = strong_id<relation_event_seed_tag>;
+using relation_event_seed_incidence_id =
+    strong_id<relation_event_seed_incidence_tag>;
+using relation_coplanar_event_node_id =
+    strong_id<relation_coplanar_event_node_tag>;
+using relation_coplanar_oriented_arc_id =
+    strong_id<relation_coplanar_oriented_arc_tag>;
+using relation_coplanar_overlap_component_id =
+    strong_id<relation_coplanar_overlap_component_tag>;
+using relation_candidate_disposition_id =
+    strong_id<relation_candidate_disposition_tag>;
+using relation_candidate_partition_id =
+    strong_id<relation_candidate_partition_tag>;
+using relation_verifier_evidence_id = strong_id<relation_verifier_evidence_tag>;
+using relation_diagnostic_id = strong_id<relation_diagnostic_tag>;
+using relation_replay_checkpoint_id = strong_id<relation_replay_checkpoint_tag>;
+
+inline constexpr std::uint64_t relation_invalid_ordinal =
+    std::numeric_limits<std::uint64_t>::max();
+
+inline constexpr char relation_provider_identity_v1[] =
+    "canonical_source_feature_relation_graph_v1";
+inline constexpr char relation_dependency_policy_identity_v1[] =
+    "support_region_edge_edge_edge_facet_facet_symbolic_dag_v1";
+inline constexpr char relation_reduction_policy_identity_v1[] =
+    "triangle_discovery_source_feature_ownership_v1";
+inline constexpr char relation_truth_policy_identity_v1[] =
+    "rounded_exact_relation_uncertainty_orthogonal_v1";
+inline constexpr char relation_downstream_boundary_identity_v1[] =
+    "relation_side_rank_evidence_no_final_selection_v1";
+
+// Values in these enums are part of the Component 07 replay and canonical-byte
+// contract. Do not renumber released values.
+enum class relation_provider_kind : std::uint8_t {
+  canonical_source_feature_relation_graph_v1 = 1,
+};
+
+enum class relation_request_family : std::uint8_t {
+  imported_source_geometry = 1,
+  rounded_bounded_primitive = 2,
+  exact_stored_coordinate_relation = 3,
+  source_point_source_facet_region = 4,
+  source_edge_source_edge = 5,
+  source_edge_source_facet = 6,
+  source_facet_source_facet = 7,
+  coplanar_source_facet_overlay = 8,
+  composite_contact = 9,
+  authoritative_construction = 10,
+  numeric_crossing_multiplicity = 11,
+  symbolic_eligibility = 12,
+  symbolic_relation_decision = 13,
+  event_seed = 14,
+  candidate_disposition = 15,
+};
+
+enum class relation_record_scope : std::uint8_t {
+  public_source_feature = 1,
+  bookkeeping_only = 2,
+};
+
+// Family-04 evidence categories are stable canonical/replay values.  They
+// distinguish the authoritative bounded interval or source-facet region
+// operation without relying on vector position or a coordinate-derived key.
+enum class relation_interval_evidence_kind : std::uint8_t {
+  source_edge_first_parameter = 1,
+  source_edge_second_parameter = 2,
+  source_edge_first_carrier_residual = 3,
+  source_edge_second_carrier_residual = 4,
+  edge_facet_event_parameter = 5,
+  edge_facet_edge_carrier_residual = 6,
+  edge_facet_support_residual = 7,
+  facet_facet_direction_squared = 8,
+  facet_facet_point_plane_residual = 9,
+  facet_facet_direction_plane_residual = 10,
+  segment_contact_first_parameter = 11,
+  segment_contact_second_parameter = 12,
+  segment_breakpoint_parameter = 13,
+  segment_interval_witness_parameter = 14,
+  segment_triangle_witness_parameter = 15,
+};
+
+enum class relation_source_facet_region_kind : std::uint8_t {
+  edge_facet_event = 1,
+  edge_facet_partition_breakpoint = 2,
+  edge_facet_partition_interval = 3,
+  overlay_vertex_witness = 4,
+  overlay_partition_breakpoint = 5,
+  overlay_partition_interval = 6,
+};
+
+enum class feature_relation_family : std::uint8_t {
+  source_vertex_source_facet = 1,
+  source_edge_source_edge = 2,
+  source_edge_source_facet = 3,
+  source_facet_source_facet = 4,
+  triangle_local_witness = 5,
+  symbolic_contact = 6,
+};
+
+enum class feature_relation_status : std::uint8_t {
+  not_evaluated = 0,
+  definitely_separated = 1,
+  proper_crossing = 2,
+  endpoint_crossing = 3,
+  point_contact = 4,
+  segment_contact = 5,
+  tangency = 6,
+  overlap = 7,
+  containment = 8,
+  coincidence_same_orientation = 9,
+  coincidence_opposite_orientation = 10,
+};
+
+enum class relation_coplanar_arc_kind : std::uint8_t {
+  interior_boundary = 1,
+  shared_boundary = 2,
+};
+
+enum class relation_coplanar_component_kind : std::uint8_t {
+  isolated_point = 1,
+  boundary_segment = 2,
+  area_boundary = 3,
+  coincident_sheet_boundary = 4,
+};
+
+enum class candidate_relation_disposition_kind : std::uint8_t {
+  definitely_separated = 1,
+  duplicate_discovery_absorbed = 2,
+  primitive_dependency_only = 3,
+  contributed_event_seeds = 4,
+  contributed_coplanar_or_coincident_relation = 5,
+  retained_zero_measure_contact = 6,
+  internal_diagonal_bookkeeping_absorbed = 7,
+};
+
+enum class relation_contact_dimension : std::uint8_t {
+  none = 0,
+  point = 1,
+  curve = 2,
+  area = 3,
+};
+
+enum candidate_relation_coverage_flag : std::uint16_t {
+  candidate_coverage_relation = 1U << 0U,
+  candidate_coverage_public_contact = 1U << 1U,
+  candidate_coverage_event_seed = 1U << 2U,
+  candidate_coverage_coplanar_or_coincident = 1U << 3U,
+  candidate_coverage_zero_measure = 1U << 4U,
+  candidate_coverage_definitely_separated = 1U << 5U,
+  candidate_coverage_duplicate_discovery = 1U << 6U,
+  candidate_coverage_internal_diagonal = 1U << 7U,
+  candidate_coverage_complete = 1U << 15U,
+};
+
+enum class relation_construction_kind : std::uint8_t {
+  bounded_point = 1,
+  bounded_parameter = 2,
+  bounded_interval = 3,
+  bounded_carrier = 4,
+};
+
+// Fixed Plan 07 authority precedence. Lower values are more authoritative.
+enum class relation_construction_precedence : std::uint8_t {
+  accepted_source_vertex = 1,
+  source_edge_source_edge_point = 2,
+  source_edge_source_facet_point = 3,
+  coplanar_overlap_endpoint = 4,
+  source_facet_source_facet_carrier = 5,
+  verification_witness = 6,
+};
+
+enum class relation_construction_coordinate_space : std::uint8_t {
+  world_3d = 1,
+  source_facet_projection = 2,
+};
+
+enum class symbolic_relation_side : std::int8_t {
+  negative = -1,
+  coincident = 0,
+  positive = 1,
+};
+
+enum class relation_verification_disposition : std::uint8_t {
+  unverified = 0,
+  independently_verified = 1,
+};
+
+// Canonical Component 07 diagnostics are machine-readable retained findings.
+// They are owner-free and never contain pointers, thread IDs, build paths, or
+// runtime owner-token material.
+enum class relation_diagnostic_kind : std::uint8_t {
+  owner_exclusion_audit = 1,
+  selection_boundary_audit = 2,
+  replay_completeness_audit = 3,
+  resource_reconciliation_audit = 4,
+  primary_failure = 5,
+  cancellation_observation = 6,
+};
+
+enum class relation_diagnostic_severity : std::uint8_t {
+  retained_finding = 1,
+  failure = 2,
+};
+
+enum class relation_replay_checkpoint_status : std::uint8_t {
+  completed = 1,
+  failed = 2,
+  cancelled = 3,
+};
+
+enum class relation_checkpoint : std::uint32_t {
+  context_policy_capability_validation = 1,
+  predecessor_validation = 2,
+  count_representability_preflight = 3,
+  discovery_resource_reservation = 4,
+  candidate_scan = 5,
+  initial_request_grouping = 6,
+  dependency_closure = 7,
+  graph_finalization = 8,
+  rounded_primitive_evaluation = 9,
+  exact_relation_evaluation = 10,
+  truth_record_assembly = 11,
+  source_facet_region_evaluation = 12,
+  edge_edge_evaluation = 13,
+  edge_facet_evaluation = 14,
+  facet_facet_evaluation = 15,
+  coplanar_overlay_evaluation = 16,
+  construction_validation = 17,
+  crossing_multiplicity = 18,
+  symbolic_eligibility = 19,
+  symbolic_matrix_lookup = 20,
+  downstream_selection_boundary_audit = 21,
+  event_seed_and_disposition_reconciliation = 22,
+  canonical_id_and_reference_remap = 23,
+  producer_verification = 24,
+  canonical_encoding = 25,
+  independent_verification = 26,
+  resource_reconciliation = 27,
+  transaction_commit = 28,
+};
+
+struct relation_cancellation_observer final {
+  std::uint16_t version = contract_versions::relation_cancellation_observer;
+  std::uint16_t reserved16 = 0;
+  void (*poll)(void *, relation_checkpoint) noexcept = nullptr;
+  void *state = nullptr;
+  std::uint32_t reserved32 = 0;
+};
+
+enum class relation_subcode : std::uint32_t {
+  unsupported_version = 70001,
+  wrong_owner = 70002,
+  predecessor_mismatch = 70003,
+  predecessor_not_verified = 70004,
+  malformed_candidate = 70005,
+  count_overflow = 70006,
+  byte_count_overflow = 70007,
+  work_limit = 70008,
+  resource_preflight = 70009,
+  cancelled = 70010,
+  malformed_request_key = 70011,
+  incompatible_duplicate_request = 70012,
+  duplicate_authoritative_producer = 70013,
+  missing_dependency = 70014,
+  forward_dependency = 70015,
+  same_family_dependency = 70016,
+  cyclic_dependency = 70017,
+  unclosed_dependency = 70018,
+  candidate_disposition_missing = 70019,
+  candidate_disposition_duplicate = 70020,
+  candidate_disposition_contradiction = 70021,
+  owner_in_semantics = 70022,
+  canonical_order_mismatch = 70023,
+  canonical_id_mismatch = 70024,
+  codec_error = 70025,
+  digest_mismatch = 70026,
+  verifier_rejection = 70027,
+  unsupported_relation_kernel = 70028,
+  transaction_failure = 70029,
+  internal_invariant = 70030,
+  symbolic_ineligible = 70031,
+  symbolic_geometry_change = 70032,
+  symbolic_selection_boundary = 70033,
+  bounded_operation_invalid = 70034,
+  exact_relation_invalid = 70035,
+  truth_layer_mismatch = 70036,
+  source_facet_region_unresolved = 70037,
+  malformed_source_polygon = 70038,
+  source_facet_boundary_ownership = 70039,
+  source_facet_segment_malformed = 70040,
+  source_facet_segment_order_unresolved = 70041,
+  source_facet_segment_partition_unresolved = 70042,
+  source_facet_triangle_reconciliation = 70043,
+  source_facet_alternative_triangulation = 70044,
+  source_edge_relation_malformed = 70045,
+  source_edge_direction_degenerate = 70046,
+  source_edge_support_unresolved = 70047,
+  source_edge_parameter_unresolved = 70048,
+  source_edge_residual_rejected = 70049,
+  source_edge_relation_invariant = 70050,
+  source_edge_facet_malformed = 70051,
+  source_edge_facet_support_unresolved = 70052,
+  source_edge_facet_parameter_unresolved = 70053,
+  source_edge_facet_residual_rejected = 70054,
+  source_edge_facet_boundary_coverage = 70055,
+  source_edge_facet_order_unresolved = 70056,
+  source_edge_facet_invariant = 70057,
+  source_facet_relation_malformed = 70058,
+  source_facet_support_unresolved = 70059,
+  source_facet_offset_unresolved = 70060,
+  source_facet_orientation_unresolved = 70061,
+  source_facet_carrier_unresolved = 70062,
+  source_facet_residual_rejected = 70063,
+  source_facet_relation_invariant = 70064,
+  coplanar_overlay_malformed = 70065,
+  coplanar_overlay_dependency_missing = 70066,
+  coplanar_overlay_region_unresolved = 70067,
+  coplanar_overlay_boundary_incomplete = 70068,
+  coplanar_overlay_invariant = 70069,
+  crossing_multiplicity_invalid = 70070,
+  crossing_fan_incomplete = 70071,
+  crossing_conservation_failed = 70072,
+};
+
+inline bounded_boolean_error relation_error(
+    relation_subcode subcode, bounded_boolean_error_category category,
+    const char *summary, relation_checkpoint checkpoint) {
+  bounded_boolean_error error;
+  error.category = category;
+  error.subcode = static_cast<std::uint32_t>(subcode);
+  error.component = 7;
+  error.stage = static_cast<std::uint16_t>(stage_id::relation_kernel);
+  error.checkpoint = static_cast<std::uint32_t>(checkpoint);
+  error.summary = summary;
+  return error;
+}
+
+struct relation_capabilities final {
+  std::uint16_t provider_version = contract_versions::relation_provider;
+  std::uint16_t graph_policy_version = contract_versions::relation_graph_policy;
+  std::uint16_t truth_policy_version = contract_versions::relation_truth_policy;
+  std::uint16_t codec_version = contract_versions::relation_codec;
+  std::uint16_t verifier_version = contract_versions::relation_verifier;
+  context_owner_token owner{};
+  const bounded_boolean_cancellation_token *cancellation = nullptr;
+  const relation_cancellation_observer *cancellation_observer = nullptr;
+  resource_manager *resources = nullptr;
+  std::uint64_t maximum_requests = (std::uint64_t{1} << 34);
+  std::uint64_t maximum_dependencies = (std::uint64_t{1} << 35);
+  std::uint64_t maximum_consumers = (std::uint64_t{1} << 35);
+  std::uint64_t maximum_relations = (std::uint64_t{1} << 34);
+  std::uint64_t maximum_constructions = (std::uint64_t{1} << 34);
+  std::uint64_t maximum_construction_ledger = (std::uint64_t{1} << 35);
+  std::uint64_t maximum_interval_evidence = (std::uint64_t{1} << 36);
+  std::uint64_t maximum_region_records = (std::uint64_t{1} << 36);
+  std::uint64_t maximum_symbolic_decisions = (std::uint64_t{1} << 34);
+  std::uint64_t maximum_event_seeds = (std::uint64_t{1} << 34);
+  std::uint64_t maximum_event_seed_incidence = (std::uint64_t{1} << 36);
+  std::uint64_t maximum_candidate_coverage = (std::uint64_t{1} << 36);
+  std::uint64_t maximum_diagnostics = (std::uint64_t{1} << 20);
+  std::uint64_t maximum_replay_checkpoints = 64;
+  std::uint64_t maximum_canonical_bytes = (std::uint64_t{1} << 34);
+  std::uint64_t maximum_work_units = (std::uint64_t{1} << 38);
+  std::uint32_t reserved = 0;
+};
+
+inline bool relation_cancelled(
+    const relation_capabilities &capabilities,
+    relation_checkpoint checkpoint) noexcept {
+  if (capabilities.cancellation_observer &&
+      capabilities.cancellation_observer->poll)
+    capabilities.cancellation_observer->poll(
+        capabilities.cancellation_observer->state, checkpoint);
+  return capabilities.cancellation &&
+         capabilities.cancellation->cancellation_requested();
+}
+
+struct relation_statistics final {
+  std::uint64_t candidate_count = 0;
+  std::uint64_t request_proposal_count = 0;
+  std::uint64_t unique_request_count = 0;
+  std::uint64_t dependency_count = 0;
+  std::uint64_t reverse_consumer_count = 0;
+  std::uint64_t candidate_witness_count = 0;
+  std::uint64_t imported_geometry_count = 0;
+  std::uint64_t bounded_primitive_count = 0;
+  std::uint64_t exact_relation_count = 0;
+  std::uint64_t truth_lineage_count = 0;
+  std::uint64_t interval_evidence_count = 0;
+  std::uint64_t source_facet_region_count = 0;
+  std::uint64_t public_relation_count = 0;
+  std::uint64_t bookkeeping_relation_count = 0;
+  std::uint64_t construction_count = 0;
+  std::uint64_t construction_ledger_count = 0;
+  std::uint64_t coplanar_event_node_count = 0;
+  std::uint64_t coplanar_oriented_arc_count = 0;
+  std::uint64_t coplanar_overlap_component_count = 0;
+  std::uint64_t symbolic_eligibility_count = 0;
+  std::uint64_t symbolic_decision_count = 0;
+  std::uint64_t crossing_record_count = 0;
+  std::uint64_t event_seed_count = 0;
+  std::uint64_t event_seed_candidate_incidence_count = 0;
+  std::uint64_t candidate_relation_coverage_count = 0;
+  std::uint64_t candidate_seed_coverage_count = 0;
+  std::uint64_t candidate_partition_count = 0;
+  std::uint64_t diagnostic_count = 0;
+  std::uint64_t replay_checkpoint_count = 0;
+  std::uint64_t sort_comparisons = 0;
+  std::uint64_t verifier_work_units = 0;
+  std::uint64_t persistent_bytes = 0;
+};
+
+} // namespace ygor::mesh_boolean::bounded
