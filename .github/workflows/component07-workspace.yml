@@ -1,0 +1,29 @@
+name: Component 07 workspace export
+
+on:
+  pull_request:
+    branches:
+      - master
+      - agent/component07-runner-base
+  push:
+    branches:
+      - agent/bounded-manifold-mesh-boolean-plan
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Package checkout
+        run: |
+          git status --short --branch
+          tar --exclude=.git --exclude=build -czf /tmp/ygor-component07-workspace.tar.gz .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ygor-component07-workspace
+          path: /tmp/ygor-component07-workspace.tar.gz
+          if-no-files-found: error
+          retention-days: 1

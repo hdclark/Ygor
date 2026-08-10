@@ -4,6 +4,8 @@ configure_file(YgorDefinitions.h.in
                ${CMAKE_CURRENT_BINARY_DIR}/YgorDefinitions.h)
 
 FILE(GLOB ygor_sources "*cc")
+list(REMOVE_ITEM ygor_sources "${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesExactFloatExpansionCore.cc")
+list(REMOVE_ITEM ygor_sources "${CMAKE_CURRENT_SOURCE_DIR}/YgorMeshesAdaptivePredicates.cc")
 FILE(GLOB ygor_headers "*.h"
                        ${CMAKE_CURRENT_BINARY_DIR}/YgorDefinitions.h)
 
@@ -12,6 +14,8 @@ add_library(ygor
     External/SpookyHash/SpookyV2.cpp
     External/MD5/md5.cc
 )
+# The bounded Boolean implementation is nested and is not part of the non-recursive source glob above.
+add_subdirectory(YgorMeshesBooleanBounded)
 #set_target_properties(ygor PROPERTIES
 #    POSITION_INDEPENDENT_CODE TRUE
 #)
@@ -26,6 +30,8 @@ target_link_libraries(ygor
     PUBLIC
         Threads::Threads
     PRIVATE
+        ygor_mesh_boolean_bounded_strict
+        ygor_exact_float_expansion_core
         m
         "${STD_FS_LIB}"
 )
@@ -47,4 +53,3 @@ install(TARGETS ygor
 install(FILES ${ygor_headers}
         DESTINATION ${CMAKE_INSTALL_INCLUDEDIR}
 )
-
