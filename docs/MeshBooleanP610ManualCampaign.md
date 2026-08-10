@@ -91,6 +91,15 @@ Therefore `--phase contracts`, `--phase fuzz`, or `--phase finalize` cannot repo
 complete evidence merely because the unselected phases were absent from the
 ledger.
 
+Driver schema v5 invokes the configured Ninja generator directly because the
+oldest supported CMake accepts only one value after `cmake --build --target`.
+All CTest executions run from their build directory through
+`scripts/run_ctest_nonempty.sh`. The wrapper performs a discovery pass and
+returns nonzero when no tests match, so an empty CTest inventory can never count
+toward a contract pass or fuzz CPU duration. The full campaign also rejects an
+oldest-compiler command whose resolved executable and reported version are
+identical to the corresponding current compiler.
+
 After the non-deferred profiles are complete, run the eight frozen 24 CPU-hour
 allocations:
 
@@ -140,7 +149,9 @@ looser compiler smoke matrix:
 Every profile builds the explicit mesh-Boolean qualification target list and
 runs the non-fuzz `mesh_boolean` CTest set. The two current Release profiles also
 retain B0-B8 and exact-arithmetic benchmark records. Missing tools become
-`missing_configuration` anomalies; they are never ordinary skips.
+`missing_configuration` anomalies; they are never ordinary skips. Current and
+oldest compiler identities must be distinct or both oldest-profile configure
+steps are blocked with `configuration_mismatch`.
 
 The two frozen AArch64 descriptors are driven on the same physical host through:
 
@@ -356,6 +367,9 @@ rerun:
 ```
 
 Do not edit `summary.tsv` or `SHA256SUMS` by hand.
+Finalization verifies that every `attempts.tsv` command, log, and GNU-time file
+still exists. Attempt logs and time records are not permitted pruning targets;
+missing immutable evidence adds a blocking `missing_evidence` anomaly.
 
 ## P6.11 evaluation procedure
 

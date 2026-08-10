@@ -7,7 +7,7 @@
 set -u
 set -o pipefail
 
-readonly SCRIPT_VERSION="4"
+readonly SCRIPT_VERSION="5"
 readonly QUALIFICATION_FUZZ_CPU_SECONDS=86400
 readonly TSV_HEADER_ATTEMPTS=$'utc\tstep_id\tattempt\tclassification\texit_code\twall_seconds\tuser_cpu_seconds\tsystem_cpu_seconds\tmax_rss_kib\tcommand_file\tlog_file'
 readonly TSV_HEADER_ANOMALIES=$'utc\tanomaly_id\tstep_id\tcase_identifier\tattempt\tcategory\tstatus\tdetail\tevidence_file\tlog_file'
@@ -590,16 +590,18 @@ run_profile() {
   local build_description="build mesh Boolean qualification and benchmark targets"
   [[ "$SMOKE" -eq 0 ]] || build_description="build focused non-qualifying smoke targets"
   register_step "$build_step" contracts "$id" true "$build_description"
+  # The frozen minimum CMake accepts only one value after --target. Invoke the
+  # configured Ninja generator directly so the complete target list is portable.
   run_step "$build_step" infrastructure "$MAX_ATTEMPTS" "$STEP_TIMEOUT_SECONDS" \
-    cmake --build "$build_dir" --parallel "$JOBS" --target "${targets[@]}" || return 1
+    ninja -C "$build_dir" -j "$JOBS" "${targets[@]}" || return 1
 
   register_step "$test_step" contracts "$id" true "run non-fuzz mesh Boolean tests and all P6.2-P6.10 gates"
   if [[ "$SMOKE" -eq 1 ]]; then
-    test_args=(ctest --test-dir "$build_dir" --output-on-failure
+    test_args=("$REPO_ROOT/scripts/run_ctest_nonempty.sh" "$build_dir" --output-on-failure
                -R '^MeshBoolean\.(QualificationCandidate|EndToEnd|Metamorphic)$'
                --timeout "$STEP_TIMEOUT_SECONDS")
   else
-    test_args=(ctest --test-dir "$build_dir" --output-on-failure -L mesh_boolean -LE fuzz
+    test_args=("$REPO_ROOT/scripts/run_ctest_nonempty.sh" "$build_dir" --output-on-failure -L mesh_boolean -LE fuzz
                --timeout "$STEP_TIMEOUT_SECONDS")
   fi
   run_step "$test_step" test "$MAX_ATTEMPTS" "$STEP_TIMEOUT_SECONDS" \
@@ -725,6 +727,34 @@ run_nondeferred_frozen_manifest() {
   fi
 }
 
+compiler_identity() {
+  local compiler="$1" resolved version
+  resolved=$(command -v "$compiler") || return 1
+  resolved=$(readlink -f "$resolved" 2>/dev/null || printf '%s' "$resolved")
+  version=$("$compiler" -dumpfullversion -dumpversion 2>/dev/null ||
+            "$compiler" --version 2>/dev/null | awk 'NR==1{print; exit}')
+  printf '%s|%s\n' "$resolved" "$version"
+}
+
+require_distinct_oldest_compiler() {
+  local family="$1" current="$2" oldest="$3"
+  shift 3
+  local current_identity oldest_identity profile step_id
+  command -v "$current" >/dev/null 2>&1 || return 0
+  command -v "$oldest" >/dev/null 2>&1 || return 0
+  current_identity=$(compiler_identity "$current") || return 0
+  oldest_identity=$(compiler_identity "$oldest") || return 0
+  [[ "$current_identity" != "$oldest_identity" ]] && return 0
+  for profile in "$@"; do
+    step_id="profile.${profile}.configure"
+    append_anomaly configuration_mismatch "$step_id" 0 \
+      "current and oldest ${family} commands have the same identity: ${current_identity}" \
+      "environment.txt" "" "$profile"
+    write_status "$step_id" blocked 0 126 "environment.txt"
+  done
+  return 1
+}
+
 run_contracts() {
   local gcc_cc="${P610_GCC_CC:-gcc}" gcc_cxx="${P610_GCC_CXX:-g++}"
   local clang_cc="${P610_CLANG_CC:-clang}" clang_cxx="${P610_CLANG_CXX:-clang++}"
@@ -739,12 +769,22 @@ run_contracts() {
   run_primary_architecture_check || failed=1
   run_profile gcc-current-debug "$gcc_cc" "$gcc_cxx" Debug none libstdcxx none || failed=1
   run_profile gcc-current-release "$gcc_cc" "$gcc_cxx" Release none libstdcxx none || failed=1
-  run_profile gcc-oldest-debug "$oldest_gcc_cc" "$oldest_gcc_cxx" Debug none libstdcxx none || failed=1
-  run_profile gcc-oldest-release "$oldest_gcc_cc" "$oldest_gcc_cxx" Release none libstdcxx none || failed=1
+  if require_distinct_oldest_compiler gcc "$gcc_cxx" "$oldest_gcc_cxx" \
+      gcc-oldest-debug gcc-oldest-release; then
+    run_profile gcc-oldest-debug "$oldest_gcc_cc" "$oldest_gcc_cxx" Debug none libstdcxx none || failed=1
+    run_profile gcc-oldest-release "$oldest_gcc_cc" "$oldest_gcc_cxx" Release none libstdcxx none || failed=1
+  else
+    failed=1
+  fi
   run_profile clang-current-debug-libcxx "$clang_cc" "$clang_cxx" Debug none libcxx none || failed=1
   run_profile clang-current-release-libstdcxx "$clang_cc" "$clang_cxx" Release none libstdcxx none || failed=1
-  run_profile clang-oldest-debug-libstdcxx "$oldest_clang_cc" "$oldest_clang_cxx" Debug none libstdcxx none || failed=1
-  run_profile clang-oldest-release-libcxx "$oldest_clang_cc" "$oldest_clang_cxx" Release none libcxx none || failed=1
+  if require_distinct_oldest_compiler clang "$clang_cxx" "$oldest_clang_cxx" \
+      clang-oldest-debug-libstdcxx clang-oldest-release-libcxx; then
+    run_profile clang-oldest-debug-libstdcxx "$oldest_clang_cc" "$oldest_clang_cxx" Debug none libstdcxx none || failed=1
+    run_profile clang-oldest-release-libcxx "$oldest_clang_cc" "$oldest_clang_cxx" Release none libcxx none || failed=1
+  else
+    failed=1
+  fi
   run_profile gcc-current-asan-ubsan "$gcc_cc" "$gcc_cxx" Debug asan-ubsan libstdcxx none || failed=1
   run_profile clang-current-asan-ubsan-libcxx "$clang_cc" "$clang_cxx" Debug asan-ubsan libcxx none || failed=1
   run_profile clang-current-tsan-libstdcxx "$clang_cc" "$clang_cxx" Debug tsan libstdcxx none || failed=1
@@ -767,8 +807,8 @@ default_fuzz_command() {
     long) regex='^MeshBoolean\.(EndToEnd|QualificationPerformance|PerformanceBaselines)$' ;;
     *) fail "unknown fuzz family ${family}" ;;
   esac
-  printf 'ctest --test-dir %q --output-on-failure -R %q --timeout %q' \
-    "$build_dir" "$regex" "$STEP_TIMEOUT_SECONDS"
+  printf '%q %q --output-on-failure -R %q --timeout %q' \
+    "$REPO_ROOT/scripts/run_ctest_nonempty.sh" "$build_dir" "$regex" "$STEP_TIMEOUT_SECONDS"
 }
 
 fuzz_cpu_total() {
@@ -905,9 +945,32 @@ run_fuzz() {
   return "$failed"
 }
 
+audit_attempt_evidence() {
+  local missing=0 first="" command_file log_file time_file
+  while IFS=$'\t' read -r command_file log_file; do
+    [[ -n "$command_file" && -f "${OUTPUT_DIR}/${command_file}" ]] || {
+      ((missing += 1)); [[ -n "$first" ]] || first="$command_file"
+    }
+    [[ -n "$log_file" && -f "${OUTPUT_DIR}/${log_file}" ]] || {
+      ((missing += 1)); [[ -n "$first" ]] || first="$log_file"
+    }
+    time_file="${log_file%.log}.time"
+    [[ -n "$log_file" && -f "${OUTPUT_DIR}/${time_file}" ]] || {
+      ((missing += 1)); [[ -n "$first" ]] || first="$time_file"
+    }
+  done < <(awk -F'\t' 'NR>1 {print $10 "\t" $11}' "${OUTPUT_DIR}/attempts.tsv")
+  if (( missing > 0 )); then
+    append_anomaly missing_evidence campaign.finalize 0 \
+      "${missing} immutable command/log/time references are missing; first=${first}" \
+      "attempts.tsv" "" campaign.evidence-integrity
+    return 1
+  fi
+}
+
 finalize_outputs() {
   local required=0 passed=0 failed=0 blocked=0 running=0 unresolved=0 file status
   local campaign_dirty=true campaign_smoke=true
+  audit_attempt_evidence || true
   if [[ -f "${OUTPUT_DIR}/campaign.tsv" ]]; then
     campaign_dirty=$(awk -F'\t' '$1=="repository_dirty"{print $2}' "${OUTPUT_DIR}/campaign.tsv")
     campaign_smoke=$(awk -F'\t' '$1=="smoke"{print $2}' "${OUTPUT_DIR}/campaign.tsv")
@@ -1001,7 +1064,7 @@ validate_existing_campaign() {
 }
 
 run_self_test() {
-  local tmp pass_count before after
+  local tmp pass_count before after ctest_build
   tmp=$(mktemp -d)
   OUTPUT_DIR="$tmp/evidence"; WORK_DIR="$tmp/work"; REPO_ROOT=$(pwd)
   initialize_output
@@ -1020,6 +1083,10 @@ run_self_test() {
   [[ -s "${OUTPUT_DIR}/SHA256SUMS" ]] || fail 'self-test checksum generation failed'
   pass_count=$(awk -F'\t' '$1=="passed_steps"{print $2}' "${OUTPUT_DIR}/summary.tsv")
   [[ "$pass_count" -eq 1 ]] || fail 'self-test summary failed'
+  rm "${OUTPUT_DIR}/logs/self.pass/attempt-1.time"
+  audit_attempt_evidence || true
+  grep -q $'\tcampaign.evidence-integrity\t' "${OUTPUT_DIR}/anomalies.tsv" ||
+    fail 'self-test missing attempt evidence was not retained'
   cleanup_lock
   OUTPUT_DIR="$tmp/inventory"; SMOKE=0; initialize_output
   register_required_inventory
@@ -1043,6 +1110,13 @@ run_self_test() {
     fail 'self-test smoke status failed'
   [[ "$(wc -l < "${OUTPUT_DIR}/anomalies.tsv")" -eq 1 ]] ||
     fail 'self-test smoke created an anomaly'
+  ctest_build="$tmp/ctest-build"
+  mkdir -p "$ctest_build"
+  "$REPO_ROOT/scripts/run_ctest_nonempty.sh" "$ctest_build" >/dev/null 2>&1 &&
+    fail 'self-test accepted an empty CTest inventory'
+  printf 'add_test(present "/bin/true")\n' > "$ctest_build/CTestTestfile.cmake"
+  "$REPO_ROOT/scripts/run_ctest_nonempty.sh" "$ctest_build" -R '^present$' >/dev/null ||
+    fail 'self-test rejected a non-empty CTest inventory'
   cleanup_lock; rm -rf "$tmp"
   printf 'P6.10 campaign driver self-test passed.\n'
 }

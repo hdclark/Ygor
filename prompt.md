@@ -14,4 +14,5 @@ Notes:
 - All plans should disallow using external dependencies; the entire implementation must be self-contained within Ygor.
 - Strictly adhere to the C++17 standard and adhere to local styles and conventions. This will ensure the code is portable and maintainable by the relevant teams.
 - Each component plan, where possible, should include explicit contract validation logic, testing, invariant checking, etc. in order to (1) provide a way for implementers to benchmark and validate their code, and (2) to assist end-users in debugging or understanding why a component has failed. This is likely to represent a significant portion of the implementation.
+- A week-long p6.10 campaign was run offline. Results are in directories `p610*`. Beware there are many, many outputs, so use subagents and toolcalls to assess! Many log files were removed due to space constraints. Also beware that there is no remaining operational time for additional campaigns, and additional testing will need to be performed by end-users beta testing.
 
