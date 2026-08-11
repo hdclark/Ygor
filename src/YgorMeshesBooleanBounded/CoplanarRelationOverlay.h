@@ -36,6 +36,7 @@ template <class T> struct coplanar_facet_polygon_input final {
   std::uint8_t dropped_axis = 3;
   std::uint16_t reserved16 = 0;
   std::vector<projected_source_point<T>> polygon;
+  std::vector<construction_operation_certificate<T>> source_vertex_certificates;
   std::vector<relation_feature_key> boundary_edges;
   std::uint32_t reserved = 0;
 };
@@ -157,6 +158,7 @@ template <class T> struct coplanar_overlap_event_node final {
   std::uint64_t id = 0;
   std::vector<coplanar_breakpoint_occurrence> occurrences;
   projected_source_point<T> representative{};
+  construction_operation_certificate<T> certificate{};
   std::uint32_t reserved = 0;
 };
 
@@ -342,6 +344,9 @@ void encode_facet(canonical_writer &writer,
   writer.u64(static_cast<std::uint64_t>(facet.polygon.size()));
   for (const auto &point : facet.polygon)
     encode_projected_point(writer, point);
+  writer.u64(static_cast<std::uint64_t>(facet.source_vertex_certificates.size()));
+  for (const auto &certificate : facet.source_vertex_certificates)
+    encode_construction_operation_certificate(writer, certificate);
   writer.u64(static_cast<std::uint64_t>(facet.boundary_edges.size()));
   for (const auto &edge : facet.boundary_edges)
     encode_relation_feature_key(writer, edge);
@@ -354,6 +359,7 @@ bool valid_facet(const coplanar_facet_polygon_input<T> &facet) {
       facet.feature.kind != relation_feature_kind::source_facet ||
       facet.feature.primary != facet.source_facet ||
       facet.feature.secondary != facet.ring || facet.polygon.size() < 3 ||
+      facet.polygon.size() != facet.source_vertex_certificates.size() ||
       facet.polygon.size() != facet.boundary_edges.size() ||
       facet.orientation == bounded_planar_sign::uncertain ||
       facet.dropped_axis > 2 || facet.reserved16 != 0 ||
@@ -365,6 +371,8 @@ bool valid_facet(const coplanar_facet_polygon_input<T> &facet) {
     const auto &point = facet.polygon[i];
     const auto &edge = facet.boundary_edges[i];
     if (!source_facet_region_detail::valid_projected_point(point) ||
+        !valid_construction_operation_certificate(
+            facet.source_vertex_certificates[i]) ||
         !valid_relation_feature_key(edge) ||
         edge.kind != relation_feature_kind::source_edge ||
         edge.operand != facet.feature.operand)
@@ -408,6 +416,7 @@ void encode_event_node(canonical_writer &writer,
   for (const auto &occurrence : value.occurrences)
     encode_breakpoint_occurrence(writer, occurrence);
   encode_projected_point(writer, value.representative);
+  encode_construction_operation_certificate(writer, value.certificate);
   writer.u32(value.reserved);
 }
 
@@ -954,6 +963,7 @@ private:
 template <class T> struct breakpoint_candidate final {
   coplanar_breakpoint_occurrence occurrence{};
   projected_source_point<T> point{};
+  construction_operation_certificate<T> certificate{};
   std::size_t partition_index = 0;
   std::size_t breakpoint_index = 0;
 };
@@ -1020,6 +1030,7 @@ bool build_event_nodes(
       candidate.occurrence.edge_ordinal = entry.edge_ordinal;
       candidate.occurrence.breakpoint_ordinal = breakpoint_index;
       const auto mask = breakpoint.segment_endpoint_mask;
+      std::size_t query_vertex_index = missing;
       if (mask != 0) {
         if (mask != 1 && mask != 2)
           return false;
@@ -1027,12 +1038,44 @@ bool build_event_nodes(
             mask == 1 ? entry.edge_ordinal
                       : (entry.edge_ordinal + 1) %
                             record.facets[entry.polygon].polygon.size();
+        query_vertex_index = vertex_index;
         candidate.occurrence.query_source_vertex_valid = true;
         candidate.occurrence.query_source_vertex =
             record.facets[entry.polygon].polygon[vertex_index].source_vertex;
       }
       if (!breakpoint_event_lineages(record, entry, breakpoint,
                                      candidate.occurrence.event_lineages))
+        return false;
+      if (query_vertex_index != missing) {
+        if (query_vertex_index >=
+            record.facets[entry.polygon].source_vertex_certificates.size())
+          return false;
+        candidate.certificate = record.facets[entry.polygon]
+                                    .source_vertex_certificates[query_vertex_index];
+      } else {
+        if (candidate.occurrence.event_lineages.empty())
+          return false;
+        relation_request_id certificate_request{0};
+        if (!decode_contact_lineage(
+                candidate.occurrence.event_lineages.front().contact_lineage,
+                certificate_request))
+          return false;
+        const auto boundary = std::find_if(
+            record.boundary_relations.begin(), record.boundary_relations.end(),
+            [&](const auto &value) {
+              return value.request == certificate_request;
+            });
+        const auto endpoint_role =
+            candidate.occurrence.event_lineages.front().endpoint_role;
+        const auto certificate_point = static_cast<std::uint8_t>(
+            endpoint_role == 0 ? 0 : endpoint_role - 1);
+        if (boundary == record.boundary_relations.end() ||
+            certificate_point >= boundary->relation.point_count)
+          return false;
+        candidate.certificate =
+            boundary->relation.points[certificate_point].certificate;
+      }
+      if (!valid_construction_operation_certificate(candidate.certificate))
         return false;
       candidate.point = breakpoint.point;
       candidate.partition_index = partition_index;
@@ -1071,6 +1114,7 @@ bool build_event_nodes(
     std::vector<std::size_t> candidates;
     std::vector<coplanar_breakpoint_occurrence> occurrences;
     projected_source_point<T> representative{};
+    construction_operation_certificate<T> certificate{};
   };
   std::vector<event_group> groups;
   std::vector<std::size_t> root_to_group(candidates.size(), missing);
@@ -1104,6 +1148,7 @@ bool build_event_nodes(
           return candidates[a].occurrence < candidates[b].occurrence;
         });
     group.representative = candidates[representative].point;
+    group.certificate = candidates[representative].certificate;
   }
   std::sort(groups.begin(), groups.end(),
             [](const auto &a, const auto &b) {
@@ -1117,6 +1162,7 @@ bool build_event_nodes(
     event.id = node;
     event.occurrences = groups[node].occurrences;
     event.representative = groups[node].representative;
+    event.certificate = groups[node].certificate;
     record.event_nodes.push_back(std::move(event));
     for (const auto candidate_index : groups[node].candidates) {
       const auto &candidate = candidates[candidate_index];
@@ -1672,7 +1718,9 @@ classify_coplanar_facet_overlay(
     coplanar_facet_polygon_input<T> second,
     source_facet_source_facet_relation_record<T> support_relation,
     std::vector<coplanar_boundary_relation_input<T>> boundary_relations,
-    const context_owner_token &owner) {
+    const context_owner_token &owner,
+    const source_vertex_facet_evaluated_stage<T> *vertex_facet_stage = nullptr,
+    const bounded_boolean_digest *semantic_namespace = nullptr) {
   using record_type = source_facet_coplanar_overlay_record<T>;
   using namespace coplanar_relation_overlay_detail;
   static_assert(supported_precision_scalar_v<T>);
@@ -1726,17 +1774,32 @@ classify_coplanar_facet_overlay(
       const auto other = static_cast<std::uint8_t>(1 - polygon);
       for (std::uint64_t vertex = 0;
            vertex < record.facets[polygon].polygon.size(); ++vertex) {
-        auto region = classify_source_facet_point(
-            record.facets[other].source_facet, record.facets[other].ring,
-            record.facets[polygon].polygon[vertex], false,
-            record.facets[other].polygon, record.facets[other].orientation);
-        if (!region.has_value())
-          return boolean_outcome<record_type>::failure(coplanar_overlay_error(
-              relation_subcode::coplanar_overlay_region_unresolved,
-              "Component 07 coplanar overlay vertex classification is unresolved",
-              bounded_boolean_error_category::geometric_condition_exceeds_tolerance));
-        record.vertex_regions.push_back(
-            {polygon, vertex, std::move(*region.value()), 0});
+        if (vertex_facet_stage && semantic_namespace) {
+          const auto key = source_vertex_facet_request_key(
+              *semantic_namespace, record.facets[polygon].feature.operand,
+              record.facets[polygon].polygon[vertex].source_vertex,
+              record.facets[other].feature);
+          const auto *evaluated =
+              find_source_vertex_facet_evaluation(*vertex_facet_stage, key);
+          if (!evaluated || !evaluated->has_region)
+            return boolean_outcome<record_type>::failure(coplanar_overlay_error(
+                relation_subcode::coplanar_overlay_region_unresolved,
+                "Component 07 coplanar overlay vertex authority is unavailable"));
+          record.vertex_regions.push_back(
+              {polygon, vertex, evaluated->region, 0});
+        } else {
+          auto region = classify_source_facet_point(
+              record.facets[other].source_facet, record.facets[other].ring,
+              record.facets[polygon].polygon[vertex], false,
+              record.facets[other].polygon, record.facets[other].orientation);
+          if (!region.has_value())
+            return boolean_outcome<record_type>::failure(coplanar_overlay_error(
+                relation_subcode::coplanar_overlay_region_unresolved,
+                "Component 07 coplanar overlay vertex classification is unresolved",
+                bounded_boolean_error_category::geometric_condition_exceeds_tolerance));
+          record.vertex_regions.push_back(
+              {polygon, vertex, std::move(*region.value()), 0});
+        }
       }
     }
     record.complete_vertex_coverage = true;
@@ -1897,7 +1960,7 @@ template <class T, class I>
 bool make_facet_polygon(
     const canonical_candidate_stream<T, I> &candidates,
     const relation_feature_key &feature, std::uint8_t dropped_axis,
-    coplanar_facet_polygon_input<T> &out) {
+    T tolerance_boundary, coplanar_facet_polygon_input<T> &out) {
   if (!valid_relation_feature_key(feature) ||
       feature.kind != relation_feature_kind::source_facet || dropped_axis > 2)
     return false;
@@ -1924,6 +1987,7 @@ bool make_facet_polygon(
   out.shell = group.shell;
   out.dropped_axis = dropped_axis;
   out.polygon.reserve(group.source_vertices.size());
+  out.source_vertex_certificates.reserve(group.source_vertices.size());
   out.boundary_edges.reserve(group.source_vertices.size());
   std::vector<bool> consumed(group.boundary_halfedges.size(), false);
   const auto &primitive_table = candidates.primitive_table(feature.operand);
@@ -1943,6 +2007,19 @@ bool make_facet_polygon(
       return false;
     out.polygon.push_back(source_edge_facet_detail::project_point(
         point, dropped_axis, source_vertex, corner));
+    std::vector<const bounded_scalar<T> *> source_inputs;
+    for (const auto &component : point.coordinates.components)
+      source_inputs.push_back(&component);
+    auto certificate = certify_construction_operation(
+        rounded_operation_code::source_import,
+        contract_versions::rounded_operation_graphs, point, source_inputs,
+        finite_interval<T>::singleton(T(1)),
+        construction_category::exact_stored_coordinate_tie,
+        construction_tolerance_disposition::accepted, tolerance_boundary);
+    if (!certificate.has_value())
+      return false;
+    out.source_vertex_certificates.push_back(
+        std::move(*certificate.value()));
 
     const canonical_manifold_halfedge_record *ordered = nullptr;
     std::size_t ordered_index = 0;
@@ -2018,12 +2095,16 @@ bool reconstruct_overlay(
     const candidate_source_edge_relation_stage<T> &edge_stage,
     const source_facet_source_facet_relation_record<T> &support,
     source_facet_coplanar_overlay_record<T> &out,
-    bounded_boolean_error &error) {
+    bounded_boolean_error &error,
+    const source_vertex_facet_evaluated_stage<T> *vertex_facet_stage = nullptr,
+    const bounded_boolean_digest *semantic_namespace = nullptr) {
   std::array<coplanar_facet_polygon_input<T>, 2> facets;
   if (!make_facet_polygon(candidates, support.first_feature,
-                          support.dropped_axes[0], facets[0]) ||
+                          support.dropped_axes[0], support.residual_boundary,
+                          facets[0]) ||
       !make_facet_polygon(candidates, support.second_feature,
-                          support.dropped_axes[0], facets[1])) {
+                          support.dropped_axes[0], support.residual_boundary,
+                          facets[1])) {
     error = coplanar_overlay_error(
         relation_subcode::coplanar_overlay_malformed,
         "Component 07 could not reconstruct a complete coplanar source boundary");
@@ -2058,7 +2139,8 @@ bool reconstruct_overlay(
     }
   auto classified = classify_coplanar_facet_overlay(
       std::move(facets[0]), std::move(facets[1]), support,
-      std::move(dependencies), candidates.owner());
+      std::move(dependencies), candidates.owner(), vertex_facet_stage,
+      semantic_namespace);
   if (!classified.has_value()) {
     error = *classified.error();
     return false;
@@ -2096,7 +2178,9 @@ bool verify_candidate_coplanar_overlay_stage(
     const candidate_source_edge_relation_stage<T> &edge_stage,
     const candidate_source_facet_relation_stage<T> &facet_stage,
     const candidate_coplanar_overlay_stage<T> &stage,
-    bounded_boolean_error &error) {
+    bounded_boolean_error &error,
+    const source_vertex_facet_evaluated_stage<T> *vertex_facet_stage = nullptr,
+    const bounded_boolean_digest *semantic_namespace = nullptr) {
   using namespace candidate_coplanar_overlay_detail;
   const auto fail = [&](relation_subcode subcode, const char *summary) {
     error = coplanar_overlay_error(subcode, summary);
@@ -2159,7 +2243,7 @@ bool verify_candidate_coplanar_overlay_stage(
                   "Component 07 candidate coplanar overlay link is malformed");
     source_facet_coplanar_overlay_record<T> reconstructed;
     if (!reconstruct_overlay(candidates, edge_stage, support, reconstructed,
-                             error))
+                             error, vertex_facet_stage, semantic_namespace))
       return false;
     if (encode_coplanar_overlay_semantics(reconstructed) !=
         encode_coplanar_overlay_semantics(stage.overlays[overlay]))
@@ -2189,7 +2273,9 @@ build_candidate_coplanar_overlays(
     const canonical_candidate_stream<T, I> &candidates,
     const candidate_source_edge_relation_stage<T> &edge_stage,
     const candidate_source_facet_relation_stage<T> &facet_stage,
-    const relation_capabilities &capabilities) {
+    const relation_capabilities &capabilities,
+    const source_vertex_facet_evaluated_stage<T> *vertex_facet_stage = nullptr,
+    const bounded_boolean_digest *semantic_namespace = nullptr) {
   using stage_type = candidate_coplanar_overlay_stage<T>;
   using namespace candidate_coplanar_overlay_detail;
   try {
@@ -2234,7 +2320,8 @@ build_candidate_coplanar_overlays(
       source_facet_coplanar_overlay_record<T> overlay;
       bounded_boolean_error build_error;
       if (!reconstruct_overlay(candidates, edge_stage, support, overlay,
-                               build_error))
+                               build_error, vertex_facet_stage,
+                               semantic_namespace))
         return boolean_outcome<stage_type>::failure(build_error);
       stage.links.push_back(
           {facet_stage.request_graph.requests[relation].id,
@@ -2251,7 +2338,8 @@ build_candidate_coplanar_overlays(
     stage.semantic_digest = sha256::digest(bytes);
     bounded_boolean_error verification_error;
     if (!verify_candidate_coplanar_overlay_stage(
-            candidates, edge_stage, facet_stage, stage, verification_error))
+            candidates, edge_stage, facet_stage, stage, verification_error,
+            vertex_facet_stage, semantic_namespace))
       return boolean_outcome<stage_type>::failure(verification_error);
     return boolean_outcome<stage_type>::success(std::move(stage));
   } catch (const std::bad_alloc &) {

@@ -1,8 +1,10 @@
 #include "BroadPhaseFixtures.h"
 #include "YgorMeshesBooleanBounded/ContextVerifier.h"
 #include "YgorMeshesBooleanBounded/RelationBuild.h"
+#include "YgorMeshesBooleanBounded/IntersectionBuild.h"
 #include "YgorMeshesBooleanBounded/RelationReplay.h"
 #include "YgorMeshesBooleanBounded/RelationVerifier.h"
+#include "YgorMeshesBooleanBounded/TransverseRelationAdapter.h"
 
 #include <algorithm>
 #include <array>
@@ -144,6 +146,17 @@ struct relation_artifact_test_access final {
   template <class T, class I>
   static auto &execution_authority(signed_feature_relations<T, I> &artifact) {
     return artifact.execution_authority_;
+  }
+
+  template <class T, class I>
+  static auto &transverse_memberships(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.transverse_carrier_memberships_;
+  }
+
+  template <class T, class I>
+  static auto &statistics(signed_feature_relations<T, I> &artifact) {
+    return artifact.statistics_;
   }
 
   template <class T, class I>
@@ -412,6 +425,7 @@ void test_nonempty_determinism_and_decode() {
               !first->constructions().empty() &&
               !first->construction_ledger().empty() &&
               !first->event_seeds().empty() &&
+              !first->transverse_carrier_memberships().empty() &&
               !first->event_seed_candidate_incidence().empty() &&
               first->candidate_dispositions().size() ==
                   first_fixture.artifact->candidates().size() &&
@@ -443,8 +457,32 @@ void test_nonempty_determinism_and_decode() {
   require(internal_diagonal_reconciliations != 0,
           "qualification fixture exercises internal-diagonal reconciliation");
   std::size_t expected_exact = 0;
-  for (const auto &truth : first->truth_records())
+  for (const auto &truth : first->truth_records()) {
     expected_exact += truth.exact_formula != 0 ? 1U : 0U;
+    if (truth.exact_formula != 0)
+      require(truth.exact_evidence != 0 && truth.exact_trace_root != 0 &&
+                  truth.exact_ordered_input_count != 0 &&
+                  truth.exact_capacity_used <= truth.exact_capacity_limit,
+              "requested exact formulas publish identity, ordered inputs, trace, and capacity");
+  }
+  const auto expected_vertex_facet = static_cast<std::size_t>(std::count_if(
+      first->execution_authority().graph.requests.begin(),
+      first->execution_authority().graph.requests.end(), [](const auto &request) {
+        return request.key.family == bounded::relation_request_family::
+                                         source_point_source_facet_region;
+      }));
+  bounded::relation_capabilities vertex_facet_capabilities;
+  vertex_facet_capabilities.owner = first->owner();
+  auto evaluated_vertex_facets = bounded::build_source_vertex_facet_evaluated_stage(
+      *first->candidates(), first->execution_authority(),
+      first_fixture.predecessor.context.context_digest,
+      vertex_facet_capabilities, first->residual_boundary());
+  require(evaluated_vertex_facets.has_value() &&
+              evaluated_vertex_facets.value()->records.size() ==
+                  expected_vertex_facet &&
+              evaluated_vertex_facets.value()->evaluation_count ==
+                  expected_vertex_facet,
+          "frozen source-vertex/facet authority evaluates each unique key exactly once");
   require(first->exact_relations().size() == expected_exact &&
               first->statistics().imported_geometry_count ==
                   first->imported_geometry().size() &&
@@ -462,6 +500,8 @@ void test_nonempty_determinism_and_decode() {
                   first->constructions().size() &&
               first->statistics().construction_ledger_count ==
                   first->construction_ledger().size() &&
+              first->statistics().transverse_carrier_membership_count ==
+                  first->transverse_carrier_memberships().size() &&
               first->statistics().event_seed_candidate_incidence_count ==
                   first->event_seed_candidate_incidence().size() &&
               first->statistics().candidate_relation_coverage_count ==
@@ -472,6 +512,69 @@ void test_nonempty_determinism_and_decode() {
                   first->candidate_partitions().size(),
           "primitive, construction, event-incidence, and candidate-coverage counts reconstruct from final records");
 
+  bounded::resource_manager intersection_resources(
+      resource_policy::conservative_defaults());
+  bounded::intersection_capabilities intersection_capabilities;
+  intersection_capabilities.owner = first_fixture.predecessor.context.owner;
+  intersection_capabilities.resources = &intersection_resources;
+  auto intersection = bounded::build_canonical_intersection_complex(
+      first_fixture.predecessor.context,
+      *first_fixture.predecessor.precision, first,
+      intersection_capabilities);
+  if (!intersection.has_value())
+    throw std::runtime_error(diagnostic(*intersection.error()));
+  require(!(*intersection.value())->transverse_carriers().empty() &&
+              !(*intersection.value())->carrier_memberships().empty() &&
+              std::any_of(
+                  (*intersection.value())->carrier_active_spans().begin(),
+                  (*intersection.value())->carrier_active_spans().end(),
+                  [](const auto &span) {
+                    return span.activation == bounded::intersection_span_activation::
+                                                  active_transverse_intersection;
+                  }),
+          "Component 08 consumes immutable Component 07 transverse memberships end to end");
+  const auto support_carriers = static_cast<std::size_t>(std::count_if(
+      first->source_facet_stage()->relations.begin(),
+      first->source_facet_stage()->relations.end(), [](const auto &relation) {
+        return relation.classification == bounded::
+                   source_facet_support_relation_class::transverse;
+      }));
+  std::vector<bounded::feature_relation_id> active_carrier_relations;
+  for (const auto &membership : first->transverse_carrier_memberships())
+    active_carrier_relations.push_back(membership.carrier_relation);
+  std::sort(active_carrier_relations.begin(), active_carrier_relations.end());
+  active_carrier_relations.erase(
+      std::unique(active_carrier_relations.begin(),
+                  active_carrier_relations.end()),
+      active_carrier_relations.end());
+  require((*intersection.value())->transverse_carriers().size() ==
+              active_carrier_relations.size() &&
+              active_carrier_relations.size() <= support_carriers,
+          "Component 08 exports only facet supports with certified memberships");
+  for (const auto &membership : first->transverse_carrier_memberships())
+    require(membership.parameter_lineage != 0 &&
+                membership.event_lineage != 0 &&
+                membership.parameter.ordinal() <
+                    first->interval_evidence().size() &&
+                first->interval_evidence()[membership.parameter.ordinal()]
+                        .issued_operation ==
+                    bounded::rounded_operation_code::divide &&
+                first->interval_evidence()[membership.parameter.ordinal()]
+                        .issued_value != 0 &&
+                first->interval_evidence()[membership.parameter.ordinal()]
+                        .issued_ledger_entry != 0 &&
+                first->interval_evidence()[membership.parameter.ordinal()]
+                        .issued_parent_values.size() == 2 &&
+                !first->interval_evidence()[membership.parameter.ordinal()]
+                     .issued_operation_evidence.empty() &&
+                (membership.transition ==
+                     bounded::relation_carrier_transition::entering ||
+                 membership.transition ==
+                     bounded::relation_carrier_transition::leaving ||
+                 membership.transition ==
+                     bounded::relation_carrier_transition::tangent),
+            "transverse memberships publish exact lineage and certified transition evidence");
+
   std::size_t expected_ledger_begin = 0;
   for (const auto &construction : first->constructions()) {
     require(construction.id.ordinal() < first->constructions().size() &&
@@ -481,8 +584,9 @@ void test_nonempty_determinism_and_decode() {
                     first->construction_ledger().size() &&
                 construction.source_relation.ordinal() <
                     first->relations().size() &&
-                construction.precision_evidence_complete &&
-                construction.finite && construction.tolerance_compatible,
+                 construction.precision_evidence_complete &&
+                 construction.precision_trace_root != 0 &&
+                 construction.finite && construction.tolerance_compatible,
             "each authoritative construction owns one complete contiguous ledger range");
     const auto &authority =
         first->construction_ledger()[construction.ledger_begin];
@@ -490,7 +594,7 @@ void test_nonempty_determinism_and_decode() {
                 authority.construction == construction.id &&
                 authority.source_relation == construction.source_relation &&
                 authority.precedence == construction.precedence &&
-                authority.synthetic_authority &&
+                authority.authoritative_entry &&
                 authority.lineage_compatible &&
                 authority.enclosure_compatible &&
                 authority.parameter_compatible &&
@@ -503,7 +607,7 @@ void test_nonempty_determinism_and_decode() {
       require(witness.id.ordinal() == construction.ledger_begin + offset &&
                   witness.construction == construction.id &&
                   witness.source_relation.ordinal() < first->relations().size() &&
-                  !witness.synthetic_authority &&
+                  !witness.authoritative_entry &&
                   witness.lineage_compatible &&
                   witness.enclosure_compatible &&
                   witness.parameter_compatible &&
@@ -692,6 +796,19 @@ void test_matched_mutation_rejection() {
     error = bounded_boolean_error{};
     require(!bounded::verify_signed_feature_relations(exact_mutation, error),
             "matched exact-relation mutation is independently rejected");
+
+    auto exact_identity_mutation =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    bounded::relation_artifact_test_access::exact_relations(
+        exact_identity_mutation)
+        .front()
+        .evidence.exact_evidence = 0;
+    bounded::relation_artifact_test_access::repair_codec(
+        exact_identity_mutation);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(exact_identity_mutation,
+                                                       error),
+            "requested exact evidence without an identity is rejected");
   }
 
   auto interval_mutation =
@@ -722,6 +839,52 @@ void test_matched_mutation_rejection() {
   require(!bounded::verify_signed_feature_relations(region_mutation, error),
           "matched source-facet-region mutation is independently rejected");
 
+  if (!artifact->transverse_carrier_memberships().empty()) {
+    auto membership_mutation =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    auto &membership = bounded::relation_artifact_test_access::
+        transverse_memberships(membership_mutation).front();
+    std::swap(membership.first_region, membership.second_region);
+    bounded::relation_artifact_test_access::repair_codec(membership_mutation);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(membership_mutation,
+                                                       error),
+            "transverse membership facet-region mismatch is rejected");
+
+    auto removed_membership =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    auto &memberships = bounded::relation_artifact_test_access::
+        transverse_memberships(removed_membership);
+    memberships.erase(memberships.begin());
+    bounded::relation_artifact_test_access::statistics(removed_membership)
+        .transverse_carrier_membership_count = memberships.size();
+    bounded::relation_artifact_test_access::repair_codec(removed_membership);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(removed_membership, error),
+            "removed transverse membership is rejected from the complete expected key set");
+    std::vector<bounded::transverse_carrier_proposal> carrier_proposals;
+    error = bounded_boolean_error{};
+    require(!bounded::collect_component07_transverse_carrier_proposals(
+                removed_membership, carrier_proposals, error),
+            "Component 08 fails closed on a transverse carrier with a removed membership");
+
+    auto parameter_lineage_mutation =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    const auto parameter_id = parameter_lineage_mutation
+                                  .transverse_carrier_memberships()
+                                  .front()
+                                  .parameter;
+    auto &parameter = bounded::relation_artifact_test_access::interval_evidence(
+        parameter_lineage_mutation)[parameter_id.ordinal()];
+    parameter.issued_operation = bounded::rounded_operation_code::multiply;
+    bounded::relation_artifact_test_access::repair_codec(
+        parameter_lineage_mutation);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(
+                parameter_lineage_mutation, error),
+            "transverse bounded-divide issued lineage mutation is rejected");
+  }
+
   auto construction_mutation =
       bounded::relation_artifact_test_access::copy(*artifact);
   require(!construction_mutation.constructions().empty(),
@@ -736,6 +899,20 @@ void test_matched_mutation_rejection() {
   require(!bounded::verify_signed_feature_relations(construction_mutation, error),
           "matched construction-authority mutation is independently rejected");
 
+  auto certificate_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  auto &certificate = bounded::relation_artifact_test_access::constructions(
+                          certificate_mutation)
+                          .front()
+                          .certificate_evidence;
+  require(!certificate.empty(),
+          "mutation fixture requires issued construction evidence");
+  certificate.front() ^= std::uint8_t{1};
+  bounded::relation_artifact_test_access::repair_codec(certificate_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(certificate_mutation, error),
+          "mutated issued construction operation evidence is rejected");
+
   auto ledger_mutation =
       bounded::relation_artifact_test_access::copy(*artifact);
   require(ledger_mutation.construction_ledger().size() >= 2,
@@ -745,7 +922,7 @@ void test_matched_mutation_rejection() {
           ledger_mutation);
   const auto witness = std::find_if(
       ledger.begin(), ledger.end(),
-      [](const auto &record) { return !record.synthetic_authority; });
+      [](const auto &record) { return !record.authoritative_entry; });
   require(witness != ledger.end(),
           "mutation fixture requires a non-authority construction witness");
   witness->enclosure_compatible = false;

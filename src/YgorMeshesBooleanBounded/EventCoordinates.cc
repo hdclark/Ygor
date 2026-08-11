@@ -77,7 +77,7 @@ bool attach_event_coordinates(
     if (!valid_ledger_record(authority, construction.ledger_begin) ||
         authority.construction != construction.id ||
         authority.precedence != construction.precedence ||
-        !authority.synthetic_authority ||
+        !authority.authoritative_entry ||
         authority.nominal_bits != construction.nominal_bits ||
         authority.lower_bits != construction.lower_bits ||
         authority.upper_bits != construction.upper_bits ||

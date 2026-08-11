@@ -36,6 +36,11 @@ bounded_point3<T> point(const context_owner_token &owner,
       continue;
     }
     result.coordinates.components[axis] = std::move(*component.value());
+    result.coordinates.components[axis].identity =
+        bounded_operations_detail::source_import_identity(
+            owner, bounded_value_id(identity * 4 + axis + 1),
+            result.provenance, result.lineage, coordinates[axis],
+            result.coordinates.components[axis].uncertainty_enclosure);
   }
   result.coordinates.radial_error_upper = T(0);
   return result;

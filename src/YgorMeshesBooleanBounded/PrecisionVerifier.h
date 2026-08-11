@@ -270,6 +270,8 @@ bool verify_bounded_value(const bounded_scalar<T> &value,
     if (!bounded_operations_detail::bounded_scalar_valid(value) ||
         !precision_verifier_detail::finite_contributors(value.contributors) ||
         value.identity.schema_version != 1 || value.identity.provider_version != 1 ||
+        !bounded_operations_detail::bounded_operation_lineage_valid(
+            value.identity) ||
         value.identity.publication < bounded_publication_state::transaction_local ||
         value.identity.publication > bounded_publication_state::invalid) return false;
     return !expected_owner || value.identity.owner.same_owner(*expected_owner);
@@ -315,7 +317,7 @@ bool verify_directed_result(const directed_operation_result<T> &result, T a, T b
 
 inline bool verify_exact_relation(const exact_relation_evidence &relation,
                                   const context_owner_token *expected_owner = nullptr) {
-    if (relation.schema_version != 1 || relation.status < exact_relation_status::exact_negative ||
+    if (relation.schema_version != contract_versions::predicate_truth_layers || relation.status < exact_relation_status::exact_negative ||
         relation.status > exact_relation_status::invalid ||
         !valid_exact_formula_code(relation.formula_code) ||
         (expected_owner && !relation.owner.same_owner(*expected_owner))) return false;

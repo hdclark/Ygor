@@ -67,7 +67,7 @@ relation_construction_ledger_record make_ledger(std::uint64_t ordinal,
   record.geometric_lineage = 200;
   record.finite = true;
   record.tolerance_compatible = true;
-  record.synthetic_authority = ordinal == 0;
+  record.authoritative_entry = ordinal == 0;
   record.lineage_compatible = true;
   record.enclosure_compatible = true;
   record.parameter_compatible = true;

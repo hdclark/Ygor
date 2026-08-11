@@ -147,8 +147,12 @@ bool preflight_intersection_events(
   }
   plan.estimate.membership_count = source_edge_incidence;
   if (!add(static_cast<std::uint64_t>(relations.event_seeds().size()),
+            plan.estimate.membership_count,
+            "Component 08 membership upper bound overflowed") ||
+      !add(static_cast<std::uint64_t>(
+               relations.transverse_carrier_memberships().size()),
            plan.estimate.membership_count,
-           "Component 08 membership upper bound overflowed"))
+           "Component 08 transverse membership upper bound overflowed"))
     return false;
   plan.estimate.cluster_count = plan.estimate.membership_count;
   plan.estimate.interval_count = plan.source_edge_domain_count;
@@ -232,8 +236,13 @@ bool preflight_intersection_events(
     return vector_bytes(count, width, plan.estimate.persistent_bytes, summary);
   };
   if (!add_persistent(plan.estimate.membership_count,
-                      sizeof(source_edge_membership_record),
-                      "Component 08 membership byte estimate overflowed") ||
+                       sizeof(source_edge_membership_record),
+                       "Component 08 membership byte estimate overflowed") ||
+      !add_persistent(
+          static_cast<std::uint64_t>(
+              relations.transverse_carrier_memberships().size()),
+          sizeof(carrier_membership_record),
+          "Component 08 transverse membership byte estimate overflowed") ||
       !add_persistent(plan.source_edge_domain_count,
                       sizeof(source_edge_sequence_record),
                       "Component 08 sequence byte estimate overflowed") ||

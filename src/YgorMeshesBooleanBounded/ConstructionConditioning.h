@@ -23,6 +23,275 @@ enum class construction_category : std::uint8_t {
     invalid = 7
 };
 
+enum class construction_tolerance_disposition : std::uint8_t {
+    accepted = 1, rejected = 2, invalid = 3
+};
+
+template<class T>
+struct construction_issued_output_evidence final {
+    bounded_value_identity identity{};
+    T rounded_nominal = T(0);
+    finite_interval<T> enclosure = finite_interval<T>::singleton(T(0));
+    uncertainty_contributors contributors{};
+};
+
+template<class T>
+struct construction_operation_certificate final {
+    std::uint16_t schema_version = contract_versions::construction_conditioning;
+    context_owner_token owner{};
+    rounded_operation_code operation = rounded_operation_code::invalid;
+    std::uint16_t formula_version = 0;
+    std::vector<bounded_operation_parent_identity> ordered_inputs;
+    std::array<construction_issued_output_evidence<T>, 6> issued_outputs{};
+    std::array<T, 6> axis_error_upper{};
+    std::uint8_t component_count = 0;
+    T radial_error_upper = T(0);
+    finite_interval<T> denominator = finite_interval<T>::singleton(T(0));
+    T conditioning_lower = T(0);
+    construction_category conditioning = construction_category::invalid;
+    construction_tolerance_disposition tolerance =
+        construction_tolerance_disposition::invalid;
+    T tolerance_boundary = T(0);
+    bool complete = false;
+};
+
+template<class T>
+bool valid_construction_operation_certificate(
+    const construction_operation_certificate<T> &value) noexcept {
+    if (value.schema_version != contract_versions::construction_conditioning ||
+        !value.owner.anchor ||
+        !registered_rounded_operation(value.operation) ||
+        value.formula_version == 0 || value.component_count == 0 ||
+        value.component_count > value.axis_error_upper.size() ||
+        !value.complete ||
+        !finite_bits(value.denominator.lower()) ||
+        !finite_bits(value.denominator.upper()) ||
+        finite_numeric_less(value.denominator.upper(), value.denominator.lower()) ||
+        !finite_bits(value.conditioning_lower) || value.conditioning_lower < T(0) ||
+        value.conditioning == construction_category::invalid ||
+        value.tolerance == construction_tolerance_disposition::invalid ||
+        !finite_bits(value.tolerance_boundary) || value.tolerance_boundary < T(0) ||
+        !finite_bits(value.radial_error_upper) || value.radial_error_upper < T(0))
+        return false;
+    for (const auto &input : value.ordered_inputs)
+        if (input.value.ordinal() == 0 || input.trace_root == 0 ||
+            input.ledger_entry.ordinal() == 0)
+            return false;
+    for (std::size_t component = 0; component < value.component_count; ++component) {
+        if (!finite_bits(value.axis_error_upper[component]) ||
+            value.axis_error_upper[component] < T(0))
+            return false;
+        const auto &issued = value.issued_outputs[component];
+        if (!issued.identity.owner.same_owner(value.owner) ||
+            !bounded_operations_detail::bounded_operation_lineage_valid(
+                issued.identity) ||
+            !finite_bits(issued.rounded_nominal) ||
+            !finite_bits(issued.enclosure.lower()) ||
+            !finite_bits(issued.enclosure.upper()) ||
+            !issued.enclosure.contains(issued.rounded_nominal) ||
+            !bounded_operations_detail::finite_contributors(
+                issued.contributors))
+            return false;
+    }
+    return true;
+}
+
+template<class T>
+bool construction_certificate_matches_outputs(
+    const construction_operation_certificate<T> &certificate,
+    const std::vector<const bounded_scalar<T> *> &outputs) noexcept {
+    if (!valid_construction_operation_certificate(certificate) ||
+        outputs.size() != certificate.component_count)
+        return false;
+    for (std::size_t component = 0; component < outputs.size(); ++component) {
+        const auto *output = outputs[component];
+        const auto &issued = certificate.issued_outputs[component];
+        const auto &expected = issued.identity;
+        if (!output || !output->identity.owner.same_owner(certificate.owner) ||
+            output->rounded_nominal != issued.rounded_nominal ||
+            output->uncertainty_enclosure.lower() != issued.enclosure.lower() ||
+            output->uncertainty_enclosure.upper() != issued.enclosure.upper() ||
+            output->identity.schema_version != expected.schema_version ||
+            output->identity.provider_version != expected.provider_version ||
+            output->identity.value != expected.value ||
+            output->identity.provenance != expected.provenance ||
+            output->identity.lineage != expected.lineage ||
+            output->identity.ledger_entry != expected.ledger_entry ||
+            output->identity.trace_root != expected.trace_root ||
+            output->identity.operation != expected.operation ||
+            output->identity.ordered_parent_values !=
+                expected.ordered_parent_values ||
+            output->identity.ordered_parent_trace_roots !=
+                expected.ordered_parent_trace_roots ||
+            output->identity.ordered_parent_ledger_entries !=
+                expected.ordered_parent_ledger_entries)
+            return false;
+        const double actual[]{output->contributors.inherited_a,
+            output->contributors.inherited_b, output->contributors.machine_floor,
+            output->contributors.construction, output->contributors.conditioning,
+            output->contributors.conversion, output->contributors.prior_cleanup,
+            output->contributors.current_cleanup};
+        const double retained[]{issued.contributors.inherited_a,
+            issued.contributors.inherited_b, issued.contributors.machine_floor,
+            issued.contributors.construction, issued.contributors.conditioning,
+            issued.contributors.conversion, issued.contributors.prior_cleanup,
+            issued.contributors.current_cleanup};
+        for (std::size_t field = 0; field < 8; ++field)
+            if (actual[field] != retained[field])
+                return false;
+    }
+    return true;
+}
+
+template<class T>
+void encode_construction_operation_certificate(
+    canonical_writer &writer,
+    const construction_operation_certificate<T> &value) {
+    writer.u16(value.schema_version);
+    writer.u16(static_cast<std::uint16_t>(value.operation));
+    writer.u16(value.formula_version);
+    writer.u64(value.ordered_inputs.size());
+    for (const auto &input : value.ordered_inputs) {
+        writer.u64(input.value.ordinal());
+        writer.u64(input.trace_root);
+        writer.u64(input.ledger_entry.ordinal());
+    }
+    writer.u8(value.component_count);
+    for (std::size_t component = 0; component < value.component_count; ++component) {
+        const auto &issued = value.issued_outputs[component];
+        const auto &identity = issued.identity;
+        writer.u16(identity.schema_version);
+        writer.u16(identity.provider_version);
+        writer.u64(identity.value.ordinal());
+        writer.u64(identity.provenance.ordinal());
+        writer.u64(identity.lineage.ordinal());
+        writer.u64(identity.ledger_entry.ordinal());
+        writer.u64(identity.trace_root);
+        writer.u16(static_cast<std::uint16_t>(identity.operation));
+        writer.u64(identity.ordered_parent_values.size());
+        for (std::size_t parent = 0;
+             parent < identity.ordered_parent_values.size(); ++parent) {
+            writer.u64(identity.ordered_parent_values[parent].ordinal());
+            writer.u64(identity.ordered_parent_trace_roots[parent]);
+            writer.u64(identity.ordered_parent_ledger_entries[parent].ordinal());
+        }
+        writer.u8(static_cast<std::uint8_t>(identity.publication));
+        writer.floating(issued.rounded_nominal);
+        writer.floating(issued.enclosure.lower());
+        writer.floating(issued.enclosure.upper());
+        const double contributors[]{issued.contributors.inherited_a,
+            issued.contributors.inherited_b, issued.contributors.machine_floor,
+            issued.contributors.construction, issued.contributors.conditioning,
+            issued.contributors.conversion, issued.contributors.prior_cleanup,
+            issued.contributors.current_cleanup};
+        for (const auto contributor : contributors) writer.floating(contributor);
+    }
+    for (const auto error : value.axis_error_upper) writer.floating(error);
+    writer.floating(value.radial_error_upper);
+    writer.floating(value.denominator.lower());
+    writer.floating(value.denominator.upper());
+    writer.floating(value.conditioning_lower);
+    writer.u8(static_cast<std::uint8_t>(value.conditioning));
+    writer.u8(static_cast<std::uint8_t>(value.tolerance));
+    writer.floating(value.tolerance_boundary);
+    writer.boolean(value.complete);
+}
+
+template<class T>
+boolean_outcome<construction_operation_certificate<T>>
+certify_construction_components(
+    rounded_operation_code operation, std::uint16_t formula_version,
+    const context_owner_token &owner,
+    const std::vector<const bounded_scalar<T> *> &outputs, T radial_error_upper,
+    const std::vector<const bounded_scalar<T> *> &ordered_inputs,
+    const finite_interval<T> &denominator, construction_category conditioning,
+    construction_tolerance_disposition tolerance, T tolerance_boundary) {
+    using certificate_type = construction_operation_certificate<T>;
+    if (!owner.anchor || !registered_rounded_operation(operation) ||
+        formula_version == 0 || outputs.empty() || outputs.size() > 6 ||
+        ordered_inputs.empty() || !finite_bits(radial_error_upper) ||
+        radial_error_upper < T(0) || !finite_bits(denominator.lower()) ||
+        !finite_bits(denominator.upper()) ||
+        finite_numeric_less(denominator.upper(), denominator.lower()) ||
+        conditioning == construction_category::invalid ||
+        tolerance == construction_tolerance_disposition::invalid ||
+        !finite_bits(tolerance_boundary) || tolerance_boundary < T(0))
+        return boolean_outcome<certificate_type>::failure(
+            bounded_operations_detail::arithmetic_error(31312));
+
+    certificate_type out;
+    out.owner = owner;
+    out.operation = operation;
+    out.formula_version = formula_version;
+    out.denominator = denominator;
+    out.conditioning = conditioning;
+    out.tolerance = tolerance;
+    out.tolerance_boundary = tolerance_boundary;
+    for (const auto *input : ordered_inputs) {
+        if (!input || !bounded_operations_detail::bounded_scalar_valid(*input) ||
+            !input->identity.owner.same_owner(owner) ||
+            !bounded_operations_detail::bounded_operation_lineage_valid(
+                input->identity))
+            return boolean_outcome<certificate_type>::failure(
+                bounded_operations_detail::arithmetic_error(31313));
+        out.ordered_inputs.push_back(
+            {input->identity.value, input->identity.trace_root,
+             input->identity.ledger_entry});
+    }
+    out.component_count = static_cast<std::uint8_t>(outputs.size());
+    out.radial_error_upper = radial_error_upper;
+    for (std::size_t component = 0; component < outputs.size(); ++component) {
+        const auto *output = outputs[component];
+        if (!output || !bounded_operations_detail::bounded_scalar_valid(*output) ||
+            !output->identity.owner.same_owner(owner) ||
+            !bounded_operations_detail::bounded_operation_lineage_valid(
+                output->identity))
+            return boolean_outcome<certificate_type>::failure(
+                bounded_operations_detail::arithmetic_error(31314));
+        auto &issued = out.issued_outputs[component];
+        issued.identity = output->identity;
+        issued.rounded_nominal = output->rounded_nominal;
+        issued.enclosure = output->uncertainty_enclosure;
+        issued.contributors = output->contributors;
+        const auto below = directed_subtract(output->rounded_nominal,
+                                             output->uncertainty_enclosure.lower());
+        const auto above = directed_subtract(output->uncertainty_enclosure.upper(),
+                                             output->rounded_nominal);
+        if (!below || !above)
+            return boolean_outcome<certificate_type>::failure(
+                bounded_operations_detail::arithmetic_error(31314));
+        out.axis_error_upper[component] =
+            std::max(below.value.upper, above.value.upper);
+    }
+    if (!denominator.contains_zero())
+        out.conditioning_lower = denominator.lower() > T(0)
+            ? denominator.lower() : -denominator.upper();
+    out.complete = true;
+    if (!valid_construction_operation_certificate(out) ||
+        !construction_certificate_matches_outputs(out, outputs))
+        return boolean_outcome<certificate_type>::failure(
+            bounded_operations_detail::arithmetic_error(31316));
+    return boolean_outcome<certificate_type>::success(std::move(out));
+}
+
+template<class T>
+boolean_outcome<construction_operation_certificate<T>>
+certify_construction_operation(
+    rounded_operation_code operation, std::uint16_t formula_version,
+    const bounded_point3<T> &result,
+    const std::vector<const bounded_scalar<T> *> &ordered_inputs,
+    const finite_interval<T> &denominator, construction_category conditioning,
+    construction_tolerance_disposition tolerance, T tolerance_boundary) {
+    std::vector<const bounded_scalar<T> *> outputs;
+    outputs.reserve(3);
+    for (const auto &component : result.coordinates.components)
+        outputs.push_back(&component);
+    return certify_construction_components(
+        operation, formula_version, result.owner, outputs,
+        result.coordinates.radial_error_upper, ordered_inputs, denominator,
+        conditioning, tolerance, tolerance_boundary);
+}
+
 template<class T>
 struct construction_conditioning final {
     std::uint16_t schema_version = 1;

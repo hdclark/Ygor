@@ -4,15 +4,105 @@
 #include "CanonicalBytes.h"
 #include "Outcome.h"
 #include "PrecisionTrace.h"
+#include "Sha256.h"
 
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
+#include <vector>
 
 namespace ygor::mesh_boolean::bounded {
 
 namespace bounded_operations_detail {
+template<class T>
+bounded_value_identity operation_identity(
+    const context_owner_token &owner, rounded_operation_code operation,
+    const std::vector<const bounded_scalar<T> *> &ordered_inputs, T nominal,
+    const finite_interval<T> &enclosure) {
+    bounded_value_identity identity;
+    identity.owner = owner;
+    identity.operation = operation;
+    identity.publication = bounded_publication_state::transaction_local;
+    canonical_writer writer;
+    writer.u16(static_cast<std::uint16_t>(operation));
+    writer.u64(ordered_inputs.size());
+    for (const auto *input : ordered_inputs) {
+        writer.u64(input ? input->identity.value.ordinal() : 0);
+        writer.u64(input ? input->identity.trace_root : 0);
+        writer.u64(input ? input->identity.ledger_entry.ordinal() : 0);
+        identity.ordered_parent_values.push_back(
+            input ? input->identity.value : bounded_value_id{0});
+        identity.ordered_parent_trace_roots.push_back(
+            input ? input->identity.trace_root : 0);
+        identity.ordered_parent_ledger_entries.push_back(
+            input ? input->identity.ledger_entry
+                  : precision_ledger_entry_id{0});
+        if (input && identity.provenance.ordinal() == 0)
+            identity.provenance = input->identity.provenance;
+        if (input && identity.lineage.ordinal() == 0)
+            identity.lineage = input->identity.lineage;
+    }
+    writer.floating(nominal);
+    writer.floating(enclosure.lower());
+    writer.floating(enclosure.upper());
+    const auto digest = sha256::digest(writer.take());
+    std::uint64_t value = 0, trace = 0, ledger = 0;
+    for (std::size_t i = 0; i < 8; ++i) {
+        value = (value << 8U) | digest.bytes[i];
+        trace = (trace << 8U) | digest.bytes[i + 8];
+        ledger = (ledger << 8U) | digest.bytes[i + 16];
+    }
+    identity.value = bounded_value_id(value == 0 ? 1 : value);
+    identity.trace_root = trace == 0 ? 1 : trace;
+    identity.ledger_entry = precision_ledger_entry_id(ledger == 0 ? 1 : ledger);
+    if (identity.provenance.ordinal() == 0)
+        identity.provenance = provenance_id(identity.value.ordinal());
+    if (identity.lineage.ordinal() == 0)
+        identity.lineage = geometric_lineage_id(identity.value.ordinal());
+    return identity;
+}
+
+template<class T>
+void bind_operation_identity(
+    bounded_scalar<T> &result, rounded_operation_code operation,
+    const std::vector<const bounded_scalar<T> *> &ordered_inputs) {
+    result.identity = operation_identity(
+        result.identity.owner, operation, ordered_inputs, result.rounded_nominal,
+        result.uncertainty_enclosure);
+}
+
+template <class T>
+bounded_value_identity source_import_identity(
+    const context_owner_token &owner, bounded_value_id value,
+    provenance_id provenance, geometric_lineage_id lineage, T nominal,
+    const finite_interval<T> &enclosure) {
+    bounded_value_identity identity;
+    identity.owner = owner;
+    identity.value = value;
+    identity.provenance = provenance;
+    identity.lineage = lineage;
+    identity.publication = bounded_publication_state::committed;
+    identity.operation = rounded_operation_code::source_import;
+    canonical_writer writer;
+    writer.u16(static_cast<std::uint16_t>(rounded_operation_code::source_import));
+    writer.u64(value.ordinal());
+    writer.u64(provenance.ordinal());
+    writer.u64(lineage.ordinal());
+    writer.floating(nominal);
+    writer.floating(enclosure.lower());
+    writer.floating(enclosure.upper());
+    const auto digest = sha256::digest(writer.take());
+    std::uint64_t trace = 0, ledger = 0;
+    for (std::size_t i = 0; i < 8; ++i) {
+        trace = (trace << 8U) | digest.bytes[i];
+        ledger = (ledger << 8U) | digest.bytes[i + 8];
+    }
+    identity.trace_root = trace == 0 ? 1 : trace;
+    identity.ledger_entry = precision_ledger_entry_id(ledger == 0 ? 1 : ledger);
+    return identity;
+}
+
 inline bool owner_bound(const context_owner_token &owner) noexcept {
     return static_cast<bool>(owner.anchor);
 }
@@ -32,6 +122,30 @@ inline bounded_boolean_error arithmetic_error(std::uint32_t code) {
 template<class T> bool bounded_scalar_valid(const bounded_scalar<T> &value) noexcept {
     return finite_bits(value.rounded_nominal) && finite_interval_valid(value.uncertainty_enclosure) &&
            value.uncertainty_enclosure.contains(value.rounded_nominal);
+}
+
+inline bool bounded_operation_lineage_valid(
+    const bounded_value_identity &identity) noexcept {
+    if (identity.schema_version != 1 || identity.provider_version != 1 ||
+        !identity.owner.anchor || identity.value.ordinal() == 0 ||
+        identity.trace_root == 0 || identity.ledger_entry.ordinal() == 0 ||
+        !registered_rounded_operation(identity.operation) ||
+        identity.ordered_parent_values.size() !=
+            identity.ordered_parent_trace_roots.size() ||
+        identity.ordered_parent_values.size() !=
+            identity.ordered_parent_ledger_entries.size())
+        return false;
+    const auto descriptor = rounded_operation_descriptor_for(identity.operation);
+    if (identity.ordered_parent_values.size() < descriptor.minimum_arity ||
+        identity.ordered_parent_values.size() > descriptor.maximum_arity)
+        return false;
+    for (std::size_t parent = 0;
+         parent < identity.ordered_parent_values.size(); ++parent)
+        if (identity.ordered_parent_values[parent].ordinal() == 0 ||
+            identity.ordered_parent_trace_roots[parent] == 0 ||
+            identity.ordered_parent_ledger_entries[parent].ordinal() == 0)
+            return false;
+    return true;
 }
 
 inline bool finite_contributors(const uncertainty_contributors &value) noexcept {
@@ -183,6 +297,8 @@ boolean_outcome<bounded_scalar<T>> checked_bounded_singleton(const context_owner
     out.rounded_nominal = value;
     out.uncertainty_enclosure = *finite_interval<T>::checked_singleton(value);
     out.identity.owner = owner;
+    bind_operation_identity(out, rounded_operation_code::exact_scalar_constant,
+                            {});
     return boolean_outcome<bounded_scalar<T>>::success(std::move(out));
 }
 
@@ -207,6 +323,7 @@ boolean_outcome<bounded_scalar<T>> bounded_add(const bounded_scalar<T> &a, const
     if (!sum_contributors(a.contributors, b.contributors, out.contributors) ||
         !bounded_scalar_valid(out))
         return boolean_outcome<bounded_scalar<T>>::failure(arithmetic_error(31110));
+    bind_operation_identity(out, rounded_operation_code::add, {&a, &b});
     return boolean_outcome<bounded_scalar<T>>::success(std::move(out));
 }
 
@@ -223,6 +340,7 @@ boolean_outcome<bounded_scalar<T>> bounded_negate(const bounded_scalar<T> &a) {
     out.contributors = a.contributors;
     if (!bounded_scalar_valid(out))
         return boolean_outcome<bounded_scalar<T>>::failure(arithmetic_error(31111));
+    bind_operation_identity(out, rounded_operation_code::negate, {&a});
     return boolean_outcome<bounded_scalar<T>>::success(std::move(out));
 }
 
@@ -255,6 +373,7 @@ boolean_outcome<bounded_scalar<T>> bounded_multiply(const bounded_scalar<T> &a, 
         !cover_enclosure_error(out.contributors, result_error, false) ||
         !bounded_scalar_valid(out))
         return boolean_outcome<bounded_scalar<T>>::failure(arithmetic_error(31112));
+    bind_operation_identity(out, rounded_operation_code::multiply, {&a, &b});
     return boolean_outcome<bounded_scalar<T>>::success(std::move(out));
 }
 
@@ -290,6 +409,7 @@ boolean_outcome<bounded_scalar<T>> bounded_divide(const bounded_scalar<T> &a, co
         !cover_enclosure_error(out.contributors, result_error, true) ||
         !bounded_scalar_valid(out))
         return boolean_outcome<bounded_scalar<T>>::failure(arithmetic_error(31113));
+    bind_operation_identity(out, rounded_operation_code::divide, {&a, &b});
     return boolean_outcome<bounded_scalar<T>>::success(std::move(out));
 }
 
@@ -420,6 +540,12 @@ boolean_outcome<bounded_point3<T>> bounded_interpolate_from_a(const bounded_poin
     out.coordinates = std::move(*coordinates.value());
     out.provenance = a.provenance;
     out.lineage = a.lineage;
+    for (std::size_t axis = 0; axis < 3; ++axis)
+        bounded_operations_detail::bind_operation_identity(
+            out.coordinates.components[axis],
+            rounded_operation_code::interpolate_from_a,
+            {&a.coordinates.components[axis], &b.coordinates.components[axis],
+             &parameter.value});
     return boolean_outcome<bounded_point3<T>>::success(std::move(out));
 }
 

@@ -189,6 +189,13 @@ public:
     return at(valid_owner() ? &artifact_->candidate_partitions() : nullptr,
               id.ordinal());
   }
+  const relation_transverse_carrier_membership_record *
+  transverse_carrier_membership(
+      relation_transverse_carrier_membership_id id) const noexcept {
+    return at(valid_owner() ? &artifact_->transverse_carrier_memberships()
+                            : nullptr,
+              id.ordinal());
+  }
   const relation_diagnostic_record *diagnostic(
       relation_diagnostic_id id) const noexcept {
     return at(valid_owner() ? &artifact_->diagnostics() : nullptr,

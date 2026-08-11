@@ -1,6 +1,7 @@
 #pragma once
 
 #include "CanonicalCandidateStream.h"
+#include "ConstructionConditioning.h"
 #include "RelationRequestGraph.h"
 #include "RelationExecutionAuthorityTypes.h"
 #include "SourceFacetRegionKernel.h"
@@ -15,6 +16,7 @@ namespace ygor::mesh_boolean::bounded {
 
 template <class T> struct candidate_source_edge_relation_stage;
 template <class T> struct candidate_source_edge_facet_relation_stage;
+template <class T> struct source_vertex_facet_evaluated_stage;
 template <class T> struct candidate_source_facet_relation_stage;
 template <class T> struct candidate_coplanar_overlay_stage;
 template <class T, class I> class relation_artifact_assembler;
@@ -30,6 +32,40 @@ struct relation_imported_geometry_record final {
   std::uint32_t reserved32 = 0;
 };
 
+struct relation_truth_record final {
+  std::uint64_t rounded_nominal_bits = 0;
+  std::uint64_t lower_bits = 0;
+  std::uint64_t upper_bits = 0;
+  std::uint64_t separation_margin_bits = 0;
+  std::uint64_t uncertainty_width_bits = 0;
+  std::array<std::uint64_t, 8> contributor_bits{};
+  std::uint64_t bounded_value = 0;
+  std::uint64_t source_provenance = 0;
+  std::uint64_t geometric_lineage = 0;
+  std::uint64_t precision_ledger_entry = 0;
+  std::uint64_t trace_root = 0;
+  std::uint64_t exact_evidence = 0;
+  std::uint64_t exact_trace_root = 0;
+  std::array<std::uint64_t, 24> exact_ordered_inputs{};
+  bounded_sign_status bounded_sign = bounded_sign_status::invalid;
+  exact_relation_status exact_relation = exact_relation_status::unavailable;
+  predicate_disposition disposition = predicate_disposition::fail_invalid;
+  std::uint16_t rounded_formula = 0;
+  std::uint16_t exact_formula = 0;
+  std::uint16_t bounded_schema_version = 0;
+  std::uint16_t bounded_provider_version = 0;
+  std::uint16_t exact_schema_version = 0;
+  std::uint16_t exact_ordered_input_count = 0;
+  std::int32_t exact_normalization_exponent = 0;
+  std::uint32_t exact_capacity_used = 0;
+  std::uint32_t exact_capacity_limit = 0;
+  bounded_publication_state bounded_publication =
+      bounded_publication_state::transaction_local;
+  bool alternate_formulation_available = false;
+  std::uint16_t schema_version = contract_versions::relation_truth_policy;
+  std::uint32_t reserved = 0;
+};
+
 struct relation_bounded_primitive_record final {
   relation_bounded_primitive_id id{0};
   relation_request_id producer{0};
@@ -39,6 +75,7 @@ struct relation_bounded_primitive_record final {
   bounded_sign_status bounded_sign = bounded_sign_status::invalid;
   predicate_disposition disposition = predicate_disposition::fail_invalid;
   std::uint16_t rounded_formula = 0;
+  relation_truth_record evidence{};
   std::uint16_t reserved16 = 0;
   std::uint32_t reserved32 = 0;
 };
@@ -50,6 +87,7 @@ struct relation_exact_relation_record final {
   std::uint32_t truth_ordinal = 0;
   exact_relation_status status = exact_relation_status::unavailable;
   std::uint16_t exact_formula = 0;
+  relation_truth_record evidence{};
   std::uint16_t reserved16 = 0;
   std::uint32_t reserved32 = 0;
 };
@@ -86,6 +124,13 @@ struct relation_interval_evidence_record final {
   exact_relation_status exact_one = exact_relation_status::unavailable;
   std::array<std::uint64_t, 8> contributor_bits{};
   std::uint64_t trace_root = 0;
+  rounded_operation_code issued_operation = rounded_operation_code::invalid;
+  std::uint64_t issued_value = 0;
+  std::uint64_t issued_ledger_entry = 0;
+  std::vector<std::uint64_t> issued_parent_values;
+  std::vector<std::uint64_t> issued_parent_trace_roots;
+  std::vector<std::uint64_t> issued_parent_ledger_entries;
+  std::vector<std::uint8_t> issued_operation_evidence;
   std::uint64_t comparison_boundary_bits = 0;
   std::uint8_t reserved8 = 0;
   std::uint16_t reserved16 = 0;
@@ -110,16 +155,6 @@ template <class T> struct relation_source_facet_region_record final {
   std::uint32_t reserved32 = 0;
 };
 
-struct relation_truth_record final {
-  std::uint64_t rounded_nominal_bits = 0;
-  bounded_sign_status bounded_sign = bounded_sign_status::invalid;
-  exact_relation_status exact_relation = exact_relation_status::unavailable;
-  predicate_disposition disposition = predicate_disposition::fail_invalid;
-  std::uint16_t rounded_formula = 0;
-  std::uint16_t exact_formula = 0;
-  std::uint32_t reserved = 0;
-};
-
 struct relation_construction_record final {
   relation_construction_id id{0};
   relation_request_id producer{0};
@@ -129,6 +164,8 @@ struct relation_construction_record final {
       relation_construction_precedence::verification_witness;
   relation_construction_coordinate_space coordinate_space =
       relation_construction_coordinate_space::world_3d;
+  relation_construction_compatibility_disposition compatibility =
+      relation_construction_compatibility_disposition::authoritative;
   std::uint8_t component_count = 0;
   std::uint8_t projection_axis = 3;
   relation_feature_key authoritative_source_feature{};
@@ -137,6 +174,24 @@ struct relation_construction_record final {
   std::array<std::uint64_t, 6> upper_bits{};
   std::uint64_t source_provenance = 0;
   std::uint64_t geometric_lineage = 0;
+  std::array<relation_feature_key, 2> defining_features{};
+  std::uint8_t defining_feature_count = 0;
+  std::uint16_t formula_version = 0;
+  std::uint16_t schema_version = contract_versions::relation_construction_schema;
+  std::uint64_t defining_dependency_begin = 0;
+  std::uint64_t defining_dependency_count = 0;
+  std::uint64_t radial_error_upper_bits = 0;
+  std::array<std::uint64_t, 6> axis_error_upper_bits{};
+  std::uint64_t denominator_lower_bits = 0;
+  std::uint64_t denominator_upper_bits = 0;
+  std::uint64_t conditioning_lower_bits = 0;
+  rounded_operation_code operation = rounded_operation_code::invalid;
+  construction_category conditioning = construction_category::invalid;
+  construction_tolerance_disposition tolerance =
+      construction_tolerance_disposition::invalid;
+  std::vector<std::uint64_t> ordered_bounded_inputs;
+  std::vector<std::uint8_t> certificate_evidence;
+  std::uint64_t precision_trace_root = 0;
   bool accepted_source_vertex = false;
   bool finite = false;
   bool tolerance_compatible = false;
@@ -163,6 +218,8 @@ struct relation_construction_ledger_record final {
       relation_construction_precedence::verification_witness;
   relation_construction_coordinate_space coordinate_space =
       relation_construction_coordinate_space::world_3d;
+  relation_construction_compatibility_disposition compatibility =
+      relation_construction_compatibility_disposition::compatible_witness;
   std::uint8_t component_count = 0;
   std::uint8_t projection_axis = 3;
   std::uint32_t occurrence = 0;
@@ -171,10 +228,27 @@ struct relation_construction_ledger_record final {
   std::array<std::uint64_t, 6> upper_bits{};
   std::uint64_t source_provenance = 0;
   std::uint64_t geometric_lineage = 0;
+  std::array<relation_feature_key, 2> defining_features{};
+  std::uint8_t defining_feature_count = 0;
+  std::uint16_t formula_version = 0;
+  std::uint16_t schema_version =
+      contract_versions::relation_construction_ledger_schema;
+  std::uint64_t precision_trace_root = 0;
+  std::array<std::uint64_t, 6> axis_error_upper_bits{};
+  std::uint64_t radial_error_upper_bits = 0;
+  std::uint64_t denominator_lower_bits = 0;
+  std::uint64_t denominator_upper_bits = 0;
+  std::uint64_t conditioning_lower_bits = 0;
+  rounded_operation_code operation = rounded_operation_code::invalid;
+  construction_category conditioning = construction_category::invalid;
+  construction_tolerance_disposition tolerance =
+      construction_tolerance_disposition::invalid;
+  std::vector<std::uint64_t> ordered_bounded_inputs;
+  std::vector<std::uint8_t> certificate_evidence;
   bool accepted_source_vertex = false;
   bool finite = false;
   bool tolerance_compatible = false;
-  bool synthetic_authority = false;
+  bool authoritative_entry = false;
   bool lineage_compatible = false;
   bool enclosure_compatible = false;
   bool parameter_compatible = false;
@@ -404,6 +478,40 @@ struct relation_triangle_local_reconciliation_record final {
   std::uint32_t reserved = 0;
 };
 
+struct relation_transverse_carrier_membership_record final {
+  relation_transverse_carrier_membership_id id{0};
+  feature_relation_id carrier_relation{0};
+  relation_construction_id carrier_construction{0};
+  feature_relation_id member_relation{0};
+  relation_construction_id point_construction{0};
+  relation_event_seed_id seed{0};
+  std::uint32_t occurrence = 0;
+  relation_interval_evidence_id parameter{0};
+  std::array<relation_interval_evidence_id, 3> point_carrier_residuals{
+      relation_interval_evidence_id{0}, relation_interval_evidence_id{0},
+      relation_interval_evidence_id{0}};
+  relation_source_facet_region_id first_region{0};
+  relation_source_facet_region_id second_region{0};
+  std::uint64_t parameter_lineage = 0;
+  std::uint64_t carrier_lineage = 0;
+  std::uint64_t event_lineage = 0;
+  std::int32_t numeric_crossing = 0;
+  std::int8_t local_transition = 0;
+  relation_carrier_transition transition =
+      relation_carrier_transition::tangent;
+  operand_id half_open_owner = operand_id::a;
+  bool numeric_owner = false;
+  bool finite = false;
+  bool conditioning_accepted = false;
+  bool residuals_accepted = false;
+  bool regions_complete = false;
+  bool precision_evidence_complete = false;
+  std::uint16_t schema_version =
+      contract_versions::relation_transverse_carrier_membership_schema;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
 struct relation_candidate_partition_record final {
   relation_candidate_partition_id id{0};
   candidate_partition_id source_partition{0};
@@ -553,6 +661,7 @@ public:
   const std::vector<relation_truth_record> &truth_records() const noexcept {
     return truth_records_;
   }
+
   const std::vector<feature_relation_record> &relations() const noexcept {
     return relations_;
   }
@@ -599,6 +708,10 @@ public:
   const std::vector<relation_triangle_local_reconciliation_record> &
   triangle_local_reconciliation() const noexcept {
     return triangle_local_reconciliation_;
+  }
+  const std::vector<relation_transverse_carrier_membership_record> &
+  transverse_carrier_memberships() const noexcept {
+    return transverse_carrier_memberships_;
   }
   const std::vector<feature_relation_id> &candidate_relation_coverage()
       const noexcept { return candidate_relation_coverage_; }
@@ -692,6 +805,8 @@ private:
   std::vector<relation_candidate_disposition_record> candidate_dispositions_;
   std::vector<relation_triangle_local_reconciliation_record>
       triangle_local_reconciliation_;
+  std::vector<relation_transverse_carrier_membership_record>
+      transverse_carrier_memberships_;
   std::vector<feature_relation_id> candidate_relation_coverage_;
   std::vector<relation_event_seed_id> candidate_event_seed_coverage_;
   std::vector<relation_candidate_partition_record> candidate_partitions_;

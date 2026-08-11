@@ -2,6 +2,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <array>
 
 namespace ygor::mesh_boolean::bounded {
 
@@ -11,7 +12,7 @@ inline constexpr std::uint16_t directed_rounding_provider_version = 1;
 inline constexpr std::uint16_t finite_interval_provider_version = 1;
 inline constexpr std::uint16_t exact_expansion_provider_version = 1;
 inline constexpr std::uint16_t rounded_operation_registry_version = 1;
-inline constexpr std::uint16_t exact_formula_registry_version = 1;
+inline constexpr std::uint16_t exact_formula_registry_version = 2;
 
 enum class numeric_status : std::uint8_t {
     success = 1,
@@ -232,12 +233,18 @@ enum class interval_verifier_path : std::uint64_t {
 };
 
 struct exact_relation_record final {
+    std::uint16_t schema_version = exact_formula_registry_version;
     exact_relation_formula_code formula = exact_relation_formula_code::invalid;
     exact_relation_status status = exact_relation_status::invalid;
     numeric_status evaluation_status = numeric_status::invalid_argument;
+    std::uint64_t evidence_id = 0;
+    std::array<std::uint64_t, 24> ordered_inputs{};
+    std::uint16_t ordered_input_count = 0;
     std::int32_t normalization_exponent = 0;
     std::size_t capacity_used = 0;
     std::size_t capacity_limit = 0;
+    std::uint64_t operation_trace_root = 0;
+    std::uint32_t reserved = 0;
 };
 
 constexpr exact_relation_status exact_status_from_residual(residual_sign sign) noexcept {

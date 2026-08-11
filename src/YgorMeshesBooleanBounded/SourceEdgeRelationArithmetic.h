@@ -222,6 +222,20 @@ make_parameter(bounded_scalar<T> scalar,
         source_edge_relation_error(
             relation_subcode::source_edge_parameter_unresolved,
             "Component 07 exact parameter endpoint relation failed"));
+  canonical_writer trace_semantics;
+  trace_semantics.u16(static_cast<std::uint16_t>(rounded_operation_code::divide));
+  trace_semantics.floating(scalar.rounded_nominal);
+  trace_semantics.floating(scalar.uncertainty_enclosure.lower());
+  trace_semantics.floating(scalar.uncertainty_enclosure.upper());
+  trace_semantics.u8(static_cast<std::uint8_t>(zero_relation.status));
+  trace_semantics.u8(static_cast<std::uint8_t>(one_relation.status));
+  trace_semantics.u64(scalar.identity.provenance.ordinal());
+  trace_semantics.u64(scalar.identity.lineage.ordinal());
+  const auto trace_digest = sha256::digest(trace_semantics.take());
+  std::uint64_t trace_root = 0;
+  for (std::size_t i = 0; i < sizeof(trace_root); ++i)
+    trace_root = (trace_root << 8U) | trace_digest.bytes[i];
+  scalar.identity.trace_root = trace_root == 0 ? 1 : trace_root;
   auto evidence = parameter_evidence(
       scalar, zero_relation.status, one_relation.status, owner);
   if (!evidence.has_value())
@@ -272,10 +286,11 @@ point_construction(const bounded_point3<T> &candidate,
                    const source_edge_relation_input<T> &second,
                    const parameter_work<T> &first_parameter,
                    const parameter_work<T> &second_parameter,
-                   T residual_boundary, bool accepted_source_vertex,
-                   std::uint8_t first_endpoint_mask,
-                   std::uint8_t second_endpoint_mask,
-                   const context_owner_token &owner) {
+                    T residual_boundary, bool accepted_source_vertex,
+                    std::uint8_t first_endpoint_mask,
+                    std::uint8_t second_endpoint_mask,
+                    const context_owner_token &owner,
+                    const finite_interval<T> &denominator) {
   const auto first_bounded = as_bounded_parameter(first_parameter, owner);
   const auto second_bounded = as_bounded_parameter(second_parameter, owner);
   auto first_reconstructed =
@@ -318,6 +333,31 @@ point_construction(const bounded_point3<T> &candidate,
               relation_subcode::source_edge_residual_rejected,
               "Component 07 source-edge construction residual exceeds tolerance"));
   }
+  std::vector<const bounded_scalar<T> *> inputs;
+  const auto operation = accepted_source_vertex
+      ? rounded_operation_code::source_import
+      : rounded_operation_code::interpolate_from_a;
+  if (accepted_source_vertex) {
+    for (const auto &component : candidate.coordinates.components)
+      inputs.push_back(&component);
+  } else {
+    for (const auto &component : first.start.coordinates.components)
+      inputs.push_back(&component);
+    for (const auto &component : first.end.coordinates.components)
+      inputs.push_back(&component);
+    inputs.push_back(&first_parameter.scalar);
+  }
+  auto certificate = certify_construction_operation(
+      operation, contract_versions::rounded_operation_graphs, candidate, inputs,
+      denominator,
+      accepted_source_vertex
+          ? construction_category::exact_stored_coordinate_tie
+          : construction_category::stable_interior,
+      construction_tolerance_disposition::accepted, residual_boundary);
+  if (!certificate.has_value())
+    return boolean_outcome<source_edge_point_construction<T>>::failure(
+        *certificate.error());
+  result.certificate = std::move(*certificate.value());
   return boolean_outcome<source_edge_point_construction<T>>::success(
       std::move(result));
 }

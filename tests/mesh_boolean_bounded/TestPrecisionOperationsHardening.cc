@@ -4,6 +4,7 @@
 #include <iostream>
 #include <limits>
 #include <stdexcept>
+#include <vector>
 
 namespace bounded = ygor::mesh_boolean::bounded;
 
@@ -53,6 +54,43 @@ void test_arithmetic_invariants_and_owners() {
     b.contributors.conversion = 0.5;
     auto product = bounded::bounded_multiply(a, b);
     require(product.has_value(), "multiply with contributors succeeds");
+    require(product.value()->identity.operation ==
+                bounded::rounded_operation_code::multiply &&
+            product.value()->identity.ordered_parent_values ==
+                std::vector<bounded::bounded_value_id>{a.identity.value,
+                                                       b.identity.value} &&
+            product.value()->identity.ordered_parent_trace_roots ==
+                std::vector<std::uint64_t>{a.identity.trace_root,
+                                           b.identity.trace_root} &&
+            product.value()->identity.ordered_parent_ledger_entries ==
+                std::vector<bounded::precision_ledger_entry_id>{
+                    a.identity.ledger_entry, b.identity.ledger_entry},
+            "bounded multiply retains its issued operation and immediate parent identities");
+    std::vector<const bounded::bounded_scalar<double> *> outputs{
+        product.value()};
+    std::vector<const bounded::bounded_scalar<double> *> inputs{&a, &b};
+    auto certificate = bounded::certify_construction_components(
+        bounded::rounded_operation_code::multiply,
+        bounded::contract_versions::rounded_operation_graphs, owner, outputs,
+        0.0, inputs, bounded::finite_interval<double>::singleton(1.0),
+        bounded::construction_category::stable_interior,
+        bounded::construction_tolerance_disposition::accepted, 1.0);
+    require(certificate.has_value() &&
+                certificate.value()->issued_outputs[0].identity.operation ==
+                    bounded::rounded_operation_code::multiply &&
+                certificate.value()->issued_outputs[0].identity.trace_root ==
+                    product.value()->identity.trace_root &&
+                certificate.value()->issued_outputs[0].identity.ledger_entry ==
+                    product.value()->identity.ledger_entry &&
+                bounded::construction_certificate_matches_outputs(
+                    *certificate.value(), outputs),
+            "construction certificate copies issued output lineage");
+    auto mutated_product = *product.value();
+    ++mutated_product.identity.trace_root;
+    outputs[0] = &mutated_product;
+    require(!bounded::construction_certificate_matches_outputs(
+                *certificate.value(), outputs),
+            "construction certificate rejects changed issued output lineage");
     require(product.value()->contributors.inherited_b >= 0.125 &&
             product.value()->contributors.machine_floor >= 0.25 &&
             product.value()->contributors.conversion >= 0.5,

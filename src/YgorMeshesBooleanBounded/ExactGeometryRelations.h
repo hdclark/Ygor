@@ -1,11 +1,63 @@
 #pragma once
 
 #include "ExactFloatExpansion.h"
+#include "BoundedValues.h"
+#include "CanonicalBytes.h"
+#include "Sha256.h"
 
 #include <array>
 #include <cstddef>
 
 namespace ygor::mesh_boolean::bounded {
+
+template <class T, std::size_t N>
+exact_relation_record complete_exact_relation_record(
+    exact_relation_record exact,
+    const std::array<const bounded_point3<T> *, N> &points) {
+  const std::size_t input_count = N * 3;
+  if (exact.evaluation_status != numeric_status::success ||
+      input_count > exact.ordered_inputs.size()) {
+    exact.evaluation_status = numeric_status::expansion_capacity_exceeded;
+    return exact;
+  }
+  canonical_writer operation;
+  operation.u16(exact.schema_version);
+  operation.u16(static_cast<std::uint16_t>(exact.formula));
+  operation.u8(static_cast<std::uint8_t>(exact.status));
+  operation.u32(static_cast<std::uint32_t>(exact.normalization_exponent));
+  operation.u64(exact.capacity_used);
+  operation.u64(exact.capacity_limit);
+  operation.u16(static_cast<std::uint16_t>(input_count));
+  std::size_t ordinal = 0;
+  for (const auto *point : points) {
+    if (!point) {
+      exact.evaluation_status = numeric_status::invalid_argument;
+      return exact;
+    }
+    for (const auto &component : point->coordinates.components) {
+      if (component.identity.trace_root == 0 ||
+          component.identity.ledger_entry.ordinal() == 0) {
+        exact.evaluation_status = numeric_status::invalid_argument;
+        return exact;
+      }
+      const auto input = component.identity.value.ordinal();
+      exact.ordered_inputs[ordinal++] = input;
+      operation.u64(input);
+      operation.u64(component.identity.trace_root);
+      operation.u64(component.identity.ledger_entry.ordinal());
+    }
+  }
+  const auto digest = sha256::digest(operation.take());
+  std::uint64_t evidence = 0, trace = 0;
+  for (std::size_t i = 0; i < 8; ++i) {
+    evidence = (evidence << 8U) | digest.bytes[i];
+    trace = (trace << 8U) | digest.bytes[i + 8];
+  }
+  exact.evidence_id = evidence == 0 ? 1 : evidence;
+  exact.operation_trace_root = trace == 0 ? 1 : trace;
+  exact.ordered_input_count = static_cast<std::uint16_t>(input_count);
+  return exact;
+}
 
 namespace exact_geometry_relations_detail {
 

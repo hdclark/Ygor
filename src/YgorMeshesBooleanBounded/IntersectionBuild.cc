@@ -400,17 +400,25 @@ private:
             *relations_, carrier_proposals, error_))
       return false;
 
-    if (!carrier_proposals.empty())
-      return fail(
-          intersection_subcode::parameter_invalid,
-          bounded_boolean_error_category::internal_invariant_error,
-          "Component 07 transverse carrier lineage lacks the Plan 07 section 15.5 bounded carrier membership parameters required by Component 08",
-          intersection_checkpoint::transverse_carriers);
+    std::vector<carrier_membership_proposal> membership_proposals;
+    std::vector<transverse_relation_interval_proposal> interval_proposals;
+    if (!collect_component07_transverse_membership_proposals(
+            *relations_, interning_, membership_proposals, interval_proposals,
+            error_))
+      return false;
+    if ((!carrier_proposals.empty() && membership_proposals.empty()) ||
+        (carrier_proposals.empty() && !membership_proposals.empty()))
+      return fail(intersection_subcode::membership_incomplete,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 transverse carrier and membership evidence disagree",
+                  intersection_checkpoint::transverse_carriers);
 
-    return build_transverse_carrier_arrangements<T>({}, {}, {}, transverse_,
-                                                     error_) &&
-           verify_transverse_carrier_arrangements<T>({}, {}, {}, transverse_,
-                                                      error_);
+    return build_transverse_carrier_arrangements<T>(
+               carrier_proposals, membership_proposals, interval_proposals,
+               transverse_, error_) &&
+           verify_transverse_carrier_arrangements<T>(
+               carrier_proposals, membership_proposals, interval_proposals,
+               transverse_, error_);
   }
 
   bool build_coplanar() {
@@ -605,10 +613,42 @@ private:
       default:
         break;
       }
+      const auto reconciliation_summary = [&]() noexcept {
+        switch (record.kind) {
+        case resource_kind::events:
+          return "Component 08 event use exceeds reservation";
+        case resource_kind::intersection_occurrences:
+          return "Component 08 occurrence use exceeds reservation";
+        case resource_kind::intersection_incidence:
+          return "Component 08 incidence use exceeds reservation";
+        case resource_kind::intersection_memberships:
+          return "Component 08 membership use exceeds reservation";
+        case resource_kind::intersection_clusters:
+          return "Component 08 cluster use exceeds reservation";
+        case resource_kind::intersection_intervals:
+          return "Component 08 interval use exceeds reservation";
+        case resource_kind::intersection_carriers:
+          return "Component 08 carrier use exceeds reservation";
+        case resource_kind::intersection_overlaps:
+          return "Component 08 overlap use exceeds reservation";
+        case resource_kind::intersection_aggregates:
+          return "Component 08 aggregate use exceeds reservation";
+        case resource_kind::intersection_descriptors:
+          return "Component 08 descriptor use exceeds reservation";
+        case resource_kind::intersection_order_certificates:
+          return "Component 08 ordering-certificate use exceeds reservation";
+        case resource_kind::intersection_verifier_work:
+          return "Component 08 verifier work exceeds reservation";
+        case resource_kind::work_units:
+          return "Component 08 work use exceeds reservation";
+        default:
+          return "Component 08 actual resource use exceeds reservation";
+        }
+      };
       if (record.reservation && record.used > record.reservation->amount())
         return fail(intersection_subcode::resource_reconciliation_failed,
                     bounded_boolean_error_category::internal_invariant_error,
-                    "Component 08 actual resource use exceeds reservation",
+                    reconciliation_summary(),
                     intersection_checkpoint::resource_reconciliation);
     }
     return true;

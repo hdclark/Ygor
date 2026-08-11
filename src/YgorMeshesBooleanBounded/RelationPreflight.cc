@@ -47,6 +47,7 @@ bool preflight_relation_foundation(
   }
 
   std::uint64_t boundary_pair_requests = 0;
+  std::uint64_t vertex_facet_requests_per_candidate = 0;
   std::uint64_t initial_requests_per_candidate = 0;
   // Each original candidate edge has two incident source facets. Closing a
   // candidate-derived facet pair requires every original boundary edge of an
@@ -56,11 +57,23 @@ bool preflight_relation_foundation(
   if (!checked_multiply<std::uint64_t>(maximum_facet_boundary,
                                        maximum_facet_boundary,
                                        boundary_pair_requests) ||
-      !checked_multiply<std::uint64_t>(boundary_pair_requests,
-                                       std::uint64_t{2},
-                                       boundary_pair_requests) ||
-      !checked_add<std::uint64_t>(boundary_pair_requests, std::uint64_t{3},
-                                  initial_requests_per_candidate) ||
+       !checked_multiply<std::uint64_t>(boundary_pair_requests,
+                                        std::uint64_t{2},
+                                        boundary_pair_requests) ||
+       !checked_multiply<std::uint64_t>(maximum_facet_boundary,
+                                        std::uint64_t{4},
+                                        vertex_facet_requests_per_candidate) ||
+       !checked_add<std::uint64_t>(vertex_facet_requests_per_candidate,
+                                   std::uint64_t{4},
+                                   vertex_facet_requests_per_candidate) ||
+       !checked_multiply<std::uint64_t>(plan.candidate_count,
+                                        vertex_facet_requests_per_candidate,
+                                        plan.vertex_facet_upper_bound) ||
+       !checked_add<std::uint64_t>(boundary_pair_requests,
+                                   vertex_facet_requests_per_candidate,
+                                   initial_requests_per_candidate) ||
+       !checked_add<std::uint64_t>(initial_requests_per_candidate, std::uint64_t{3},
+                                   initial_requests_per_candidate) ||
       !checked_multiply<std::uint64_t>(plan.candidate_count,
                                        initial_requests_per_candidate,
                                        plan.initial_request_upper_bound)) {
@@ -105,6 +118,7 @@ bool preflight_relation_foundation(
     return false;
   }
   plan.event_seed_upper_bound = plan.construction_upper_bound;
+  plan.transverse_membership_upper_bound = plan.construction_upper_bound;
   plan.disposition_upper_bound = plan.candidate_count;
 
   // Family 04 publishes every accepted parameter, residual/conditioning
@@ -308,8 +322,10 @@ bool preflight_relation_foundation(
           capabilities.maximum_interval_evidence ||
       plan.region_record_upper_bound > capabilities.maximum_region_records ||
       plan.construction_upper_bound > capabilities.maximum_constructions ||
-      plan.construction_ledger_upper_bound >
-          capabilities.maximum_construction_ledger ||
+       plan.construction_ledger_upper_bound >
+           capabilities.maximum_construction_ledger ||
+       plan.transverse_membership_upper_bound >
+           capabilities.maximum_transverse_memberships ||
       plan.symbolic_upper_bound > capabilities.maximum_symbolic_decisions ||
       plan.event_seed_upper_bound > capabilities.maximum_event_seeds ||
       plan.event_seed_incidence_upper_bound >

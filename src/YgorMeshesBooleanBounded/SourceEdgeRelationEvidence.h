@@ -7,13 +7,7 @@ namespace source_edge_relation_detail {
 
 inline void encode_truth(canonical_writer &writer,
                          const relation_truth_record &truth) {
-  writer.u64(truth.rounded_nominal_bits);
-  writer.u8(static_cast<std::uint8_t>(truth.bounded_sign));
-  writer.u8(static_cast<std::uint8_t>(truth.exact_relation));
-  writer.u8(static_cast<std::uint8_t>(truth.disposition));
-  writer.u16(truth.rounded_formula);
-  writer.u16(truth.exact_formula);
-  writer.u32(truth.reserved);
+  encode_relation_truth_record(writer, truth);
 }
 
 inline void encode_contributors(canonical_writer &writer,
@@ -70,6 +64,7 @@ void encode_point(canonical_writer &writer,
   writer.u8(point.second_endpoint_owner_mask);
   writer.boolean(point.accepted_source_vertex);
   writer.boolean(point.tolerance_compatible);
+  encode_construction_operation_certificate(writer, point.certificate);
   writer.u16(point.reserved16);
   writer.u32(point.reserved32);
 }
@@ -113,6 +108,7 @@ template <class T>
 bool point_valid(const source_edge_point_construction<T> &point,
                  T boundary) {
   if (!valid_snapshot(point.point) || !point.tolerance_compatible ||
+      !valid_construction_operation_certificate(point.certificate) ||
       point.reserved16 != 0 || point.reserved32 != 0 ||
       point.first_endpoint_owner_mask > 3 ||
       point.second_endpoint_owner_mask > 3)

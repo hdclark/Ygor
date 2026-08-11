@@ -55,6 +55,7 @@ template <class T> struct source_edge_facet_point_construction final {
   std::uint8_t edge_endpoint_owner_mask = 0;
   bool accepted_source_vertex = false;
   bool tolerance_compatible = false;
+  construction_operation_certificate<T> certificate{};
   std::uint8_t reserved8 = 0;
   std::uint32_t reserved32 = 0;
 };
@@ -120,6 +121,8 @@ template <class T> struct source_edge_facet_relation_record final {
   source_edge_facet_contact_class contact =
       source_edge_facet_contact_class::none;
   std::array<relation_truth_record, 2> endpoint_support_truth{};
+  std::array<bool, 2> has_endpoint_region{};
+  std::array<source_facet_point_region_record<T>, 2> endpoint_regions{};
   std::vector<source_edge_facet_event_record<T>> events;
   bool has_coplanar_partition = false;
   source_facet_segment_partition_record<T> coplanar_partition{};
@@ -242,6 +245,25 @@ template <class T> struct candidate_source_edge_facet_relation_stage final {
   bounded_boolean_digest semantic_digest{};
 };
 
+template <class T> struct source_vertex_facet_evaluated_record final {
+  relation_request_id request{0};
+  relation_request_key key{};
+  relation_truth_record support_truth{};
+  source_edge_geometry_snapshot<T> point{};
+  construction_operation_certificate<T> certificate{};
+  source_facet_point_region_record<T> region{};
+  bool has_region = false;
+  std::uint32_t reserved = 0;
+};
+
+template <class T> struct source_vertex_facet_evaluated_stage final {
+  context_owner_token owner{};
+  bounded_boolean_digest semantic_namespace{};
+  std::vector<source_vertex_facet_evaluated_record<T>> records;
+  std::uint64_t evaluation_count = 0;
+  std::uint32_t reserved = 0;
+};
+
 inline bounded_boolean_error source_edge_facet_error(
     relation_subcode subcode, const char *summary,
     relation_checkpoint checkpoint = relation_checkpoint::edge_facet_evaluation,
@@ -312,6 +334,7 @@ void encode_point(canonical_writer &writer,
   writer.u8(point.edge_endpoint_owner_mask);
   writer.boolean(point.accepted_source_vertex);
   writer.boolean(point.tolerance_compatible);
+  encode_construction_operation_certificate(writer, point.certificate);
   writer.u8(point.reserved8);
   writer.u32(point.reserved32);
 }
@@ -334,7 +357,9 @@ template <class T>
 bool valid_point_construction(
     const source_edge_facet_point_construction<T> &point, T boundary) {
   if (!source_edge_relation_detail::valid_snapshot(point.point) ||
-      !point.tolerance_compatible || point.edge_endpoint_owner_mask > 3 ||
+      !point.tolerance_compatible ||
+      !valid_construction_operation_certificate(point.certificate) ||
+      point.edge_endpoint_owner_mask > 3 ||
       point.reserved8 != 0 || point.reserved32 != 0 ||
       !source_edge_relation_detail::residual_accepted(point.support_residual,
                                                        boundary))
@@ -484,11 +509,14 @@ boolean_outcome<relation_truth_record> endpoint_support_truth(
         source_edge_facet_error(
             relation_subcode::source_edge_facet_support_unresolved,
             "Component 07 edge/facet endpoint support residual failed"));
-  const auto exact = exact_coplanarity_3d(
+  const auto exact = complete_exact_relation_record(
+      exact_coplanarity_3d(
       source_edge_relation_detail::nominal(input.support[0]),
       source_edge_relation_detail::nominal(input.support[2]),
       source_edge_relation_detail::nominal(input.support[1]),
-      source_edge_relation_detail::nominal(point));
+      source_edge_relation_detail::nominal(point)),
+      std::array<const bounded_point3<T> *, 4>{{
+          &input.support[0], &input.support[2], &input.support[1], &point}});
   auto truth = source_edge_relation_detail::make_truth(
       std::move(*bounded.value()), exact, rounded_operation_code::dot3);
   if (!truth.has_value())
@@ -502,7 +530,7 @@ boolean_outcome<source_edge_facet_point_construction<T>> make_construction(
     const bounded_point3<T> &point,
     const source_edge_relation_detail::parameter_work<T> &parameter,
     T residual_boundary, bool accepted_source_vertex,
-    std::uint8_t endpoint_mask) {
+    std::uint8_t endpoint_mask, const finite_interval<T> &denominator) {
   auto reconstructed = bounded_interpolate_from_a(
       input.edge.start, input.edge.end,
       source_edge_relation_detail::as_bounded_parameter(parameter,
@@ -551,6 +579,31 @@ boolean_outcome<source_edge_facet_point_construction<T>> make_construction(
         source_edge_facet_error(
             relation_subcode::source_edge_facet_residual_rejected,
             "Component 07 edge/facet support residual exceeds tolerance"));
+  std::vector<const bounded_scalar<T> *> inputs;
+  const auto operation = accepted_source_vertex
+      ? rounded_operation_code::source_import
+      : rounded_operation_code::interpolate_from_a;
+  if (accepted_source_vertex) {
+    for (const auto &component : point.coordinates.components)
+      inputs.push_back(&component);
+  } else {
+    for (const auto &component : input.edge.start.coordinates.components)
+      inputs.push_back(&component);
+    for (const auto &component : input.edge.end.coordinates.components)
+      inputs.push_back(&component);
+    inputs.push_back(&parameter.scalar);
+  }
+  auto certificate = certify_construction_operation(
+      operation, contract_versions::rounded_operation_graphs, point, inputs,
+      denominator,
+      accepted_source_vertex
+          ? construction_category::exact_stored_coordinate_tie
+          : construction_category::stable_interior,
+      construction_tolerance_disposition::accepted, residual_boundary);
+  if (!certificate.has_value())
+    return boolean_outcome<source_edge_facet_point_construction<T>>::failure(
+        *certificate.error());
+  result.certificate = std::move(*certificate.value());
   return boolean_outcome<source_edge_facet_point_construction<T>>::success(
       std::move(result));
 }
@@ -885,6 +938,12 @@ std::vector<std::uint8_t> encode_source_edge_facet_relation_semantics(
   writer.u8(static_cast<std::uint8_t>(record.contact));
   for (const auto &truth : record.endpoint_support_truth)
     source_edge_relation_detail::encode_truth(writer, truth);
+  for (std::size_t endpoint = 0; endpoint < 2; ++endpoint) {
+    writer.boolean(record.has_endpoint_region[endpoint]);
+    if (record.has_endpoint_region[endpoint])
+      source_edge_facet_detail::encode_region(
+          writer, record.endpoint_regions[endpoint]);
+  }
   writer.u64(record.events.size());
   for (const auto &event : record.events)
     source_edge_facet_detail::encode_event(writer, event);
@@ -922,6 +981,15 @@ bool valid_source_edge_facet_relation_record(
   for (const auto &truth : record.endpoint_support_truth)
     if (!valid_relation_truth_record(truth))
       return false;
+  for (std::size_t endpoint = 0; endpoint < 2; ++endpoint) {
+    const bool on_support = source_edge_relation_detail::zero_tie<T>(
+        record.endpoint_support_truth[endpoint]);
+    if (record.has_endpoint_region[endpoint] != on_support ||
+        (on_support &&
+         !valid_source_facet_point_region_record(
+             record.endpoint_regions[endpoint])))
+      return false;
+  }
   for (std::size_t i = 0; i < record.events.size(); ++i) {
     if (!source_edge_facet_detail::valid_event(
             record.events[i], record.residual_boundary, record.source_facet,
@@ -1003,10 +1071,230 @@ bool record_semantics_equal(const source_edge_facet_relation_record<T> &a,
 } // namespace source_edge_facet_detail
 
 template <class T>
+const source_vertex_facet_evaluated_record<T> *
+find_source_vertex_facet_evaluation(
+    const source_vertex_facet_evaluated_stage<T> &stage,
+    const relation_request_key &key) noexcept {
+  const auto found = std::lower_bound(
+      stage.records.begin(), stage.records.end(), key,
+      [](const auto &record, const auto &value) { return record.key < value; });
+  return found != stage.records.end() && found->key == key ? &*found : nullptr;
+}
+
+template <class T, class I, class Authority>
+boolean_outcome<source_vertex_facet_evaluated_stage<T>>
+build_source_vertex_facet_evaluated_stage(
+    const canonical_candidate_stream<T, I> &candidates,
+    const Authority &authority,
+    const bounded_boolean_digest &semantic_namespace,
+    const relation_capabilities &capabilities, T residual_boundary) {
+  using stage_type = source_vertex_facet_evaluated_stage<T>;
+  stage_type stage;
+  stage.owner = capabilities.owner;
+  stage.semantic_namespace = semantic_namespace;
+  if (!authority.closed_before_evaluation || !authority.independently_verified ||
+      !authority.owner.same_owner(capabilities.owner) ||
+      !candidates.owner().same_owner(capabilities.owner))
+    return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+        relation_subcode::predecessor_mismatch,
+        "Component 07 source-vertex/facet evaluated-stage handshake failed",
+        relation_checkpoint::predecessor_validation));
+
+  const auto topology = [&](operand_id operand) {
+    return operand == operand_id::a ? candidates.manifolds()->a().get()
+                                    : candidates.manifolds()->b().get();
+  };
+  for (const auto &request : authority.graph.requests) {
+    if (request.key.family !=
+        relation_request_family::source_point_source_facet_region)
+      continue;
+    if (relation_cancelled(capabilities,
+                           relation_checkpoint::source_facet_region_evaluation))
+      return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+          relation_subcode::cancelled,
+          "Component 07 source-vertex/facet evaluation cancelled",
+          relation_checkpoint::source_facet_region_evaluation,
+          bounded_boolean_error_category::cancelled));
+    if (request.key.first.kind != relation_feature_kind::source_vertex ||
+        request.key.second.kind != relation_feature_kind::source_facet ||
+        request.key.first.operand == request.key.second.operand)
+      return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+          relation_subcode::malformed_request_key,
+          "Component 07 source-vertex/facet authority key is malformed",
+          relation_checkpoint::source_facet_region_evaluation));
+    const auto *source_topology = topology(request.key.first.operand);
+    const auto *target_topology = topology(request.key.second.operand);
+    if (!source_topology || !target_topology ||
+        request.key.first.primary >=
+            source_topology->source_vertex_to_vertex().size() ||
+        request.key.second.primary >=
+            target_topology->source_facet_to_group().size())
+      return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+          relation_subcode::source_facet_region_unresolved,
+          "Component 07 source-vertex/facet topology is unavailable",
+          relation_checkpoint::source_facet_region_evaluation));
+    const auto source_vertex = source_topology->source_vertex_to_vertex()[
+        request.key.first.primary];
+    const auto target_group = target_topology->source_facet_to_group()[
+        request.key.second.primary];
+    if (source_vertex >= source_topology->vertices().size() ||
+        target_group >= target_topology->facet_groups().size())
+      return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+          relation_subcode::source_facet_region_unresolved,
+          "Component 07 source-vertex/facet topology lookup failed",
+          relation_checkpoint::source_facet_region_evaluation));
+    const auto &group = target_topology->facet_groups()[target_group];
+    if (group.ring != request.key.second.secondary ||
+        group.basis.dropped_axis > 2 || group.source_vertices.size() < 3)
+      return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+          relation_subcode::malformed_source_polygon,
+          "Component 07 source-vertex/facet target polygon is malformed",
+          relation_checkpoint::source_facet_region_evaluation));
+
+    bounded_point3<T> point;
+    if (!candidate_source_edge_relation_detail::import_vertex_point(
+            source_topology->vertices()[source_vertex],
+            request.key.first.operand, candidates.owner(), point))
+      return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+          relation_subcode::source_facet_region_unresolved,
+          "Component 07 source-vertex/facet point import failed",
+          relation_checkpoint::source_facet_region_evaluation));
+    std::array<bounded_point3<T>, 3> support{};
+    for (std::size_t i = 0; i < support.size(); ++i) {
+      const auto source = group.basis.support_vertices[i];
+      if (source >= target_topology->source_vertex_to_vertex().size())
+        return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+            relation_subcode::malformed_source_polygon,
+            "Component 07 source-vertex/facet support is unavailable",
+            relation_checkpoint::source_facet_region_evaluation));
+      const auto vertex = target_topology->source_vertex_to_vertex()[source];
+      if (vertex >= target_topology->vertices().size() ||
+          !candidate_source_edge_relation_detail::import_vertex_point(
+              target_topology->vertices()[vertex], request.key.second.operand,
+              candidates.owner(), support[i]))
+        return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+            relation_subcode::malformed_source_polygon,
+            "Component 07 source-vertex/facet support import failed",
+            relation_checkpoint::source_facet_region_evaluation));
+    }
+    auto first = bounded_vector_subtract(support[1].coordinates,
+                                         support[0].coordinates);
+    auto second = bounded_vector_subtract(support[2].coordinates,
+                                          support[0].coordinates);
+    auto offset = bounded_vector_subtract(point.coordinates,
+                                          support[0].coordinates);
+    if (!first.has_value() || !second.has_value() || !offset.has_value())
+      return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+          relation_subcode::source_facet_region_unresolved,
+          "Component 07 source-vertex/facet support operation failed",
+          relation_checkpoint::source_facet_region_evaluation));
+    auto normal = bounded_cross3(*first.value(), *second.value());
+    if (!normal.has_value())
+      return boolean_outcome<stage_type>::failure(*normal.error());
+    auto bounded = bounded_dot3(*offset.value(), *normal.value());
+    if (!bounded.has_value())
+      return boolean_outcome<stage_type>::failure(*bounded.error());
+    const auto exact = complete_exact_relation_record(
+        exact_coplanarity_3d(
+        source_edge_relation_detail::nominal(support[0]),
+        source_edge_relation_detail::nominal(support[2]),
+        source_edge_relation_detail::nominal(support[1]),
+        source_edge_relation_detail::nominal(point)),
+        std::array<const bounded_point3<T> *, 4>{{
+            &support[0], &support[2], &support[1], &point}});
+    auto truth = source_edge_relation_detail::make_truth(
+        std::move(*bounded.value()), exact, rounded_operation_code::dot3);
+    if (!truth.has_value())
+      return boolean_outcome<stage_type>::failure(*truth.error());
+
+    source_vertex_facet_evaluated_record<T> record;
+    record.request = request.id;
+    record.key = request.key;
+    record.support_truth = *truth.value();
+    record.point = source_edge_relation_detail::snapshot(point);
+    std::vector<const bounded_scalar<T> *> imported_inputs;
+    for (const auto &component : point.coordinates.components)
+      imported_inputs.push_back(&component);
+    auto certificate = certify_construction_operation(
+        rounded_operation_code::source_import,
+        contract_versions::rounded_operation_graphs, point, imported_inputs,
+        finite_interval<T>::singleton(T(1)),
+        construction_category::exact_stored_coordinate_tie,
+        construction_tolerance_disposition::accepted,
+        residual_boundary);
+    if (!certificate.has_value())
+      return boolean_outcome<stage_type>::failure(*certificate.error());
+    record.certificate = std::move(*certificate.value());
+    if (source_edge_relation_detail::zero_tie<T>(record.support_truth)) {
+      std::vector<projected_source_point<T>> polygon;
+      polygon.reserve(group.source_vertices.size());
+      for (std::size_t corner = 0; corner < group.source_vertices.size(); ++corner) {
+        const auto source = group.source_vertices[corner];
+        if (source >= target_topology->source_vertex_to_vertex().size())
+          return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+              relation_subcode::malformed_source_polygon,
+              "Component 07 source-vertex/facet ring is unavailable",
+              relation_checkpoint::source_facet_region_evaluation));
+        const auto vertex = target_topology->source_vertex_to_vertex()[source];
+        bounded_point3<T> boundary;
+        if (vertex >= target_topology->vertices().size() ||
+            !candidate_source_edge_relation_detail::import_vertex_point(
+                target_topology->vertices()[vertex], request.key.second.operand,
+                candidates.owner(), boundary))
+          return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+              relation_subcode::malformed_source_polygon,
+              "Component 07 source-vertex/facet ring import failed",
+              relation_checkpoint::source_facet_region_evaluation));
+        polygon.push_back(source_edge_facet_detail::project_point(
+            boundary, group.basis.dropped_axis, source, corner));
+      }
+      const auto orientation =
+          bounded_source_polygon_kernel<T>::polygon_orientation(polygon);
+      if (!orientation ||
+          orientation->bounded_sign == bounded_planar_sign::uncertain)
+        return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+            relation_subcode::source_facet_region_unresolved,
+            "Component 07 source-vertex/facet polygon orientation is unresolved",
+            relation_checkpoint::source_facet_region_evaluation));
+      auto region = classify_source_facet_point(
+          group.source_facet, group.ring,
+          source_edge_facet_detail::project_point(
+              point, group.basis.dropped_axis, request.key.first.primary),
+          false, polygon, orientation->bounded_sign);
+      if (!region.has_value())
+        return boolean_outcome<stage_type>::failure(*region.error());
+      record.has_region = true;
+      record.region = std::move(*region.value());
+    } else if (!source_edge_relation_detail::accepted_nonzero<T>(
+                   record.support_truth)) {
+      return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+          relation_subcode::source_facet_region_unresolved,
+          "Component 07 source-vertex/facet support is unresolved",
+          relation_checkpoint::source_facet_region_evaluation));
+    }
+    stage.records.push_back(std::move(record));
+    ++stage.evaluation_count;
+  }
+  std::sort(stage.records.begin(), stage.records.end(),
+            [](const auto &a, const auto &b) { return a.key < b.key; });
+  if (std::adjacent_find(stage.records.begin(), stage.records.end(),
+                         [](const auto &a, const auto &b) {
+                           return a.key == b.key;
+                         }) != stage.records.end())
+    return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+        relation_subcode::incompatible_duplicate_request,
+        "Component 07 source-vertex/facet evaluated stage is duplicated",
+        relation_checkpoint::producer_verification));
+  return boolean_outcome<stage_type>::success(std::move(stage));
+}
+
+template <class T>
 boolean_outcome<source_edge_facet_relation_record<T>>
 classify_source_edge_facet_relation(const source_edge_facet_input<T> &input,
-                                    const context_owner_token &owner,
-                                    T residual_boundary) {
+                                     const context_owner_token &owner,
+                                     T residual_boundary,
+                                     const std::array<const source_vertex_facet_evaluated_record<T> *, 2> *
+                                         endpoint_evidence = nullptr) {
   using namespace source_edge_facet_detail;
   static_assert(supported_precision_scalar_v<T>);
   if (!finite_bits(residual_boundary) || residual_boundary < T(0) ||
@@ -1054,11 +1342,24 @@ classify_source_edge_facet_relation(const source_edge_facet_input<T> &input,
     result.boundary_relation_requests.push_back(boundary.binding.request);
 
   for (std::size_t endpoint = 0; endpoint < 2; ++endpoint) {
-    auto truth = endpoint_support_truth(input, *normal.value(), endpoint);
-    if (!truth.has_value())
-      return boolean_outcome<source_edge_facet_relation_record<T>>::failure(
-          *truth.error());
-    result.endpoint_support_truth[endpoint] = std::move(*truth.value());
+    if (endpoint_evidence) {
+      const auto *evidence = (*endpoint_evidence)[endpoint];
+      if (!evidence)
+        return boolean_outcome<source_edge_facet_relation_record<T>>::failure(
+            source_edge_facet_error(
+                relation_subcode::missing_dependency,
+                "Component 07 edge/facet endpoint authority is absent"));
+      result.endpoint_support_truth[endpoint] = evidence->support_truth;
+      result.has_endpoint_region[endpoint] = evidence->has_region;
+      if (evidence->has_region)
+        result.endpoint_regions[endpoint] = evidence->region;
+    } else {
+      auto truth = endpoint_support_truth(input, *normal.value(), endpoint);
+      if (!truth.has_value())
+        return boolean_outcome<source_edge_facet_relation_record<T>>::failure(
+            *truth.error());
+      result.endpoint_support_truth[endpoint] = std::move(*truth.value());
+    }
   }
 
   const auto finish = [&]()
@@ -1147,7 +1448,8 @@ classify_source_edge_facet_relation(const source_edge_facet_input<T> &input,
               "Component 07 transverse edge/facet construction failed"));
     auto construction = make_construction(
         input, *normal.value(), *point.value(), *parameter.value(),
-        residual_boundary, false, 0);
+        residual_boundary, false, 0,
+        denominator.value()->uncertainty_enclosure);
     if (!construction.has_value())
       return boolean_outcome<source_edge_facet_relation_record<T>>::failure(
           *construction.error());
@@ -1222,28 +1524,38 @@ classify_source_edge_facet_relation(const source_edge_facet_input<T> &input,
                                              : std::uint8_t{2};
     auto construction = make_construction(
         input, *normal.value(), point, *parameter.value(), residual_boundary,
-        true, endpoint_mask);
+        true, endpoint_mask, finite_interval<T>::singleton(T(1)));
     if (!construction.has_value())
       return boolean_outcome<source_edge_facet_relation_record<T>>::failure(
           *construction.error());
-    auto projected = project_point(point, input.dropped_axis,
-                                   input.edge_source_vertices[endpoint]);
-    std::vector<std::uint64_t> certified_vertices;
-    std::vector<source_facet_boundary_edge_owner> certified_edges;
-    bounded_boolean_error ownership_error;
-    if (!certified_non_coplanar_boundary_owners(
-            input, certified_vertices, certified_edges, ownership_error))
+    if (!endpoint_evidence) {
+      auto projected = project_point(point, input.dropped_axis,
+                                     input.edge_source_vertices[endpoint]);
+      std::vector<std::uint64_t> certified_vertices;
+      std::vector<source_facet_boundary_edge_owner> certified_edges;
+      bounded_boolean_error ownership_error;
+      if (!certified_non_coplanar_boundary_owners(
+              input, certified_vertices, certified_edges, ownership_error))
+        return boolean_outcome<source_edge_facet_relation_record<T>>::failure(
+            ownership_error);
+      auto classified = classify_source_facet_point(
+          input.source_facet, input.ring, projected, false, input.polygon,
+          input.polygon_orientation,
+          certified_vertices.empty() ? nullptr : &certified_vertices,
+          certified_edges.empty() ? nullptr : &certified_edges);
+      if (!classified.has_value())
+        return boolean_outcome<source_edge_facet_relation_record<T>>::failure(
+            *classified.error());
+      result.has_endpoint_region[endpoint] = true;
+      result.endpoint_regions[endpoint] = std::move(*classified.value());
+    }
+    if (!result.has_endpoint_region[endpoint])
       return boolean_outcome<source_edge_facet_relation_record<T>>::failure(
-          ownership_error);
-    auto region = classify_source_facet_point(
-        input.source_facet, input.ring, projected, false, input.polygon,
-        input.polygon_orientation,
-        certified_vertices.empty() ? nullptr : &certified_vertices,
-        certified_edges.empty() ? nullptr : &certified_edges);
-    if (!region.has_value())
-      return boolean_outcome<source_edge_facet_relation_record<T>>::failure(
-          *region.error());
-    if (region.value()->classification ==
+          source_edge_facet_error(
+              relation_subcode::missing_dependency,
+              "Component 07 edge/facet endpoint region authority is absent"));
+    const auto &region = result.endpoint_regions[endpoint];
+    if (region.classification ==
         source_facet_point_region_class::outside) {
       result.contact = source_edge_facet_contact_class::none;
       return finish();
@@ -1251,7 +1563,7 @@ classify_source_edge_facet_relation(const source_edge_facet_input<T> &input,
     source_edge_facet_event_record<T> event;
     event.parameter = parameter.value()->evidence;
     event.construction = std::move(*construction.value());
-    event.region = std::move(*region.value());
+    event.region = region;
     event.before = endpoint == 0
                        ? source_edge_facet_occupancy_state::on_support
                        : occupancy_for_truth(result.endpoint_support_truth[0],
@@ -1304,6 +1616,23 @@ classify_source_edge_facet_relation(const source_edge_facet_input<T> &input,
           *reconciled.error());
     result.has_coplanar_partition = true;
     result.coplanar_partition = std::move(*reconciled.value());
+    for (const auto &breakpoint : result.coplanar_partition.breakpoints) {
+      if (breakpoint.parameter.contains(T(0)) &&
+          breakpoint.rounded_parameter == T(0)) {
+        result.has_endpoint_region[0] = true;
+        result.endpoint_regions[0] = breakpoint.region;
+      }
+      if (breakpoint.parameter.contains(T(1)) &&
+          breakpoint.rounded_parameter == T(1)) {
+        result.has_endpoint_region[1] = true;
+        result.endpoint_regions[1] = breakpoint.region;
+      }
+    }
+    if (!result.has_endpoint_region[0] || !result.has_endpoint_region[1])
+      return boolean_outcome<source_edge_facet_relation_record<T>>::failure(
+          source_edge_facet_error(
+              relation_subcode::source_edge_facet_boundary_coverage,
+              "Component 07 coplanar endpoint regions are incomplete"));
     result.contact = classify_partition_contact(result.coplanar_partition);
     return finish();
   }
@@ -2293,7 +2622,8 @@ bool verify_candidate_source_edge_facet_relation_stage(
     const bounded_boolean_digest &semantic_namespace, T residual_boundary,
     const relation_capabilities &capabilities,
     const candidate_source_edge_facet_relation_stage<T> &stage,
-    bounded_boolean_error &error) {
+    bounded_boolean_error &error,
+    const source_vertex_facet_evaluated_stage<T> *vertex_facet_stage = nullptr) {
   using namespace candidate_source_edge_facet_detail;
   const auto fail = [&](relation_subcode subcode, const char *summary) {
     error = source_edge_facet_error(subcode, summary,
@@ -2349,8 +2679,18 @@ bool verify_candidate_source_edge_facet_relation_stage(
                           request.key, input))
       return fail(relation_subcode::source_edge_facet_malformed,
                   "Component 07 edge/facet verifier could not reconstruct input");
+    std::array<const source_vertex_facet_evaluated_record<T> *, 2>
+        endpoint_evidence{};
+    if (vertex_facet_stage)
+      for (std::size_t endpoint = 0; endpoint < 2; ++endpoint)
+        endpoint_evidence[endpoint] = find_source_vertex_facet_evaluation(
+            *vertex_facet_stage,
+            source_vertex_facet_request_key(
+                semantic_namespace, request.key.first.operand,
+                input.edge_source_vertices[endpoint], request.key.second));
     auto reevaluated = classify_source_edge_facet_relation(
-        input, capabilities.owner, residual_boundary);
+        input, capabilities.owner, residual_boundary,
+        vertex_facet_stage ? &endpoint_evidence : nullptr);
     if (!reevaluated.has_value()) {
       error = *reevaluated.error();
       return false;
@@ -2426,7 +2766,8 @@ build_candidate_source_edge_facet_relations(
     const canonical_candidate_stream<T, I> &candidates,
     const candidate_source_edge_relation_stage<T> &edge_stage,
     const bounded_boolean_digest &semantic_namespace, T residual_boundary,
-    const relation_capabilities &capabilities) {
+    const relation_capabilities &capabilities,
+    const source_vertex_facet_evaluated_stage<T> *vertex_facet_stage = nullptr) {
   using stage_type = candidate_source_edge_facet_relation_stage<T>;
   using namespace candidate_source_edge_facet_detail;
   static_assert(supported_precision_scalar_v<T>);
@@ -2434,6 +2775,9 @@ build_candidate_source_edge_facet_relations(
     if (!capabilities.owner.anchor ||
         !capabilities.owner.same_owner(candidates.owner()) ||
         !capabilities.owner.same_owner(edge_stage.owner) ||
+        (vertex_facet_stage &&
+         (!capabilities.owner.same_owner(vertex_facet_stage->owner) ||
+          vertex_facet_stage->semantic_namespace != semantic_namespace)) ||
         !finite_bits(residual_boundary) || residual_boundary < T(0))
       return boolean_outcome<stage_type>::failure(source_edge_facet_error(
           relation_subcode::source_edge_facet_malformed,
@@ -2479,8 +2823,23 @@ build_candidate_source_edge_facet_relations(
         return boolean_outcome<stage_type>::failure(source_edge_facet_error(
             relation_subcode::source_edge_facet_boundary_coverage,
             "Component 07 edge/facet producer could not reconstruct complete facet input"));
+      std::array<const source_vertex_facet_evaluated_record<T> *, 2>
+          endpoint_evidence{};
+      if (vertex_facet_stage)
+        for (std::size_t endpoint = 0; endpoint < 2; ++endpoint) {
+          const auto key = source_vertex_facet_request_key(
+              semantic_namespace, request.key.first.operand,
+              input.edge_source_vertices[endpoint], request.key.second);
+          endpoint_evidence[endpoint] =
+              find_source_vertex_facet_evaluation(*vertex_facet_stage, key);
+          if (!endpoint_evidence[endpoint])
+            return boolean_outcome<stage_type>::failure(source_edge_facet_error(
+                relation_subcode::missing_dependency,
+                "Component 07 edge/facet endpoint authority is unavailable"));
+        }
       auto relation = classify_source_edge_facet_relation(
-          input, capabilities.owner, residual_boundary);
+          input, capabilities.owner, residual_boundary,
+          vertex_facet_stage ? &endpoint_evidence : nullptr);
       if (!relation.has_value())
         return boolean_outcome<stage_type>::failure(*relation.error());
       stage.relations.push_back(std::move(*relation.value()));
@@ -2531,7 +2890,7 @@ build_candidate_source_edge_facet_relations(
     bounded_boolean_error verification_error;
     if (!verify_candidate_source_edge_facet_relation_stage(
             candidates, edge_stage, semantic_namespace, residual_boundary,
-            capabilities, stage, verification_error))
+            capabilities, stage, verification_error, vertex_facet_stage))
       return boolean_outcome<stage_type>::failure(verification_error);
     return boolean_outcome<stage_type>::success(std::move(stage));
   } catch (const std::bad_alloc &) {

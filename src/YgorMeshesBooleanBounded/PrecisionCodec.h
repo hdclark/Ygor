@@ -14,7 +14,7 @@
 
 namespace ygor::mesh_boolean::bounded {
 
-inline constexpr std::uint16_t precision_state_codec_v1 = 1;
+inline constexpr std::uint16_t precision_state_codec_v1 = 3;
 
 template<class T>
 struct decoded_precision_context {
@@ -310,18 +310,44 @@ void write_scalar(canonical_writer &writer, const bounded_scalar<T> &value) {
     write_owner_marker(writer, value.identity.owner);
     writer.u64(value.identity.value.ordinal()); writer.u64(value.identity.provenance.ordinal());
     writer.u64(value.identity.lineage.ordinal()); writer.u64(value.identity.ledger_entry.ordinal());
-    writer.u64(value.identity.trace_root); writer.u8(static_cast<std::uint8_t>(value.identity.publication));
+    writer.u64(value.identity.trace_root);
+    writer.u16(static_cast<std::uint16_t>(value.identity.operation));
+    writer.u64(value.identity.ordered_parent_values.size());
+    for (std::size_t parent = 0;
+         parent < value.identity.ordered_parent_values.size(); ++parent) {
+        writer.u64(value.identity.ordered_parent_values[parent].ordinal());
+        writer.u64(value.identity.ordered_parent_trace_roots[parent]);
+        writer.u64(value.identity.ordered_parent_ledger_entries[parent].ordinal());
+    }
+    writer.u8(static_cast<std::uint8_t>(value.identity.publication));
     encode_contributors(writer, value.contributors);
 }
 template<class T>
 bool read_scalar(canonical_reader &reader, const context_owner_token &owner, bounded_scalar<T> &value) {
     T lower{}, upper{}; std::uint64_t id = 0, provenance = 0, lineage = 0, ledger = 0;
-    std::uint8_t publication = 0;
+    std::uint8_t publication = 0; std::uint16_t operation = 0;
+    std::uint64_t parent_count = 0;
     if (!reader.floating(value.rounded_nominal) || !reader.floating(lower) || !reader.floating(upper) ||
         !reader.u16(value.identity.schema_version) || !reader.u16(value.identity.provider_version) ||
         !read_owner_marker(reader, owner, value.identity.owner) || !reader.u64(id) ||
         !reader.u64(provenance) || !reader.u64(lineage) || !reader.u64(ledger) ||
-        !reader.u64(value.identity.trace_root) || !reader.u8(publication) ||
+        !reader.u64(value.identity.trace_root) || !reader.u16(operation) ||
+        !reader.u64(parent_count) || parent_count > 64) return false;
+    value.identity.ordered_parent_values.clear();
+    value.identity.ordered_parent_trace_roots.clear();
+    value.identity.ordered_parent_ledger_entries.clear();
+    value.identity.ordered_parent_values.reserve(parent_count);
+    value.identity.ordered_parent_trace_roots.reserve(parent_count);
+    value.identity.ordered_parent_ledger_entries.reserve(parent_count);
+    for (std::uint64_t parent = 0; parent < parent_count; ++parent) {
+        std::uint64_t parent_value = 0, parent_trace = 0, parent_ledger = 0;
+        if (!reader.u64(parent_value) || !reader.u64(parent_trace) ||
+            !reader.u64(parent_ledger)) return false;
+        value.identity.ordered_parent_values.emplace_back(parent_value);
+        value.identity.ordered_parent_trace_roots.push_back(parent_trace);
+        value.identity.ordered_parent_ledger_entries.emplace_back(parent_ledger);
+    }
+    if (!reader.u8(publication) ||
         !read_contributors(reader, value.contributors)) return false;
     const auto interval = finite_interval<T>::create(lower, upper);
     if (!interval) return false;
@@ -329,6 +355,7 @@ bool read_scalar(canonical_reader &reader, const context_owner_token &owner, bou
     value.identity.value = bounded_value_id(id); value.identity.provenance = provenance_id(provenance);
     value.identity.lineage = geometric_lineage_id(lineage);
     value.identity.ledger_entry = precision_ledger_entry_id(ledger);
+    value.identity.operation = static_cast<rounded_operation_code>(operation);
     value.identity.publication = static_cast<bounded_publication_state>(publication);
     return true;
 }
@@ -434,6 +461,7 @@ inline std::vector<std::uint8_t> encode_exact_relation(const exact_relation_evid
     precision_codec_detail::write_owner_marker(writer, value.owner); writer.u64(value.id.ordinal());
     writer.u8(static_cast<std::uint8_t>(value.status));
     writer.u32(static_cast<std::uint32_t>(value.normalization_exponent)); writer.u32(value.capacity_used);
+    writer.u64(value.operation_trace_root);
     writer.u64(value.ordered_inputs.size());
     for (const auto input : value.ordered_inputs) writer.u64(input.ordinal());
     return precision_codec_detail::seal(writer.take());
@@ -450,6 +478,7 @@ inline boolean_outcome<exact_relation_evidence> decode_exact_relation(
         !reader.u16(out.schema_version) || !reader.u16(out.formula_code) ||
         !precision_codec_detail::read_owner_marker(reader, owner, out.owner) || !reader.u64(id) ||
         !reader.u8(status) || !reader.u32(exponent) || !reader.u32(out.capacity_used) ||
+        !reader.u64(out.operation_trace_root) ||
         !reader.u64(count) || count > (1U << 20) || count > reader.remaining() / 8)
         return boolean_outcome<exact_relation_evidence>::failure(precision_codec_error(30038, "malformed exact relation encoding"));
     out.id = exact_relation_id(id); out.status = static_cast<exact_relation_status>(status);

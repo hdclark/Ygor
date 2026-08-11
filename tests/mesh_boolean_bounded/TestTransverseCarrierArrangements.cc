@@ -99,10 +99,11 @@ carrier_membership_proposal membership(
   proposal.lower_bits = to_bits(lower);
   proposal.upper_bits = to_bits(upper);
   proposal.parameter_lineage = 2000 + slot;
+  proposal.event_lineage = 5000 + slot;
   proposal.relation_lineage = relation_lineage;
   proposal.relation = feature_relation_id{relation};
-  proposal.exact_equal_eligible = lower == upper;
-  proposal.cluster_eligible = lower == upper;
+  proposal.exact_equal_eligible = false;
+  proposal.cluster_eligible = false;
   proposal.first_region_evidence =
       relation_source_facet_region_id{3000 + slot * 2};
   proposal.second_region_evidence =
@@ -210,6 +211,14 @@ int main() {
 
   auto equal_member = membership(key, 4, 1.0, 1.0, 10, 8001);
   auto equal_memberships = memberships;
+  equal_member.event_lineage = m1.event_lineage;
+  equal_member.exact_equal_eligible = true;
+  equal_member.cluster_eligible = true;
+  for (auto &member : equal_memberships)
+    if (member.occurrence == m1.occurrence) {
+      member.exact_equal_eligible = true;
+      member.cluster_eligible = true;
+    }
   equal_memberships.push_back(equal_member);
   transverse_carrier_arrangement_tables equal_tables;
   require(build_transverse_carrier_arrangements<double>(
@@ -218,6 +227,14 @@ int main() {
   require(equal_tables.clusters.size() == 4);
   require(equal_tables.clusters[1].occurrence_members.count == 2);
   require(equal_tables.clusters[1].separate_output_occurrences);
+
+  auto tangent = membership(key, 20, 2.0, 2.0, 10, 8001);
+  tangent.transition = relation_carrier_transition::tangent;
+  transverse_carrier_arrangement_tables tangent_tables;
+  require(build_transverse_carrier_arrangements<double>(
+      carriers, {tangent}, {}, tangent_tables, error));
+  require(tangent_tables.clusters.size() == 1);
+  require(tangent_tables.spans.empty());
 
   auto unsupported_equal = equal_memberships;
   unsupported_equal[3].exact_equal_eligible = false;
@@ -234,6 +251,9 @@ int main() {
   n0.parameter_lineage = 9000;
   n1.parameter_lineage = 9000;
   n2.parameter_lineage = 9000;
+  n0.event_lineage = 9000;
+  n1.event_lineage = 9000;
+  n2.event_lineage = 9000;
   n0.cluster_eligible = true;
   n1.cluster_eligible = true;
   n2.cluster_eligible = true;

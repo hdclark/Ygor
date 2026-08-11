@@ -86,6 +86,7 @@ bool estimate_relation_persistent_bytes(
       !add_vector(artifact.event_seed_incidence()) ||
        !add_vector(artifact.event_seed_candidate_incidence()) ||
        !add_vector(artifact.triangle_local_reconciliation()) ||
+       !add_vector(artifact.transverse_carrier_memberships()) ||
       !add_vector(artifact.candidate_dispositions()) ||
       !add_vector(artifact.candidate_relation_coverage()) ||
       !add_vector(artifact.candidate_event_seed_coverage()) ||
@@ -101,6 +102,20 @@ bool estimate_relation_persistent_bytes(
         !add_vector(record.region.orientation_evidence))
       return false;
   }
+  for (const auto &record : artifact.interval_evidence())
+    if (!add_vector(record.issued_parent_values) ||
+        !add_vector(record.issued_parent_trace_roots) ||
+        !add_vector(record.issued_parent_ledger_entries) ||
+        !add_vector(record.issued_operation_evidence))
+      return false;
+  for (const auto &record : artifact.constructions())
+    if (!add_vector(record.ordered_bounded_inputs) ||
+        !add_vector(record.certificate_evidence))
+      return false;
+  for (const auto &record : artifact.construction_ledger())
+    if (!add_vector(record.ordered_bounded_inputs) ||
+        !add_vector(record.certificate_evidence))
+      return false;
 
   for (const auto &node : artifact.coplanar_event_nodes()) {
     if (!add_vector(node.occurrences))
@@ -163,9 +178,11 @@ public:
     try {
       if (!validate_contracts() || !preflight_and_reserve() ||
           !build_execution_authority() ||
+          !build_source_vertex_facet_relations() ||
           !build_candidate_edge_relations() ||
           !build_candidate_edge_facet_relations() ||
           !build_candidate_facet_relations() ||
+          !build_transverse_relations() ||
           !build_candidate_coplanar_overlays() ||
           !build_final_artifact() || !encode_and_verify())
         return failure();
@@ -203,9 +220,11 @@ private:
   using outcome_type =
       boolean_outcome<std::shared_ptr<const signed_feature_relations<T, I>>>;
   using edge_stage_type = candidate_source_edge_relation_stage<T>;
+  using vertex_facet_stage_type = source_vertex_facet_evaluated_stage<T>;
   using edge_facet_stage_type = candidate_source_edge_facet_relation_stage<T>;
   using facet_stage_type = candidate_source_facet_relation_stage<T>;
   using overlay_stage_type = candidate_coplanar_overlay_stage<T>;
+  using transverse_stage_type = transverse_relation_evaluated_stage<T>;
 
   outcome_type failure() {
     relation_build_detail::bind_relation_error(
@@ -322,6 +341,21 @@ private:
     return true;
   }
 
+  bool build_source_vertex_facet_relations() {
+    if (!execution_authority_ ||
+        !check_cancel(relation_checkpoint::source_facet_region_evaluation))
+      return false;
+    auto stage = build_source_vertex_facet_evaluated_stage(
+        *candidates_, *execution_authority_, context_.context_digest,
+        capabilities_, precision_.tolerance());
+    if (!stage.has_value()) {
+      error_ = *stage.error();
+      return false;
+    }
+    vertex_facet_stage_.emplace(std::move(*stage.value()));
+    return true;
+  }
+
   bool build_execution_authority() {
     if (!check_cancel(relation_checkpoint::candidate_scan) ||
         !check_cancel(relation_checkpoint::initial_request_grouping) ||
@@ -346,9 +380,14 @@ private:
                   bounded_boolean_error_category::internal_invariant_error,
                   "Component 07 edge/facet stage is missing edge dependencies",
                   relation_checkpoint::edge_facet_evaluation);
+    if (!vertex_facet_stage_)
+      return fail(relation_subcode::source_edge_facet_invariant,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 edge/facet stage is missing vertex/facet authority",
+                  relation_checkpoint::edge_facet_evaluation);
     auto stage = build_candidate_source_edge_facet_relations(
         *candidates_, *edge_stage_, context_.context_digest,
-        precision_.tolerance(), capabilities_);
+        precision_.tolerance(), capabilities_, &*vertex_facet_stage_);
     if (!stage.has_value()) {
       error_ = *stage.error();
       return false;
@@ -391,13 +430,14 @@ private:
   bool build_candidate_coplanar_overlays() {
     if (!check_cancel(relation_checkpoint::coplanar_overlay_evaluation))
       return false;
-    if (!edge_stage_ || !facet_stage_)
+    if (!vertex_facet_stage_ || !edge_stage_ || !facet_stage_)
       return fail(relation_subcode::coplanar_overlay_invariant,
                   bounded_boolean_error_category::internal_invariant_error,
                   "Component 07 coplanar overlay stage is missing predecessor relations",
                   relation_checkpoint::coplanar_overlay_evaluation);
     auto stage = ygor::mesh_boolean::bounded::build_candidate_coplanar_overlays(
-        *candidates_, *edge_stage_, *facet_stage_, capabilities_);
+        *candidates_, *edge_stage_, *facet_stage_, capabilities_,
+        &*vertex_facet_stage_, &context_.context_digest);
     if (!stage.has_value()) {
       error_ = *stage.error();
       return false;
@@ -406,11 +446,30 @@ private:
     return true;
   }
 
+  bool build_transverse_relations() {
+    if (!check_cancel(relation_checkpoint::construction_validation))
+      return false;
+    if (!execution_authority_ || !edge_facet_stage_ || !facet_stage_)
+      return fail(relation_subcode::internal_invariant,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 transverse evaluation is missing predecessor relations",
+                  relation_checkpoint::predecessor_validation);
+    auto stage = build_transverse_relation_evaluated_stage(
+        *candidates_, *execution_authority_, *edge_facet_stage_, *facet_stage_,
+        capabilities_, precision_.tolerance());
+    if (!stage.has_value()) {
+      error_ = *stage.error();
+      return false;
+    }
+    transverse_stage_.emplace(std::move(*stage.value()));
+    return true;
+  }
+
   bool build_final_artifact() {
     if (!check_cancel(relation_checkpoint::initial_request_grouping))
       return false;
-    if (!execution_authority_ || !edge_stage_ || !edge_facet_stage_ ||
-        !facet_stage_ || !overlay_stage_)
+    if (!execution_authority_ || !vertex_facet_stage_ || !edge_stage_ || !edge_facet_stage_ ||
+        !facet_stage_ || !overlay_stage_ || !transverse_stage_)
       return fail(relation_subcode::internal_invariant,
                   bounded_boolean_error_category::internal_invariant_error,
                   "Component 07 final assembly is missing a verified predecessor stage",
@@ -418,16 +477,21 @@ private:
 
     auto edge = std::make_shared<const edge_stage_type>(
         std::move(*edge_stage_));
+    auto vertex_facet = std::make_shared<const vertex_facet_stage_type>(
+        std::move(*vertex_facet_stage_));
     auto edge_facet = std::make_shared<const edge_facet_stage_type>(
         std::move(*edge_facet_stage_));
     auto facet = std::make_shared<const facet_stage_type>(
         std::move(*facet_stage_));
     auto overlay = std::make_shared<const overlay_stage_type>(
         std::move(*overlay_stage_));
+    auto transverse = std::make_shared<const transverse_stage_type>(
+        std::move(*transverse_stage_));
     artifact_ = std::make_unique<artifact_type>();
     relation_artifact_assembler<T, I> assembler(
-        context_, precision_, candidates_, std::move(edge),
+        context_, precision_, candidates_, std::move(vertex_facet), std::move(edge),
         std::move(edge_facet), std::move(facet), std::move(overlay),
+        std::move(transverse),
         std::make_shared<const relation_execution_authority>(
             std::move(*execution_authority_)), capabilities_);
     return assembler.assemble(*artifact_, error_);
@@ -507,7 +571,8 @@ private:
         !add_work(artifact_->truth_records_.size()) ||
         !add_work(artifact_->relations_.size()) ||
         !add_work(artifact_->constructions_.size()) ||
-        !add_work(artifact_->construction_ledger_.size()) ||
+         !add_work(artifact_->construction_ledger_.size()) ||
+         !add_work(artifact_->transverse_carrier_memberships_.size()) ||
         !add_work(artifact_->symbolic_eligibility_.size()) ||
         !add_work(artifact_->symbolic_decisions_.size()) ||
         !add_work(artifact_->crossings_.size()) ||
@@ -552,9 +617,11 @@ private:
   relation_capabilities capabilities_;
   relation_preflight_plan preflight_{};
   std::optional<edge_stage_type> edge_stage_;
+  std::optional<vertex_facet_stage_type> vertex_facet_stage_;
   std::optional<edge_facet_stage_type> edge_facet_stage_;
   std::optional<facet_stage_type> facet_stage_;
   std::optional<overlay_stage_type> overlay_stage_;
+  std::optional<transverse_stage_type> transverse_stage_;
   std::optional<relation_execution_authority> execution_authority_;
   std::unique_ptr<artifact_type> artifact_;
   stage_transaction transaction_;

@@ -139,11 +139,9 @@ bool import_vertex_point(const canonical_manifold_vertex_record<T> &vertex,
     auto &component = out.coordinates.components[axis];
     component.rounded_nominal = nominal;
     component.uncertainty_enclosure = *enclosure;
-    component.identity.owner = owner;
-    component.identity.value = bounded_value_id(value_id);
-    component.identity.provenance = out.provenance;
-    component.identity.lineage = out.lineage;
-    component.identity.publication = bounded_publication_state::committed;
+    component.identity = bounded_operations_detail::source_import_identity(
+        owner, bounded_value_id(value_id), out.provenance, out.lineage, nominal,
+        *enclosure);
     const double inherited = static_cast<double>(vertex.radial_error);
     if (!std::isfinite(inherited) || inherited < 0.0)
       return false;

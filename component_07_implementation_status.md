@@ -79,6 +79,68 @@ The complete fourteen-test strict Component 07 CTest matrix passes, including
 live internal-diagonal coverage and repaired-codec mutations of the execution
 authority and reconciliation records.
 
+## Completed public truth, construction lineage, source-vertex/facet, and transverse membership remediation
+
+Component 7b now publishes the complete owner-free numerical evidence required
+at the Component 07/08 boundary. Component 03 exact results carry a canonical
+evidence identity, ordered bounded-value inputs, operation trace, schema,
+normalization, and capacity. Public truth records preserve that evidence beside
+the rounded enclosure, margins, contributors, bounded identity, bounded sign,
+exact relation, and consumer disposition, and reject requested exact formulas
+whose identity or defining inputs are absent.
+
+The frozen execution authority now feeds an immutable source-vertex/source-facet
+evaluated stage immediately after graph closure. Its records are keyed by the
+admitted request ID and evaluated once per unique key. Edge/facet and coplanar
+overlay producers consume the same stored support truth and complete source-ring
+region record; final artifact assembly only assigns public IDs and publishes the
+stored records. Preflight and persistent/work reconciliation account for these
+authority requests, evaluations, dependencies, records, and their dependent
+primitive evidence.
+
+Transverse event-to-carrier parameter/residual computation and both source-facet
+region evaluations now run exactly once in a dedicated immutable evaluated
+producer stage after frozen authority and detailed relation evaluation. The
+stage uses owner-free semantic carrier/member/event keys, canonical ordering,
+complete expected-population and evaluation counts, capacity checks, a semantic
+digest, and duplicate-producer rejection. Final assembly only maps those stored
+records into canonical request and artifact IDs and rejects any unmapped stage
+record. Transverse event-to-carrier memberships are first-class Component 07 records.
+They bind the carrier and point constructions, event seed, bounded parameter,
+three carrier residuals, both facet-region proofs, operation and carrier
+lineages, canonical point-construction identity, entering/leaving/tangent transition,
+and half-open owner. The verifier reconstructs carrier facet/ring identity and query
+geometry, derives region containment, rejects coordinate-bit equality as exact
+evidence, and requires explicit exact or shared topological lineage for cluster
+eligibility. Component 08 exports only supports with certified memberships,
+retains tangent clusters, reconciles duplicate boundaries by lineage, and builds
+active spans only from matched certified transition clusters rather than
+adjacent membership order.
+
+Every construction family now carries its producer-issued Component 03
+operation certificate through authority selection and witness publication.
+Construction and construction-ledger records retain the actual output trace and
+precision-ledger identities, actual rounded operation, immediate ordered parent
+value/trace/ledger identities, ordered construction inputs, axis and radial
+bounds, denominator and conditioning evidence, tolerance disposition, and the
+complete canonical certificate bytes. Component 03 issues this compact lineage
+with each bounded scalar and source import; certification copies and validates
+the issued per-output evidence without constructing a retrospective local trace
+or ledger. Final assembly copies this evidence without synthesizing a
+replacement, and the independent verifier reconstructs each producer
+certificate and requires exact field and byte-level agreement for authority and
+witness entries. The transverse evaluated producer similarly retains and
+publishes the actual bounded-divide parameter certificate; no manual parameter
+trace hash remains.
+
+The independent verifier reconstructs the complete expected transverse
+membership semantic key set from detailed relation consumers and canonical
+event occurrences, rejecting omission, addition, duplication, or ordering
+mismatch. Component 08 independently counts the expected event population for
+each transverse support and fails closed if memberships are missing. The full
+fourteen-test Component 07 matrix plus the focused Component 08 transverse
+carrier test passes, including repaired-codec removal of one membership.
+
 ## Implemented relation-graph foundation
 
 The foundation establishes the fail-closed first implementation slice required by

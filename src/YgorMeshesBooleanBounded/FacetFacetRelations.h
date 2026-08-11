@@ -51,6 +51,7 @@ template <class T> struct source_facet_transverse_carrier final {
   std::array<finite_interval<T>, 2> direction_plane_residuals{
       finite_interval<T>::singleton(T(0)), finite_interval<T>::singleton(T(0))};
   bool residuals_accepted = false;
+  construction_operation_certificate<T> certificate{};
   std::uint8_t reserved8 = 0;
   std::uint16_t reserved16 = 0;
   std::uint32_t reserved32 = 0;
@@ -141,13 +142,7 @@ void encode_interval(canonical_writer &writer, const finite_interval<T> &value) 
 
 inline void encode_truth(canonical_writer &writer,
                          const relation_truth_record &record) {
-  writer.u64(record.rounded_nominal_bits);
-  writer.u8(static_cast<std::uint8_t>(record.bounded_sign));
-  writer.u8(static_cast<std::uint8_t>(record.exact_relation));
-  writer.u8(static_cast<std::uint8_t>(record.disposition));
-  writer.u16(record.rounded_formula);
-  writer.u16(record.exact_formula);
-  writer.u32(record.reserved);
+  encode_relation_truth_record(writer, record);
 }
 
 template <class T>
@@ -363,6 +358,36 @@ boolean_outcome<source_facet_transverse_carrier<T>> build_carrier(
             "Component 07 facet/facet carrier residual exceeds tolerance",
             relation_checkpoint::construction_validation,
             bounded_boolean_error_category::geometric_condition_exceeds_tolerance));
+  std::vector<const bounded_scalar<T> *> outputs;
+  std::vector<const bounded_scalar<T> *> inputs;
+  for (const auto &component : point.coordinates.components)
+    outputs.push_back(&component);
+  for (const auto &component : direction.components)
+    outputs.push_back(&component);
+  for (const auto &component : first.normal.components)
+    inputs.push_back(&component);
+  inputs.push_back(&first.offset);
+  for (const auto &component : second.normal.components)
+    inputs.push_back(&component);
+  inputs.push_back(&second.offset);
+  inputs.push_back(&direction_sq);
+  const auto radial = directed_add(point.coordinates.radial_error_upper,
+                                   direction.radial_error_upper);
+  if (!radial)
+    return boolean_outcome<source_facet_transverse_carrier<T>>::failure(
+        source_facet_relation_error(
+            relation_subcode::source_facet_carrier_unresolved,
+            "Component 07 facet/facet carrier radial evidence failed"));
+  auto certificate = certify_construction_components(
+      rounded_operation_code::carrier_parameter,
+      contract_versions::rounded_operation_graphs, first.owner, outputs,
+      radial.value.upper, inputs, direction_sq.uncertainty_enclosure,
+      construction_category::stable_interior,
+      construction_tolerance_disposition::accepted, residual_boundary);
+  if (!certificate.has_value())
+    return boolean_outcome<source_facet_transverse_carrier<T>>::failure(
+        *certificate.error());
+  out.certificate = std::move(*certificate.value());
   return boolean_outcome<source_facet_transverse_carrier<T>>::success(
       std::move(out));
 }
@@ -415,6 +440,8 @@ std::vector<std::uint8_t> encode_source_facet_relation_semantics(
   for (const auto &value : record.transverse_carrier.direction_plane_residuals)
     source_facet_relation_detail::encode_interval(writer, value);
   writer.boolean(record.transverse_carrier.residuals_accepted);
+  encode_construction_operation_certificate(
+      writer, record.transverse_carrier.certificate);
   writer.u8(record.transverse_carrier.reserved8);
   writer.u16(record.transverse_carrier.reserved16);
   writer.u32(record.transverse_carrier.reserved32);
@@ -495,7 +522,9 @@ bool valid_source_facet_relation_record(
     if (!valid_snapshot(record.transverse_carrier.point) ||
         !valid_snapshot(record.transverse_carrier.direction) ||
         record.transverse_carrier.direction_squared.lower() <= T(0) ||
-        !record.transverse_carrier.residuals_accepted)
+        !record.transverse_carrier.residuals_accepted ||
+        !valid_construction_operation_certificate(
+            record.transverse_carrier.certificate))
       return false;
     for (const auto &value : record.transverse_carrier.point_plane_residuals)
       if (!residual_interval_accepted(value, record.residual_boundary))
@@ -552,8 +581,11 @@ classify_source_facet_support_relation(
   const auto b0 = nominal(second.support[0]);
   const auto b1 = nominal(second.support[1]);
   const auto b2 = nominal(second.support[2]);
-  const auto exact_parallel = exact_plane_normals_parallel_3d(
-      a0, a1, a2, b0, b1, b2);
+  const auto exact_parallel = complete_exact_relation_record(
+      exact_plane_normals_parallel_3d(a0, a1, a2, b0, b1, b2),
+      std::array<const bounded_point3<T> *, 6>{{
+          &first.support[0], &first.support[1], &first.support[2],
+          &second.support[0], &second.support[1], &second.support[2]}});
   auto parallel_truth = assemble_relation_truth_record(
       *direction_sq.value(), exact_parallel, rounded_operation_code::squared_norm,
       true);
@@ -604,7 +636,11 @@ classify_source_facet_support_relation(
                                          residual_boundary);
     if (!offset.has_value())
       return boolean_outcome<record_type>::failure(*offset.error());
-    const auto exact_coplanar = exact_plane_point_residual_3d(a0, a1, a2, b0);
+    const auto exact_coplanar = complete_exact_relation_record(
+        exact_plane_point_residual_3d(a0, a1, a2, b0),
+        std::array<const bounded_point3<T> *, 4>{{
+            &first.support[0], &first.support[1], &first.support[2],
+            &second.support[0]}});
     auto coplanarity_truth = assemble_relation_truth_record(
         offset.value()->value, exact_coplanar,
         rounded_operation_code::plane_residual, true);
@@ -618,8 +654,11 @@ classify_source_facet_support_relation(
                                       second_plane.value()->normal);
       if (!orientation.has_value())
         return boolean_outcome<record_type>::failure(*orientation.error());
-      const auto exact_orientation = exact_plane_normal_dot_3d(
-          a0, a1, a2, b0, b1, b2);
+      const auto exact_orientation = complete_exact_relation_record(
+          exact_plane_normal_dot_3d(a0, a1, a2, b0, b1, b2),
+          std::array<const bounded_point3<T> *, 6>{{
+              &first.support[0], &first.support[1], &first.support[2],
+              &second.support[0], &second.support[1], &second.support[2]}});
       if (exact_orientation.status != exact_relation_status::exact_negative &&
           exact_orientation.status != exact_relation_status::exact_positive)
         return boolean_outcome<record_type>::failure(source_facet_relation_error(

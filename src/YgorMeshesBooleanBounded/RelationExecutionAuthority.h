@@ -6,6 +6,7 @@
 #include "FacetFacetRelations.h"
 
 #include <algorithm>
+#include <array>
 #include <vector>
 
 namespace ygor::mesh_boolean::bounded {
@@ -60,6 +61,82 @@ inline const canonical_relation_request *find_request(
   return found == graph.requests.end() || found->key != key ? nullptr : &*found;
 }
 
+inline relation_request_key source_vertex_facet_key(
+    const bounded_boolean_digest &semantic_namespace, operand_id vertex_operand,
+    std::uint64_t source_vertex, const relation_feature_key &facet) {
+  return source_vertex_facet_request_key(semantic_namespace, vertex_operand,
+                                         source_vertex, facet);
+}
+
+template <class T, class I>
+bool append_source_vertex_facet_proposals(
+    const canonical_candidate_stream<T, I> &candidates,
+    const bounded_boolean_digest &semantic_namespace,
+    const std::vector<relation_request_proposal> &edge_facet_proposals,
+    const std::vector<relation_request_proposal> &facet_proposals,
+    std::vector<relation_request_proposal> &out, bounded_boolean_error &error) {
+  for (const auto &edge_facet : edge_facet_proposals) {
+    std::array<std::uint64_t, 2> vertices{};
+    if (!candidate_source_edge_facet_detail::source_edge_vertices(
+            candidates, edge_facet.key.first, vertices)) {
+      error = relation_error(
+          relation_subcode::source_edge_facet_malformed,
+          bounded_boolean_error_category::internal_invariant_error,
+          "Component 07 source-vertex/facet authority could not resolve edge endpoints",
+          relation_checkpoint::candidate_scan);
+      return false;
+    }
+    for (const auto vertex : vertices) {
+      relation_request_proposal proposal;
+      proposal.key = source_vertex_facet_key(
+          semantic_namespace, edge_facet.key.first.operand, vertex,
+          edge_facet.key.second);
+      proposal.candidate_witnesses = edge_facet.candidate_witnesses;
+      if (!valid_relation_request_key(proposal.key))
+        return false;
+      out.push_back(std::move(proposal));
+    }
+  }
+
+  const auto topology = [&](operand_id operand) {
+    return operand == operand_id::a ? candidates.manifolds()->a().get()
+                                    : candidates.manifolds()->b().get();
+  };
+  for (const auto &facet_pair : facet_proposals) {
+    const relation_feature_key facets[]{facet_pair.key.first,
+                                        facet_pair.key.second};
+    for (std::size_t direction = 0; direction < 2; ++direction) {
+      const auto &source = facets[direction];
+      const auto &target = facets[1 - direction];
+      const auto *source_topology = topology(source.operand);
+      if (!source_topology ||
+          source.primary >= source_topology->source_facet_to_group().size()) {
+        error = relation_error(
+            relation_subcode::source_facet_relation_malformed,
+            bounded_boolean_error_category::internal_invariant_error,
+            "Component 07 source-vertex/facet authority could not resolve facet topology",
+            relation_checkpoint::candidate_scan);
+        return false;
+      }
+      const auto group_ordinal =
+          source_topology->source_facet_to_group()[source.primary];
+      if (group_ordinal >= source_topology->facet_groups().size())
+        return false;
+      for (const auto vertex :
+           source_topology->facet_groups()[group_ordinal].source_vertices) {
+        relation_request_proposal proposal;
+        proposal.key = source_vertex_facet_key(
+            semantic_namespace, source.operand, vertex, target);
+        proposal.candidate_witnesses = facet_pair.candidate_witnesses;
+        if (!valid_relation_request_key(proposal.key))
+          return false;
+        out.push_back(std::move(proposal));
+      }
+    }
+  }
+  return true;
+}
+
 } // namespace relation_execution_authority_detail
 
 template <class T, class I>
@@ -70,6 +147,7 @@ boolean_outcome<relation_execution_authority> build_relation_execution_authority
   std::vector<relation_request_proposal> edge_proposals;
   std::vector<relation_request_proposal> edge_facet_proposals;
   std::vector<relation_request_proposal> facet_proposals;
+  std::vector<relation_request_proposal> vertex_facet_proposals;
   bounded_boolean_error error;
   if (!candidate_source_edge_relation_detail::append_candidate_proposals(
           candidates, semantic_namespace, edge_proposals, capabilities, error) ||
@@ -77,16 +155,38 @@ boolean_outcome<relation_execution_authority> build_relation_execution_authority
           candidates, semantic_namespace, edge_facet_proposals, capabilities,
           error) ||
       !candidate_source_facet_relation_detail::append_candidate_proposals(
-          candidates, semantic_namespace, facet_proposals, capabilities, error))
+          candidates, semantic_namespace, facet_proposals, capabilities,
+          error) ||
+      !relation_execution_authority_detail::append_source_vertex_facet_proposals(
+          candidates, semantic_namespace, edge_facet_proposals,
+          facet_proposals, vertex_facet_proposals, error))
     return boolean_outcome<relation_execution_authority>::failure(error);
 
   std::vector<relation_request_proposal> proposals;
   proposals.reserve(edge_proposals.size() + edge_facet_proposals.size() +
-                    facet_proposals.size() * 2 +
+                     vertex_facet_proposals.size() +
+                     facet_proposals.size() * 2 +
                     candidates.candidates().size());
   proposals.insert(proposals.end(), edge_proposals.begin(), edge_proposals.end());
-  proposals.insert(proposals.end(), edge_facet_proposals.begin(),
-                   edge_facet_proposals.end());
+  proposals.insert(proposals.end(), vertex_facet_proposals.begin(),
+                   vertex_facet_proposals.end());
+  for (auto proposal : edge_facet_proposals) {
+    std::array<std::uint64_t, 2> vertices{};
+    if (!candidate_source_edge_facet_detail::source_edge_vertices(
+            candidates, proposal.key.first, vertices))
+      return boolean_outcome<relation_execution_authority>::failure(
+          relation_error(
+              relation_subcode::source_edge_facet_malformed,
+              bounded_boolean_error_category::internal_invariant_error,
+              "Component 07 source-vertex/facet dependency endpoints are unavailable",
+              relation_checkpoint::dependency_closure));
+    for (const auto vertex : vertices)
+      proposal.dependencies.push_back(
+          relation_execution_authority_detail::source_vertex_facet_key(
+              semantic_namespace, proposal.key.first.operand, vertex,
+              proposal.key.second));
+    proposals.push_back(std::move(proposal));
+  }
 
   for (const auto &candidate : candidates.candidates()) {
     relation_request_proposal bookkeeping;
@@ -133,6 +233,12 @@ boolean_outcome<relation_execution_authority> build_relation_execution_authority
     overlay.key = proposal.key;
     overlay.key.family = relation_request_family::coplanar_source_facet_overlay;
     overlay.dependencies.push_back(proposal.key);
+    for (const auto &vertex_facet : vertex_facet_proposals)
+      if ((vertex_facet.key.first.operand == proposal.key.first.operand &&
+           vertex_facet.key.second == proposal.key.second) ||
+          (vertex_facet.key.first.operand == proposal.key.second.operand &&
+           vertex_facet.key.second == proposal.key.first))
+        overlay.dependencies.push_back(vertex_facet.key);
     overlay.candidate_witnesses = proposal.candidate_witnesses;
     proposals.push_back(std::move(overlay));
   }

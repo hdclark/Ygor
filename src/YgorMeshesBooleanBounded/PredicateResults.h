@@ -13,19 +13,20 @@ enum class legacy_predicate_class : std::uint8_t {
 };
 
 struct exact_relation_evidence final {
-    std::uint16_t schema_version = 1;
+    std::uint16_t schema_version = contract_versions::predicate_truth_layers;
     std::uint16_t formula_code = 0;
     context_owner_token owner{};
     exact_relation_id id{0};
     exact_relation_status status = exact_relation_status::unavailable;
     std::int32_t normalization_exponent = 0;
     std::uint32_t capacity_used = 0;
+    std::uint64_t operation_trace_root = 0;
     std::vector<bounded_value_id> ordered_inputs;
 };
 
 template<class T>
 struct predicate_result final {
-    std::uint16_t schema_version = 1;
+    std::uint16_t schema_version = contract_versions::predicate_truth_layers;
     context_owner_token owner{};
     bounded_scalar<T> rounded_and_bounded{};
     bounded_sign_status bounded_sign = bounded_sign_status::invalid;

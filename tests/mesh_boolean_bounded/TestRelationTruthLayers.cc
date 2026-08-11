@@ -26,6 +26,11 @@ void test_exact_tie_layers() {
   exact.formula_code =
       static_cast<std::uint16_t>(exact_relation_formula_code::orient_2d);
   exact.status = exact_relation_status::exact_zero;
+  exact.id = exact_relation_id(1);
+  exact.capacity_used = 1;
+  exact.operation_trace_root = 1;
+  for (std::uint64_t input = 1; input <= 6; ++input)
+    exact.ordered_inputs.emplace_back(input);
   auto predicate = assemble_predicate_result(*scalar.value(), exact);
   check(predicate.has_value(), "exact tie predicate should assemble");
   if (!predicate.has_value())

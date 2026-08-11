@@ -121,6 +121,36 @@ relation_feature_key remap_relation_feature_key(
     relation_feature_key key) noexcept;
 relation_request_key remap_relation_request_key(
     relation_request_key key) noexcept;
+void encode_relation_request_key(canonical_writer &writer,
+                                 const relation_request_key &key);
+
+inline relation_request_key source_vertex_facet_request_key(
+    const bounded_boolean_digest &semantic_namespace, operand_id vertex_operand,
+    std::uint64_t source_vertex, const relation_feature_key &facet) {
+  relation_request_key key;
+  key.semantic_namespace = semantic_namespace;
+  key.family = relation_request_family::source_point_source_facet_region;
+  key.scope = relation_record_scope::public_source_feature;
+  key.first.operand = vertex_operand;
+  key.first.kind = relation_feature_kind::source_vertex;
+  key.first.primary = source_vertex;
+  key.second = facet;
+  key.formula_version = contract_versions::exact_relation_formulas;
+  key.policy_version = contract_versions::relation_request_key_schema;
+  return key;
+}
+
+inline std::uint64_t relation_stable_lineage(const relation_request_key &key,
+                                             std::uint8_t domain) {
+  canonical_writer writer;
+  writer.u8(domain);
+  encode_relation_request_key(writer, key);
+  const auto digest = sha256::digest(writer.take());
+  std::uint64_t value = 0;
+  for (std::size_t i = 0; i < 8; ++i)
+    value = (value << 8U) | digest.bytes[i];
+  return value == 0 ? std::uint64_t{1} : value;
+}
 
 void encode_relation_feature_key(canonical_writer &writer,
                                  const relation_feature_key &key);

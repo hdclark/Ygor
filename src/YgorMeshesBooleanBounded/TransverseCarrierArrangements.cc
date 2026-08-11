@@ -361,9 +361,11 @@ bool build_transverse_carrier_arrangements(
       member.lower_bits = proposal.lower_bits;
       member.upper_bits = proposal.upper_bits;
       member.exact_evidence_lineage =
-          proposal.exact_equal_eligible ? proposal.parameter_lineage : 0;
+          proposal.exact_equal_eligible
+              ? proposal.event_lineage
+              : 0;
       member.comparison_evidence_lineage = proposal.parameter_lineage;
-      member.cluster_lineage = proposal.parameter_lineage;
+      member.cluster_lineage = proposal.event_lineage;
       member.exact_equal_eligible = proposal.exact_equal_eligible;
       member.unresolved_cluster_eligible = proposal.cluster_eligible;
       member.topology_interchangeable = proposal.cluster_eligible;
@@ -570,7 +572,6 @@ bool build_transverse_carrier_arrangements(
               intersection_invalid_ordinal ||
           !proposal.first_region_contains ||
           !proposal.second_region_contains || !proposal.ownership_verified ||
-          !proposal.start_closed || !proposal.end_closed ||
           !valid_activation(proposal.activation) ||
           !relation_is_provenance(proposal.relation)) {
         error = carrier_error(intersection_subcode::transverse_span_invalid,

@@ -2,6 +2,7 @@
 
 #include "BoundedOperations.h"
 #include "CanonicalBytes.h"
+#include "ConstructionConditioning.h"
 #include "ExactGeometryRelations.h"
 #include "PrimitiveRelationKernel.h"
 #include "RelationKeys.h"
@@ -74,6 +75,7 @@ template <class T> struct source_edge_point_construction final {
   std::uint8_t second_endpoint_owner_mask = 0;
   bool accepted_source_vertex = false;
   bool tolerance_compatible = false;
+  construction_operation_certificate<T> certificate{};
   std::uint16_t reserved16 = 0;
   std::uint32_t reserved32 = 0;
 };

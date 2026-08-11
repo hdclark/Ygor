@@ -29,6 +29,12 @@ enum class bounded_publication_state : std::uint8_t {
     transaction_local = 1, committed = 2, invalid = 3
 };
 
+struct bounded_operation_parent_identity final {
+    bounded_value_id value{0};
+    std::uint64_t trace_root = 0;
+    precision_ledger_entry_id ledger_entry{0};
+};
+
 struct uncertainty_contributors final {
     double inherited_a = 0.0;
     double inherited_b = 0.0;
@@ -49,6 +55,10 @@ struct bounded_value_identity final {
     geometric_lineage_id lineage{0};
     precision_ledger_entry_id ledger_entry{0};
     std::uint64_t trace_root = 0;
+    rounded_operation_code operation = rounded_operation_code::invalid;
+    std::vector<bounded_value_id> ordered_parent_values;
+    std::vector<std::uint64_t> ordered_parent_trace_roots;
+    std::vector<precision_ledger_entry_id> ordered_parent_ledger_entries;
     bounded_publication_state publication = bounded_publication_state::transaction_local;
 };
 

@@ -32,8 +32,14 @@ bounded_point3<T> point3(const context_owner_token &owner,
   for (std::size_t axis = 0; axis < 3; ++axis) {
     auto scalar = checked_bounded_singleton(owner, value[axis]);
     check(scalar.has_value(), "bounded point singleton");
-    if (scalar.has_value())
+    if (scalar.has_value()) {
       point.coordinates.components[axis] = std::move(*scalar.value());
+      point.coordinates.components[axis].identity =
+          bounded_operations_detail::source_import_identity(
+              owner, bounded_value_id(identity * 4 + axis + 1),
+              point.provenance, point.lineage, value[axis],
+              point.coordinates.components[axis].uncertainty_enclosure);
+    }
   }
   point.coordinates.radial_error_upper = T(0);
   return point;
@@ -80,6 +86,19 @@ polygon_fixture<T> polygon(const context_owner_token &owner,
     auto bounded = point3(owner, id * 100 + i, p);
     result.facet.polygon.push_back(source_edge_facet_detail::project_point(
         bounded, 2, id * 100 + i, i));
+    std::vector<const bounded_scalar<T> *> source_inputs;
+    for (const auto &component : bounded.coordinates.components)
+      source_inputs.push_back(&component);
+    auto certificate = certify_construction_operation(
+        rounded_operation_code::source_import,
+        contract_versions::rounded_operation_graphs, bounded, source_inputs,
+        finite_interval<T>::singleton(T(1)),
+        construction_category::exact_stored_coordinate_tie,
+        construction_tolerance_disposition::accepted, T(1));
+    check(certificate.has_value(), "source vertex certificate");
+    if (certificate.has_value())
+      result.facet.source_vertex_certificates.push_back(
+          std::move(*certificate.value()));
     result.facet.boundary_edges.push_back(feature(
         operand, relation_feature_kind::source_edge, id * 1000 + i,
         id * 1000 + ((i + 1) % xy.size())));

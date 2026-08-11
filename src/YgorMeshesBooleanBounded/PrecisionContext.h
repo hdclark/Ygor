@@ -215,6 +215,9 @@ boolean_outcome<source_bounded_value_batch<T>> import_source_bounded_values(
                                                          component.contributors);
             const auto node = out.trace.append(std::move(key), component.contributors);
             component.identity.trace_root = node.ordinal;
+            component.identity.ledger_entry = precision_ledger_entry_id(
+                component.identity.value.ordinal());
+            component.identity.operation = rounded_operation_code::source_import;
         }
         point.coordinates.radial_error_upper = radial;
         local_bounded_value<bounded_point3<T>> local;

@@ -6,6 +6,7 @@
 #include "RelationCanonicalization.h"
 #include "RelationConstructionPolicy.h"
 #include "RelationEventSeeds.h"
+#include "TransverseRelationEvaluation.h"
 
 #include <algorithm>
 #include <array>
@@ -218,7 +219,7 @@ inline relation_request_key imported_geometry_key(
 }
 
 inline std::uint64_t tagged_use(std::uint8_t domain,
-                                std::uint8_t category = 0) noexcept {
+                                 std::uint8_t category = 0) noexcept {
   return (static_cast<std::uint64_t>(domain) << 56U) |
          (static_cast<std::uint64_t>(category) << 48U);
 }
@@ -289,6 +290,27 @@ request_dependencies(const relation_request_graph &graph,
       out.push_back(graph.requests[dependency.producer.ordinal()].key);
   }
   return out;
+}
+
+template <class T>
+bool same_source_facet_region(
+    const source_facet_point_region_record<T> &a,
+    const source_facet_point_region_record<T> &b) {
+  canonical_writer first;
+  canonical_writer second;
+  source_edge_facet_detail::encode_region(first, a);
+  source_edge_facet_detail::encode_region(second, b);
+  return first.take() == second.take();
+}
+
+template <class T>
+bool same_geometry_snapshot(const source_edge_geometry_snapshot<T> &a,
+                            const source_edge_geometry_snapshot<T> &b) {
+  canonical_writer first;
+  canonical_writer second;
+  source_edge_relation_detail::encode_snapshot(first, a);
+  source_edge_relation_detail::encode_snapshot(second, b);
+  return first.take() == second.take();
 }
 
 template <class T>
@@ -386,6 +408,42 @@ void set_construction_ledger_geometry(
   out.accepted_source_vertex = geometry.accepted_source_vertex;
   out.finite = geometry.finite;
   out.tolerance_compatible = geometry.tolerance_compatible;
+}
+
+template <class T, class Record>
+bool set_construction_certificate(
+    Record &out, const construction_operation_certificate<T> &certificate) {
+  if (!valid_construction_operation_certificate(certificate))
+    return false;
+  out.formula_version = certificate.formula_version;
+  out.operation = certificate.operation;
+  out.conditioning = certificate.conditioning;
+  out.tolerance = certificate.tolerance;
+  out.precision_trace_root =
+      certificate.issued_outputs[0].identity.trace_root;
+  out.radial_error_upper_bits =
+      static_cast<std::uint64_t>(to_bits(certificate.radial_error_upper));
+  out.denominator_lower_bits =
+      static_cast<std::uint64_t>(to_bits(certificate.denominator.lower()));
+  out.denominator_upper_bits =
+      static_cast<std::uint64_t>(to_bits(certificate.denominator.upper()));
+  out.conditioning_lower_bits =
+      static_cast<std::uint64_t>(to_bits(certificate.conditioning_lower));
+  out.tolerance_boundary_bits =
+      static_cast<std::uint64_t>(to_bits(certificate.tolerance_boundary));
+  for (std::size_t component = 0;
+       component < certificate.axis_error_upper.size(); ++component)
+    out.axis_error_upper_bits[component] = static_cast<std::uint64_t>(
+        to_bits(certificate.axis_error_upper[component]));
+  out.ordered_bounded_inputs.clear();
+  out.ordered_bounded_inputs.reserve(certificate.ordered_inputs.size());
+  for (const auto input : certificate.ordered_inputs)
+    out.ordered_bounded_inputs.push_back(input.value.ordinal());
+  canonical_writer encoded;
+  encode_construction_operation_certificate(encoded, certificate);
+  out.certificate_evidence = encoded.take();
+  out.precision_evidence_complete = true;
+  return !out.certificate_evidence.empty();
 }
 
 template <class T>
@@ -492,25 +550,31 @@ inline relation_family symbolic_family_for_overlay(
 template <class T, class I> class relation_artifact_assembler final {
 public:
   using artifact_type = signed_feature_relations<T, I>;
+  using vertex_facet_stage_type = source_vertex_facet_evaluated_stage<T>;
   using edge_stage_type = candidate_source_edge_relation_stage<T>;
   using edge_facet_stage_type = candidate_source_edge_facet_relation_stage<T>;
   using facet_stage_type = candidate_source_facet_relation_stage<T>;
   using overlay_stage_type = candidate_coplanar_overlay_stage<T>;
+  using transverse_stage_type = transverse_relation_evaluated_stage<T>;
 
   relation_artifact_assembler(
       const boolean_context<T, I> &context, const precision_context<T> &precision,
       std::shared_ptr<const canonical_candidate_stream<T, I>> candidates,
+      std::shared_ptr<const vertex_facet_stage_type> vertex_facet_stage,
       std::shared_ptr<const edge_stage_type> edge_stage,
       std::shared_ptr<const edge_facet_stage_type> edge_facet_stage,
       std::shared_ptr<const facet_stage_type> facet_stage,
       std::shared_ptr<const overlay_stage_type> overlay_stage,
+      std::shared_ptr<const transverse_stage_type> transverse_stage,
       std::shared_ptr<const relation_execution_authority> execution_authority,
       const relation_capabilities &capabilities)
       : context_(context), precision_(precision), candidates_(std::move(candidates)),
+        vertex_facet_stage_(std::move(vertex_facet_stage)),
         edge_stage_(std::move(edge_stage)),
         edge_facet_stage_(std::move(edge_facet_stage)),
         facet_stage_(std::move(facet_stage)),
         overlay_stage_(std::move(overlay_stage)),
+        transverse_stage_(std::move(transverse_stage)),
         execution_authority_(std::move(execution_authority)),
         capabilities_(capabilities) {}
 
@@ -541,7 +605,9 @@ public:
           !check_cancel(error, relation_checkpoint::symbolic_matrix_lookup) ||
           !publish_symbolics_and_crossings(error) ||
           !check_cancel(error, relation_checkpoint::event_seed_and_disposition_reconciliation) ||
-          !publish_event_seeds(error) || !publish_candidate_dispositions(error) ||
+          !publish_event_seeds(error) ||
+          !publish_transverse_carrier_memberships(error) ||
+          !publish_candidate_dispositions(error) ||
           !publish_triangle_local_reconciliation(error) ||
           !check_cancel(error, relation_checkpoint::producer_verification))
         return false;
@@ -578,6 +644,8 @@ public:
       artifact.candidate_dispositions_ = std::move(dispositions_);
       artifact.triangle_local_reconciliation_ =
           std::move(triangle_local_reconciliation_);
+      artifact.transverse_carrier_memberships_ =
+          std::move(transverse_carrier_memberships_);
       artifact.candidate_relation_coverage_ =
           std::move(candidate_relation_coverage_);
       artifact.candidate_event_seed_coverage_ =
@@ -621,7 +689,13 @@ public:
   }
 
 private:
-  enum class base_kind : std::uint8_t { edge = 1, edge_facet = 2, facet = 3, overlay = 4 };
+  enum class base_kind : std::uint8_t {
+    vertex_facet = 1,
+    edge = 2,
+    edge_facet = 3,
+    facet = 4,
+    overlay = 5
+  };
 
   struct base_descriptor final {
     base_kind kind = base_kind::edge;
@@ -634,6 +708,9 @@ private:
     std::int32_t numeric_crossing = 0;
     std::uint32_t occurrence = 0;
     std::vector<candidate_id> witnesses;
+    bool has_vertex_region = false;
+    source_facet_point_region_record<T> vertex_region{};
+    source_edge_geometry_snapshot<T> vertex_point{};
   };
 
   struct construction_descriptor final {
@@ -683,6 +760,16 @@ private:
     bool has_construction = false;
     bool has_multiplicity = false;
     std::vector<candidate_id> witnesses;
+  };
+
+  struct transverse_membership_descriptor final {
+    relation_request_key carrier_relation{};
+    relation_request_key member_relation{};
+    std::uint32_t occurrence = 0;
+    std::uint32_t parameter_occurrence = 0;
+    std::uint32_t residual_occurrence = 0;
+    std::uint32_t first_region_occurrence = 0;
+    std::uint32_t second_region_occurrence = 0;
   };
 
   struct disposition_descriptor final {
@@ -751,10 +838,11 @@ private:
   }
 
   bool validate_inputs(bounded_boolean_error &error) {
-    if (!candidates_ || !execution_authority_ || !edge_stage_ ||
-        !edge_facet_stage_ || !facet_stage_ ||
-        !overlay_stage_ || !capabilities_.owner.anchor ||
+    if (!candidates_ || !execution_authority_ || !vertex_facet_stage_ || !edge_stage_ ||
+        !edge_facet_stage_ || !facet_stage_ || !overlay_stage_ ||
+        !transverse_stage_ || !capabilities_.owner.anchor ||
         !candidates_->owner().same_owner(capabilities_.owner) ||
+        !vertex_facet_stage_->owner.same_owner(capabilities_.owner) ||
         !edge_stage_->owner.same_owner(capabilities_.owner) ||
         !edge_facet_stage_->owner.same_owner(capabilities_.owner) ||
         !facet_stage_->owner.same_owner(capabilities_.owner) ||
@@ -770,7 +858,9 @@ private:
         edge_facet_stage_->relations.size() !=
             edge_facet_stage_->request_graph.requests.size() ||
         facet_stage_->relations.size() != facet_stage_->request_graph.requests.size() ||
-        overlay_stage_->links.size() != overlay_stage_->overlays.size())
+        overlay_stage_->links.size() != overlay_stage_->overlays.size() ||
+        transverse_stage_->expected_population != transverse_stage_->records.size() ||
+        transverse_stage_->evaluation_count != transverse_stage_->records.size())
       return fail(error, relation_subcode::predecessor_mismatch,
                   "Component 07 final assembly predecessor handshake failed",
                   relation_checkpoint::predecessor_validation);
@@ -838,9 +928,71 @@ private:
       descriptor.truth.push_back(truth);
   }
 
+  bool source_vertex_point(operand_id operand, std::uint64_t source_vertex,
+                           source_edge_geometry_snapshot<T> &out) const {
+    const auto *topology = operand == operand_id::a
+                               ? candidates_->manifolds()->a().get()
+                               : candidates_->manifolds()->b().get();
+    if (!topology ||
+        source_vertex >= topology->source_vertex_to_vertex().size())
+      return false;
+    const auto vertex = topology->source_vertex_to_vertex()[source_vertex];
+    if (vertex >= topology->vertices().size())
+      return false;
+    const auto &record = topology->vertices()[vertex];
+    out.rounded_nominal = record.committed_point;
+    for (std::size_t axis = 0; axis < 3; ++axis) {
+      const auto interval =
+          finite_interval<T>::create(record.lower[axis], record.upper[axis]);
+      if (!interval)
+        return false;
+      out.enclosure[axis] = *interval;
+    }
+    out.provenance = record.presentation_vertex + 1;
+    out.lineage = record.canonical_id + 1;
+    return source_edge_relation_detail::valid_snapshot(out);
+  }
+
   bool discover_base_relations(bounded_boolean_error &error) {
     using namespace relation_artifact_assembly_detail;
     candidate_base_keys_.assign(candidates_->candidates().size(), {});
+
+    for (const auto &request : execution_authority_->graph.requests) {
+      if (request.key.family !=
+          relation_request_family::source_point_source_facet_region)
+        continue;
+      relation_request_proposal proposal;
+      proposal.key = request.key;
+      proposal.candidate_witnesses = request_witnesses(
+          execution_authority_->graph, request);
+      proposals_.push_back(std::move(proposal));
+      const auto *evaluated = find_source_vertex_facet_evaluation(
+          *vertex_facet_stage_, request.key);
+      if (!evaluated || evaluated->request != request.id)
+        return fail(error, relation_subcode::missing_dependency,
+                    "Component 07 source-vertex/facet evaluated record is absent",
+                    relation_checkpoint::predecessor_validation);
+      base_descriptor descriptor;
+      descriptor.kind = base_kind::vertex_facet;
+      descriptor.key = request.key;
+      descriptor.family = feature_relation_family::source_vertex_source_facet;
+      descriptor.scope = relation_record_scope::public_source_feature;
+      descriptor.witnesses = request_witnesses(execution_authority_->graph,
+                                                request);
+      descriptor.vertex_point = evaluated->point;
+      descriptor.truth.push_back(evaluated->support_truth);
+      descriptor.has_vertex_region = evaluated->has_region;
+      if (evaluated->has_region)
+        descriptor.vertex_region = evaluated->region;
+      descriptor.status = !evaluated->has_region
+                              ? feature_relation_status::definitely_separated
+                          : evaluated->region.classification ==
+                                    source_facet_point_region_class::outside
+                              ? feature_relation_status::definitely_separated
+                              : feature_relation_status::point_contact;
+      bases_.push_back(std::move(descriptor));
+      record_candidate_base(request.key, bases_.back().witnesses);
+    }
 
     for (std::size_t i = 0; i < edge_stage_->request_graph.requests.size(); ++i) {
       const auto &request = edge_stage_->request_graph.requests[i];
@@ -866,10 +1018,42 @@ private:
     for (std::size_t i = 0; i < edge_facet_stage_->request_graph.requests.size(); ++i) {
       const auto &request = edge_facet_stage_->request_graph.requests[i];
       const auto &source = edge_facet_stage_->relations[i];
+      std::array<std::uint64_t, 2> endpoint_vertices{};
+      if (!candidate_source_edge_facet_detail::source_edge_vertices(
+              *candidates_, request.key.first, endpoint_vertices))
+        return fail(error, relation_subcode::source_edge_facet_malformed,
+                    "Component 07 source-vertex/facet endpoint lineage is unavailable",
+                    relation_checkpoint::source_facet_region_evaluation);
       relation_request_proposal proposal;
       proposal.key = request.key;
       proposal.candidate_witnesses =
           request_witnesses(edge_facet_stage_->request_graph, request);
+      for (std::size_t endpoint = 0; endpoint < 2; ++endpoint) {
+        const auto vertex_key =
+            source_vertex_facet_request_key(
+                request.key.semantic_namespace, request.key.first.operand,
+                endpoint_vertices[endpoint], request.key.second);
+        proposal.dependencies.push_back(vertex_key);
+        const auto vertex_relation = std::find_if(
+            bases_.begin(), bases_.end(), [&](const base_descriptor &candidate) {
+              return candidate.key == vertex_key;
+            });
+        if (vertex_relation == bases_.end() ||
+            vertex_relation->truth.size() != 1 ||
+            encode_relation_truth_record_semantics(
+                vertex_relation->truth.front()) !=
+                encode_relation_truth_record_semantics(
+                    source.endpoint_support_truth[endpoint]) ||
+            vertex_relation->has_vertex_region !=
+                source.has_endpoint_region[endpoint] ||
+            (vertex_relation->has_vertex_region &&
+             !same_source_facet_region(
+                 vertex_relation->vertex_region,
+                 source.endpoint_regions[endpoint])))
+          return fail(error, relation_subcode::truth_layer_mismatch,
+                      "Component 07 edge/facet endpoint did not reuse its source-vertex/facet authority",
+                      relation_checkpoint::producer_verification);
+      }
       for (const auto dependency : source.boundary_relation_requests) {
         if (dependency.ordinal() >= edge_stage_->request_graph.requests.size())
           return fail(error, relation_subcode::missing_dependency,
@@ -948,6 +1132,9 @@ private:
       proposal.key = key;
       proposal.dependencies.push_back(
           facet_stage_->request_graph.requests[link.support_relation.ordinal()].key);
+      proposal.candidate_witnesses = request_witnesses(
+          facet_stage_->request_graph,
+          facet_stage_->request_graph.requests[link.support_relation.ordinal()]);
       for (const auto &boundary : source.boundary_relations) {
         if (boundary.request.ordinal() >= edge_stage_->request_graph.requests.size())
           return fail(error, relation_subcode::coplanar_overlay_dependency_missing,
@@ -956,9 +1143,33 @@ private:
         proposal.dependencies.push_back(
             edge_stage_->request_graph.requests[boundary.request.ordinal()].key);
       }
-      proposal.candidate_witnesses = request_witnesses(
-          facet_stage_->request_graph,
-          facet_stage_->request_graph.requests[link.support_relation.ordinal()]);
+      for (const auto &witness : source.vertex_regions) {
+        const auto polygon = static_cast<std::size_t>(witness.polygon);
+        if (polygon >= 2 ||
+            witness.vertex_ordinal >= source.facets[polygon].polygon.size())
+          return fail(error, relation_subcode::coplanar_overlay_region_unresolved,
+                      "Component 07 coplanar source-vertex/facet witness is malformed",
+                      relation_checkpoint::source_facet_region_evaluation);
+        const auto &query =
+            source.facets[polygon].polygon[witness.vertex_ordinal];
+        const auto &query_facet = source.facets[polygon].feature;
+        const auto &target_facet = source.facets[1 - polygon].feature;
+        const auto vertex_key =
+            source_vertex_facet_request_key(
+                key.semantic_namespace, query_facet.operand,
+                query.source_vertex, target_facet);
+        proposal.dependencies.push_back(vertex_key);
+        const auto existing = std::find_if(
+            bases_.begin(), bases_.end(), [&](const base_descriptor &candidate) {
+              return candidate.key == vertex_key;
+            });
+        if (existing == bases_.end() || !existing->has_vertex_region ||
+            !same_source_facet_region(existing->vertex_region,
+                                      witness.region))
+          return fail(error, relation_subcode::source_facet_region_unresolved,
+                      "Component 07 coplanar source-vertex/facet regions conflict",
+                      relation_checkpoint::producer_verification);
+      }
       proposals_.push_back(std::move(proposal));
       base_descriptor descriptor;
       descriptor.kind = base_kind::overlay;
@@ -983,6 +1194,40 @@ private:
               [](const base_descriptor &a, const base_descriptor &b) {
                 return a.key < b.key;
               });
+    std::vector<base_descriptor> merged;
+    merged.reserve(bases_.size());
+    for (auto &base : bases_) {
+      if (merged.empty() || merged.back().key != base.key) {
+        merged.push_back(std::move(base));
+        continue;
+      }
+      auto &prior = merged.back();
+      if (prior.kind != base_kind::vertex_facet ||
+          base.kind != base_kind::vertex_facet ||
+          prior.family != base.family || prior.status != base.status ||
+          prior.truth.size() != base.truth.size() ||
+          prior.has_vertex_region != base.has_vertex_region ||
+          !same_geometry_snapshot(prior.vertex_point, base.vertex_point) ||
+          (prior.has_vertex_region &&
+           !same_source_facet_region(prior.vertex_region,
+                                     base.vertex_region)))
+        return fail(error, relation_subcode::duplicate_authoritative_producer,
+                    "Component 07 duplicate source-vertex/facet evidence conflicts",
+                    relation_checkpoint::producer_verification);
+      for (std::size_t truth = 0; truth < prior.truth.size(); ++truth)
+        if (encode_relation_truth_record_semantics(prior.truth[truth]) !=
+            encode_relation_truth_record_semantics(base.truth[truth]))
+          return fail(error, relation_subcode::truth_layer_mismatch,
+                      "Component 07 duplicate source-vertex/facet truth conflicts",
+                      relation_checkpoint::producer_verification);
+      prior.witnesses.insert(prior.witnesses.end(), base.witnesses.begin(),
+                             base.witnesses.end());
+      std::sort(prior.witnesses.begin(), prior.witnesses.end());
+      prior.witnesses.erase(
+          std::unique(prior.witnesses.begin(), prior.witnesses.end()),
+          prior.witnesses.end());
+    }
+    bases_ = std::move(merged);
     for (std::size_t i = 1; i < bases_.size(); ++i)
       if (bases_[i - 1].key == bases_[i].key)
         return fail(error, relation_subcode::duplicate_authoritative_producer,
@@ -1112,7 +1357,7 @@ private:
 
   bool next_interval_occurrence(
       relation_interval_evidence_kind kind,
-      std::array<std::uint64_t, 16> &counters, std::uint32_t &out,
+      std::array<std::uint64_t, 18> &counters, std::uint32_t &out,
       bounded_boolean_error &error) const {
     const auto index = static_cast<std::size_t>(kind);
     if (index == 0 || index >= counters.size() ||
@@ -1126,7 +1371,7 @@ private:
 
   bool next_region_occurrence(
       relation_source_facet_region_kind kind,
-      std::array<std::uint64_t, 7> &counters, std::uint32_t &out,
+      std::array<std::uint64_t, 10> &counters, std::uint32_t &out,
       bounded_boolean_error &error) const {
     const auto index = static_cast<std::size_t>(kind);
     if (index == 0 || index >= counters.size() ||
@@ -1335,8 +1580,8 @@ private:
       const source_facet_segment_partition_record<T> &partition,
       relation_source_facet_region_kind breakpoint_region_kind,
       relation_source_facet_region_kind interval_region_kind,
-      std::array<std::uint64_t, 16> &interval_counters,
-      std::array<std::uint64_t, 7> &region_counters,
+      std::array<std::uint64_t, 18> &interval_counters,
+      std::array<std::uint64_t, 10> &region_counters,
       const std::vector<relation_request_key> &dependencies,
       std::vector<relation_request_key> &closure,
       bounded_boolean_error &error) {
@@ -1427,15 +1672,49 @@ private:
   }
 
   bool discover_family04_evidence(bounded_boolean_error &error) {
+    transverse_evaluated_records_consumed_ = 0;
     interval_desc_.clear();
     region_desc_.clear();
     for (const auto &base : bases_) {
       const auto dependencies = primitive_dependencies(base);
       std::vector<relation_request_key> closure;
-      std::array<std::uint64_t, 16> interval_counters{};
-      std::array<std::uint64_t, 7> region_counters{};
+      std::array<std::uint64_t, 18> interval_counters{};
+      std::array<std::uint64_t, 10> region_counters{};
 
       switch (base.kind) {
+      case base_kind::vertex_facet: {
+        if (base.has_vertex_region) {
+          std::uint32_t occurrence = 0;
+          if (!next_region_occurrence(
+                  relation_source_facet_region_kind::source_vertex_source_facet,
+                  region_counters, occurrence, error))
+            return false;
+          region_descriptor descriptor;
+          descriptor.key = relation_artifact_assembly_detail::derived_key(
+              base.key, relation_request_family::composite_contact,
+              relation_artifact_assembly_detail::tagged_use(
+                  0x21U,
+                  static_cast<std::uint8_t>(
+                      relation_source_facet_region_kind::
+                          source_vertex_source_facet)),
+              occurrence);
+          descriptor.source_relation = base.key;
+          descriptor.value.kind =
+              relation_source_facet_region_kind::source_vertex_source_facet;
+          descriptor.value.occurrence = occurrence;
+          descriptor.value.query_source_identity_valid = false;
+          set_region_query(descriptor.value, base.vertex_point);
+          descriptor.value.region = base.vertex_region;
+          descriptor.witnesses = base.witnesses;
+          relation_request_proposal proposal;
+          proposal.key = descriptor.key;
+          proposal.dependencies.push_back(base.key);
+          proposal.candidate_witnesses = base.witnesses;
+          proposals_.push_back(std::move(proposal));
+          region_desc_.push_back(std::move(descriptor));
+        }
+        break;
+      }
       case base_kind::edge: {
         if (base.ordinal >= edge_stage_->relations.size())
           return fail(error, relation_subcode::source_edge_relation_malformed,
@@ -1547,6 +1826,198 @@ private:
                   region_occurrence, event.construction.point, event.region,
                   dependencies, closure, error))
             return false;
+
+          for (std::size_t facet_index = 0;
+               facet_index < facet_stage_->relations.size(); ++facet_index) {
+            const auto &facet_relation = facet_stage_->relations[facet_index];
+            if (facet_relation.classification !=
+                    source_facet_support_relation_class::transverse ||
+                !std::binary_search(facet_relation.edge_facet_consumers.begin(),
+                                    facet_relation.edge_facet_consumers.end(),
+                                    relation_request_id(base.ordinal)))
+              continue;
+            if (facet_index >= facet_stage_->request_graph.requests.size())
+              return false;
+            const auto &carrier_key =
+                facet_stage_->request_graph.requests[facet_index].key;
+            const transverse_relation_evaluation_key evaluation_key{
+                carrier_key, base.key, event.occurrence};
+            const auto evaluated = std::lower_bound(
+                transverse_stage_->records.begin(), transverse_stage_->records.end(),
+                evaluation_key, [](const auto &record, const auto &key) {
+                  return record.key < key;
+                });
+            if (evaluated == transverse_stage_->records.end() ||
+                !(evaluated->key == evaluation_key))
+              return fail(error,
+                          relation_subcode::source_facet_carrier_unresolved,
+                          "Component 07 transverse evaluated evidence is absent",
+                          relation_checkpoint::construction_validation);
+            ++transverse_evaluated_records_consumed_;
+
+            std::uint32_t carrier_parameter_occurrence = 0;
+            std::uint32_t carrier_residual_occurrence = 0;
+            std::uint32_t first_region_occurrence = 0;
+            std::uint32_t second_region_occurrence = 0;
+            if (!next_interval_occurrence(
+                    relation_interval_evidence_kind::
+                        transverse_carrier_parameter,
+                    interval_counters, carrier_parameter_occurrence, error) ||
+                !next_interval_occurrence(
+                    relation_interval_evidence_kind::
+                        transverse_carrier_point_residual,
+                    interval_counters, carrier_residual_occurrence, error) ||
+                !next_region_occurrence(
+                    relation_source_facet_region_kind::
+                        transverse_carrier_first_facet,
+                    region_counters, first_region_occurrence, error) ||
+                !next_region_occurrence(
+                    relation_source_facet_region_kind::
+                        transverse_carrier_second_facet,
+                    region_counters, second_region_occurrence, error))
+              return false;
+
+            std::vector<relation_request_key> carrier_dependencies{
+                base.key, carrier_key};
+            interval_descriptor parameter_descriptor;
+            parameter_descriptor.key =
+                relation_artifact_assembly_detail::derived_key(
+                base.key, relation_request_family::authoritative_construction,
+                relation_artifact_assembly_detail::tagged_use(0x30U,
+                           static_cast<std::uint8_t>(
+                               relation_interval_evidence_kind::
+                                   transverse_carrier_parameter)),
+                carrier_parameter_occurrence);
+            parameter_descriptor.source_relation = base.key;
+            parameter_descriptor.value.kind =
+                relation_interval_evidence_kind::transverse_carrier_parameter;
+            parameter_descriptor.value.occurrence =
+                carrier_parameter_occurrence;
+            parameter_descriptor.value.has_rounded_nominal = true;
+            parameter_descriptor.value.rounded_nominal_bits =
+                static_cast<std::uint64_t>(
+                    to_bits(evaluated->parameter_nominal));
+            parameter_descriptor.value.lower_bits = static_cast<std::uint64_t>(
+                to_bits(evaluated->parameter.lower()));
+            parameter_descriptor.value.upper_bits = static_cast<std::uint64_t>(
+                to_bits(evaluated->parameter.upper()));
+            set_contributor_bits(parameter_descriptor.value,
+                                 evaluated->parameter_contributors);
+            parameter_descriptor.value.trace_root =
+                evaluated->parameter_trace_root;
+            const auto &issued_parameter =
+                evaluated->parameter_certificate.issued_outputs[0].identity;
+            parameter_descriptor.value.issued_operation =
+                issued_parameter.operation;
+            parameter_descriptor.value.issued_value =
+                issued_parameter.value.ordinal();
+            parameter_descriptor.value.issued_ledger_entry =
+                issued_parameter.ledger_entry.ordinal();
+            for (const auto parent : issued_parameter.ordered_parent_values)
+              parameter_descriptor.value.issued_parent_values.push_back(
+                  parent.ordinal());
+            parameter_descriptor.value.issued_parent_trace_roots =
+                issued_parameter.ordered_parent_trace_roots;
+            for (const auto parent :
+                 issued_parameter.ordered_parent_ledger_entries)
+              parameter_descriptor.value.issued_parent_ledger_entries.push_back(
+                  parent.ordinal());
+            canonical_writer parameter_certificate_writer;
+            encode_construction_operation_certificate(
+                parameter_certificate_writer,
+                evaluated->parameter_certificate);
+            parameter_descriptor.value.issued_operation_evidence =
+                parameter_certificate_writer.take();
+            parameter_descriptor.value.within_authorized_boundary = true;
+            parameter_descriptor.witnesses = base.witnesses;
+            relation_request_proposal parameter_proposal;
+            parameter_proposal.key = parameter_descriptor.key;
+            parameter_proposal.dependencies = carrier_dependencies;
+            parameter_proposal.candidate_witnesses = base.witnesses;
+            proposals_.push_back(std::move(parameter_proposal));
+            interval_desc_.push_back(std::move(parameter_descriptor));
+
+            for (std::uint8_t axis = 0; axis < 3; ++axis) {
+              interval_descriptor residual_descriptor;
+              residual_descriptor.key =
+                  relation_artifact_assembly_detail::derived_key(
+                  base.key,
+                  relation_request_family::authoritative_construction,
+                  relation_artifact_assembly_detail::tagged_use(0x31U, axis),
+                  carrier_residual_occurrence);
+              residual_descriptor.source_relation = base.key;
+              residual_descriptor.value.kind = relation_interval_evidence_kind::
+                  transverse_carrier_point_residual;
+              residual_descriptor.value.occurrence =
+                  carrier_residual_occurrence;
+              residual_descriptor.value.component = axis;
+              residual_descriptor.value.lower_bits =
+                  static_cast<std::uint64_t>(
+                      to_bits(evaluated->point_carrier_residuals[axis].lower()));
+              residual_descriptor.value.upper_bits =
+                  static_cast<std::uint64_t>(
+                      to_bits(evaluated->point_carrier_residuals[axis].upper()));
+              residual_descriptor.value.comparison_boundary_bits =
+                  static_cast<std::uint64_t>(to_bits(precision_.tolerance()));
+              residual_descriptor.value.within_authorized_boundary = true;
+              residual_descriptor.witnesses = base.witnesses;
+              relation_request_proposal residual_proposal;
+              residual_proposal.key = residual_descriptor.key;
+              residual_proposal.dependencies = carrier_dependencies;
+              residual_proposal.candidate_witnesses = base.witnesses;
+              proposals_.push_back(std::move(residual_proposal));
+              interval_desc_.push_back(std::move(residual_descriptor));
+            }
+
+            const auto append_carrier_region = [&](
+                relation_source_facet_region_kind kind,
+                std::uint32_t occurrence,
+                const source_facet_point_region_record<T> &region) {
+              region_descriptor descriptor;
+              descriptor.key = relation_artifact_assembly_detail::derived_key(
+                  base.key, relation_request_family::composite_contact,
+                  relation_artifact_assembly_detail::tagged_use(
+                      0x32U, static_cast<std::uint8_t>(kind)),
+                  occurrence);
+              descriptor.source_relation = base.key;
+              descriptor.value.kind = kind;
+              descriptor.value.occurrence = occurrence;
+              descriptor.value.query_component_count = 3;
+              set_region_query(descriptor.value, event.construction.point);
+              descriptor.value.region = region;
+              descriptor.witnesses = base.witnesses;
+              relation_request_proposal region_proposal;
+              region_proposal.key = descriptor.key;
+              region_proposal.dependencies = carrier_dependencies;
+              region_proposal.candidate_witnesses = base.witnesses;
+              proposals_.push_back(std::move(region_proposal));
+              region_desc_.push_back(std::move(descriptor));
+            };
+            append_carrier_region(
+                relation_source_facet_region_kind::
+                    transverse_carrier_first_facet,
+                 first_region_occurrence, evaluated->first_region);
+            append_carrier_region(
+                relation_source_facet_region_kind::
+                    transverse_carrier_second_facet,
+                 second_region_occurrence, evaluated->second_region);
+            transverse_membership_descriptor membership;
+            membership.carrier_relation = carrier_key;
+            membership.member_relation = base.key;
+            const auto canonical_occurrence = ordered_event_occurrences_.find(
+                std::make_pair(relation_request_id(base.ordinal),
+                               event.occurrence));
+            if (canonical_occurrence == ordered_event_occurrences_.end())
+              return fail(error, relation_subcode::missing_dependency,
+                          "Component 07 transverse event occurrence is unavailable",
+                          relation_checkpoint::construction_validation);
+            membership.occurrence = canonical_occurrence->second;
+            membership.parameter_occurrence = carrier_parameter_occurrence;
+            membership.residual_occurrence = carrier_residual_occurrence;
+            membership.first_region_occurrence = first_region_occurrence;
+            membership.second_region_occurrence = second_region_occurrence;
+            transverse_membership_desc_.push_back(std::move(membership));
+          }
         }
         if (source.has_coplanar_partition &&
             !add_partition_evidence(
@@ -1660,11 +2131,13 @@ private:
 
     const auto interval_order = [](const interval_descriptor &a,
                                    const interval_descriptor &b) {
-      return a.key < b.key;
+      return std::tie(a.source_relation, a.key) <
+             std::tie(b.source_relation, b.key);
     };
     const auto region_order = [](const region_descriptor &a,
                                  const region_descriptor &b) {
-      return a.key < b.key;
+      return std::tie(a.source_relation, a.key) <
+             std::tie(b.source_relation, b.key);
     };
     std::sort(interval_desc_.begin(), interval_desc_.end(), interval_order);
     std::sort(region_desc_.begin(), region_desc_.end(), region_order);
@@ -1678,6 +2151,11 @@ private:
         return fail(error, relation_subcode::duplicate_authoritative_producer,
                     "Component 07 family-04 region producer is duplicated",
                     relation_checkpoint::graph_finalization);
+    if (transverse_evaluated_records_consumed_ !=
+            transverse_stage_->records.size())
+      return fail(error, relation_subcode::missing_dependency,
+                  "Component 07 transverse evaluated population was not completely mapped",
+                  relation_checkpoint::producer_verification);
     if (interval_desc_.size() > capabilities_.maximum_interval_evidence ||
         region_desc_.size() > capabilities_.maximum_region_records)
       return fail(error, relation_subcode::work_limit,
@@ -1776,6 +2254,7 @@ private:
     const auto append_use =
         [&](const base_descriptor &base, const authority<T> &authority_record,
             const geometry_snapshot<T> &witness_geometry,
+            const construction_operation_certificate<T> &witness_certificate,
             relation_construction_precedence witness_precedence,
             std::uint32_t occurrence, feature_relation_family seed_family,
             std::vector<relation_feature_key> incidence, bool emit_seed,
@@ -1791,10 +2270,19 @@ private:
       if (!valid_geometry(authority_record.geometry))
         return fail(error, relation_subcode::duplicate_authoritative_producer,
                     "Component 07 construction authority geometry is invalid",
+                     relation_checkpoint::construction_validation);
+      if (!valid_construction_operation_certificate(
+              authority_record.certificate))
+        return fail(error, relation_subcode::bounded_operation_invalid,
+                    "Component 07 construction authority certificate is absent",
                     relation_checkpoint::construction_validation);
       if (!valid_geometry(witness_geometry))
         return fail(error, relation_subcode::duplicate_authoritative_producer,
                     "Component 07 construction witness geometry is invalid",
+                     relation_checkpoint::construction_validation);
+      if (!valid_construction_operation_certificate(witness_certificate))
+        return fail(error, relation_subcode::bounded_operation_invalid,
+                    "Component 07 construction witness certificate is absent",
                     relation_checkpoint::construction_validation);
       if (!compatible_geometry(authority_record.geometry, witness_geometry)) {
         const char *message =
@@ -1831,21 +2319,35 @@ private:
       descriptor.authoritative_source_feature = authority_record.source_feature;
       descriptor.value.precedence = authority_record.precedence;
       descriptor.value.authoritative_source_feature = authority_record.source_feature;
-      descriptor.value.tolerance_boundary_bits =
-          static_cast<std::uint64_t>(to_bits(precision_.tolerance()));
-      descriptor.value.precision_evidence_complete = true;
+      descriptor.value.defining_feature_count =
+          authority_record.key.second.kind == relation_feature_kind::none ? 1 : 2;
+      descriptor.value.defining_features[0] = authority_record.key.first;
+      if (descriptor.value.defining_feature_count == 2)
+        descriptor.value.defining_features[1] = authority_record.key.second;
       set_construction_geometry(descriptor.value, authority_record.geometry);
+      if (!set_construction_certificate(descriptor.value,
+                                        authority_record.certificate))
+        return fail(error, relation_subcode::bounded_operation_invalid,
+                    "Component 07 construction authority certificate is invalid",
+                    relation_checkpoint::construction_validation);
 
       descriptor.ledger.precedence = witness_precedence;
       descriptor.ledger.occurrence = occurrence;
-      descriptor.ledger.tolerance_boundary_bits =
-          static_cast<std::uint64_t>(to_bits(precision_.tolerance()));
+      descriptor.ledger.defining_feature_count =
+          base.key.second.kind == relation_feature_kind::none ? 1 : 2;
+      descriptor.ledger.defining_features[0] = base.key.first;
+      if (descriptor.ledger.defining_feature_count == 2)
+        descriptor.ledger.defining_features[1] = base.key.second;
       descriptor.ledger.lineage_compatible = true;
       descriptor.ledger.enclosure_compatible = true;
       descriptor.ledger.parameter_compatible = true;
       descriptor.ledger.residual_compatible = true;
-      descriptor.ledger.precision_evidence_complete = true;
       set_construction_ledger_geometry(descriptor.ledger, witness_geometry);
+      if (!set_construction_certificate(descriptor.ledger,
+                                        witness_certificate))
+        return fail(error, relation_subcode::bounded_operation_invalid,
+                    "Component 07 construction witness certificate is invalid",
+                    relation_checkpoint::construction_validation);
 
       descriptor.occurrence = occurrence;
       descriptor.seed_family = seed_family;
@@ -1859,6 +2361,8 @@ private:
 
     for (const auto &base : bases_) {
       switch (base.kind) {
+      case base_kind::vertex_facet:
+        break;
       case base_kind::edge: {
         const auto &source = edge_stage_->relations[base.ordinal];
         std::vector<relation_request_key> point_keys;
@@ -1879,6 +2383,7 @@ private:
                   : relation_construction_precedence::
                         source_edge_source_edge_point;
           if (!append_use(base, authority_record, witness_geometry,
+                          source.points[point].certificate,
                           witness_precedence, point, base.family,
                           {base.key.first, base.key.second},
                           source.contact != source_edge_contact_class::none,
@@ -1983,6 +2488,7 @@ private:
                   : relation_construction_precedence::
                         source_edge_source_facet_point;
           if (!append_use(base, authority_record, witness_geometry,
+                          event.construction.certificate,
                           witness_precedence, occurrence, base.family,
                           {base.key.first, base.key.second}, true, false))
             return false;
@@ -2043,9 +2549,21 @@ private:
             return fail(error, relation_subcode::source_facet_carrier_unresolved,
                         "Component 07 facet carrier construction authority is unresolved",
                         relation_checkpoint::construction_validation);
+          auto witness_geometry =
+              geometry_from_carrier(source.transverse_carrier);
+          if (authority_record.geometry.lineage == 0) {
+            authority_record.geometry.lineage =
+                relation_stable_lineage(base.key, 0x71U);
+            witness_geometry.lineage = authority_record.geometry.lineage;
+          }
+          if (authority_record.geometry.provenance == 0) {
+            authority_record.geometry.provenance =
+                relation_stable_lineage(base.key, 0x70U);
+            witness_geometry.provenance = authority_record.geometry.provenance;
+          }
           if (!append_use(
-                  base, authority_record,
-                  geometry_from_carrier(source.transverse_carrier),
+                  base, authority_record, witness_geometry,
+                  source.transverse_carrier.certificate,
                   relation_construction_precedence::
                       source_facet_source_facet_carrier,
                   0, base.family, {}, false, false))
@@ -2095,7 +2613,7 @@ private:
               authority_record.precedence ==
                   relation_construction_precedence::accepted_source_vertex);
           if (!append_use(
-                  base, authority_record, witness_geometry,
+                  base, authority_record, witness_geometry, node.certificate,
                   relation_construction_precedence::coplanar_overlap_endpoint,
                   static_cast<std::uint32_t>(node.id), base.family,
                   std::move(incidence), true,
@@ -2447,6 +2965,7 @@ private:
         bounded.bounded_sign = value.bounded_sign;
         bounded.disposition = value.disposition;
         bounded.rounded_formula = value.rounded_formula;
+        bounded.evidence = value;
         bounded_primitives_.push_back(bounded);
 
         relation_truth_lineage_record lineage;
@@ -2474,6 +2993,7 @@ private:
           exact.truth_ordinal = static_cast<std::uint32_t>(truth);
           exact.status = value.exact_relation;
           exact.exact_formula = value.exact_formula;
+          exact.evidence = value;
           exact_relations_.push_back(exact);
           lineage.exact_relation = exact.id;
           lineage.has_exact_relation = true;
@@ -2612,11 +3132,14 @@ private:
       record.id = relation_construction_id(constructions_.size());
       record.producer = producer->id;
       record.source_relation = source_relation->second;
+      record.schema_version = contract_versions::relation_construction_schema;
+      record.defining_dependency_begin = producer->dependency_begin;
+      record.defining_dependency_count = producer->dependency_count;
+      const auto &relation = relations_[record.source_relation.ordinal()];
       record.consumer_begin = producer->reverse_consumer_begin;
       record.consumer_count = producer->reverse_consumer_count;
       record.ledger_begin = construction_ledger_.size();
       record.ledger_count = (use_end - use_begin) + 1;
-      const auto &relation = relations_[record.source_relation.ordinal()];
       record.residual_truth_begin = relation.truth_begin;
       record.residual_truth_count = relation.truth_count;
       record.interval_evidence_begin =
@@ -2640,6 +3163,8 @@ private:
       authority_entry.source_relation = record.source_relation;
       authority_entry.precedence = record.precedence;
       authority_entry.coordinate_space = record.coordinate_space;
+      authority_entry.compatibility =
+          relation_construction_compatibility_disposition::authoritative;
       authority_entry.component_count = record.component_count;
       authority_entry.projection_axis = record.projection_axis;
       authority_entry.nominal_bits = record.nominal_bits;
@@ -2647,10 +3172,26 @@ private:
       authority_entry.upper_bits = record.upper_bits;
       authority_entry.source_provenance = record.source_provenance;
       authority_entry.geometric_lineage = record.geometric_lineage;
+      authority_entry.defining_features = record.defining_features;
+      authority_entry.defining_feature_count = record.defining_feature_count;
+      authority_entry.formula_version = record.formula_version;
+      authority_entry.schema_version =
+          contract_versions::relation_construction_ledger_schema;
+      authority_entry.precision_trace_root = record.precision_trace_root;
+      authority_entry.axis_error_upper_bits = record.axis_error_upper_bits;
+      authority_entry.radial_error_upper_bits = record.radial_error_upper_bits;
+      authority_entry.denominator_lower_bits = record.denominator_lower_bits;
+      authority_entry.denominator_upper_bits = record.denominator_upper_bits;
+      authority_entry.conditioning_lower_bits = record.conditioning_lower_bits;
+      authority_entry.operation = record.operation;
+      authority_entry.conditioning = record.conditioning;
+      authority_entry.tolerance = record.tolerance;
+      authority_entry.ordered_bounded_inputs = record.ordered_bounded_inputs;
+      authority_entry.certificate_evidence = record.certificate_evidence;
       authority_entry.accepted_source_vertex = record.accepted_source_vertex;
       authority_entry.finite = record.finite;
       authority_entry.tolerance_compatible = record.tolerance_compatible;
-      authority_entry.synthetic_authority = true;
+      authority_entry.authoritative_entry = true;
       authority_entry.lineage_compatible = true;
       authority_entry.enclosure_compatible = true;
       authority_entry.parameter_compatible = true;
@@ -2683,7 +3224,11 @@ private:
             relation_construction_ledger_id(construction_ledger_.size());
         witness.construction = record.id;
         witness.source_relation = witness_relation->second;
-        witness.synthetic_authority = false;
+        witness.authoritative_entry = false;
+        witness.compatibility = relation_construction_compatibility_disposition::
+            compatible_witness;
+        witness.schema_version =
+            contract_versions::relation_construction_ledger_schema;
         const auto &source = relations_[witness.source_relation.ordinal()];
         witness.truth_begin = source.truth_begin;
         witness.truth_count = source.truth_count;
@@ -3174,6 +3719,8 @@ private:
 
     bool evidence = false;
     switch (base->kind) {
+    case base_kind::vertex_facet:
+      break;
     case base_kind::edge: {
       if (base->ordinal >= edge_stage_->relations.size())
         break;
@@ -3666,6 +4213,151 @@ private:
     return true;
   }
 
+  bool publish_transverse_carrier_memberships(
+      bounded_boolean_error &error) {
+    transverse_carrier_memberships_.clear();
+    std::sort(transverse_membership_desc_.begin(),
+              transverse_membership_desc_.end(), [](const auto &a, const auto &b) {
+                return std::tie(a.carrier_relation, a.member_relation,
+                                a.occurrence) <
+                       std::tie(b.carrier_relation, b.member_relation,
+                                b.occurrence);
+              });
+    for (std::size_t i = 1; i < transverse_membership_desc_.size(); ++i)
+      if (std::tie(transverse_membership_desc_[i - 1].carrier_relation,
+                   transverse_membership_desc_[i - 1].member_relation,
+                   transverse_membership_desc_[i - 1].occurrence) ==
+          std::tie(transverse_membership_desc_[i].carrier_relation,
+                   transverse_membership_desc_[i].member_relation,
+                   transverse_membership_desc_[i].occurrence))
+        return fail(error, relation_subcode::duplicate_authoritative_producer,
+                    "Component 07 transverse carrier membership is duplicated",
+                    relation_checkpoint::producer_verification);
+
+    for (const auto &descriptor : transverse_membership_desc_) {
+      const auto carrier_relation = relation_ids_.find(
+          descriptor.carrier_relation);
+      const auto member_relation = relation_ids_.find(descriptor.member_relation);
+      if (carrier_relation == relation_ids_.end() ||
+          member_relation == relation_ids_.end())
+        return fail(error, relation_subcode::missing_dependency,
+                    "Component 07 transverse membership relation is absent",
+                    relation_checkpoint::canonical_id_and_reference_remap);
+      const relation_construction_record *carrier = nullptr;
+      for (const auto &construction : constructions_)
+        if (construction.source_relation == carrier_relation->second &&
+            construction.kind == relation_construction_kind::bounded_carrier) {
+          if (carrier)
+            return fail(error,
+                        relation_subcode::duplicate_authoritative_producer,
+                        "Component 07 transverse membership has multiple carriers",
+                        relation_checkpoint::producer_verification);
+          carrier = &construction;
+        }
+      const relation_event_seed_record *seed = nullptr;
+      for (const auto &candidate : seed_table_.records)
+        if (candidate.source_relation == member_relation->second &&
+            candidate.key.occurrence == descriptor.occurrence) {
+          if (seed)
+            return fail(error,
+                        relation_subcode::duplicate_authoritative_producer,
+                        "Component 07 transverse membership event seed is ambiguous",
+                        relation_checkpoint::producer_verification);
+          seed = &candidate;
+        }
+      const relation_interval_evidence_record *parameter = nullptr;
+      std::array<const relation_interval_evidence_record *, 3> residuals{};
+      const relation_source_facet_region_record<T> *first_region = nullptr;
+      const relation_source_facet_region_record<T> *second_region = nullptr;
+      const relation_crossing_record *crossing = nullptr;
+      for (const auto &evidence : interval_evidence_) {
+        if (evidence.source_relation != member_relation->second)
+          continue;
+        if (evidence.kind == relation_interval_evidence_kind::
+                                 transverse_carrier_parameter &&
+            evidence.occurrence == descriptor.parameter_occurrence)
+          parameter = &evidence;
+        if (evidence.kind == relation_interval_evidence_kind::
+                                 transverse_carrier_point_residual &&
+            evidence.occurrence == descriptor.residual_occurrence &&
+            evidence.component < residuals.size())
+          residuals[evidence.component] = &evidence;
+      }
+      for (const auto &evidence : source_facet_regions_) {
+        if (evidence.source_relation != member_relation->second)
+          continue;
+        if (evidence.kind == relation_source_facet_region_kind::
+                                 transverse_carrier_first_facet &&
+            evidence.occurrence == descriptor.first_region_occurrence)
+          first_region = &evidence;
+        if (evidence.kind == relation_source_facet_region_kind::
+                                 transverse_carrier_second_facet &&
+            evidence.occurrence == descriptor.second_region_occurrence)
+          second_region = &evidence;
+      }
+      for (const auto &candidate : crossings_)
+        if (candidate.relation == member_relation->second &&
+            candidate.occurrence == descriptor.occurrence) {
+          if (crossing)
+            return fail(error, relation_subcode::duplicate_authoritative_producer,
+                        "Component 07 transverse membership crossing is ambiguous",
+                        relation_checkpoint::producer_verification);
+          crossing = &candidate;
+        }
+      if (!carrier || !seed || !crossing || !parameter || !first_region || !second_region ||
+          std::find(residuals.begin(), residuals.end(), nullptr) !=
+              residuals.end())
+        return fail(error, relation_subcode::missing_dependency,
+                    "Component 07 transverse membership evidence is incomplete",
+                    relation_checkpoint::producer_verification);
+
+      relation_transverse_carrier_membership_record record;
+      record.id = relation_transverse_carrier_membership_id(
+          transverse_carrier_memberships_.size());
+      record.carrier_relation = carrier_relation->second;
+      record.carrier_construction = carrier->id;
+      record.member_relation = member_relation->second;
+      record.point_construction = seed->construction;
+      record.seed = seed->id;
+      record.occurrence = descriptor.occurrence;
+      record.parameter = parameter->id;
+      for (std::size_t axis = 0; axis < residuals.size(); ++axis)
+        record.point_carrier_residuals[axis] = residuals[axis]->id;
+      record.first_region = first_region->id;
+      record.second_region = second_region->id;
+      record.parameter_lineage = parameter->trace_root;
+      record.carrier_lineage = carrier->geometric_lineage;
+      record.event_lineage = record.point_construction.ordinal() + 1;
+      record.numeric_crossing = crossing->numeric_crossing;
+      record.local_transition = crossing->local_transition;
+      record.numeric_owner = crossing->numeric_owner;
+      record.transition = crossing->numeric_owner && crossing->numeric_crossing > 0
+                              ? relation_carrier_transition::entering
+                          : crossing->numeric_owner && crossing->numeric_crossing < 0
+                              ? relation_carrier_transition::leaving
+                              : relation_carrier_transition::tangent;
+      record.half_open_owner = crossing->half_open_owner;
+      record.finite = true;
+      record.conditioning_accepted = true;
+      record.residuals_accepted = true;
+      record.regions_complete = true;
+      record.precision_evidence_complete =
+          carrier->precision_evidence_complete &&
+          seed->precision_evidence_complete;
+      if (record.parameter_lineage == 0 || !record.precision_evidence_complete)
+        return fail(error, relation_subcode::source_facet_carrier_unresolved,
+                    "Component 07 transverse membership precision evidence is incomplete",
+                    relation_checkpoint::construction_validation);
+      transverse_carrier_memberships_.push_back(record);
+    }
+    if (transverse_carrier_memberships_.size() >
+        capabilities_.maximum_transverse_memberships)
+      return fail(error, relation_subcode::work_limit,
+                  "Component 07 transverse carrier membership limit exceeded",
+                  relation_checkpoint::count_representability_preflight);
+    return true;
+  }
+
   const symbolic_descriptor *find_symbolic_descriptor(
       const relation_request_key &source,
       symbolic_relation_subject_kind subject_kind,
@@ -4052,6 +4744,8 @@ private:
         artifact.candidate_partitions_.size();
     artifact.statistics_.triangle_local_reconciliation_count =
         artifact.triangle_local_reconciliation_.size();
+    artifact.statistics_.transverse_carrier_membership_count =
+        artifact.transverse_carrier_memberships_.size();
     artifact.statistics_.sort_comparisons =
         artifact.request_graph_.sort_comparisons;
     artifact.statistics_.verifier_work_units =
@@ -4067,6 +4761,7 @@ private:
         artifact.coplanar_overlap_components_.size() +
         artifact.symbolic_decisions_.size() + artifact.crossings_.size() +
         artifact.event_seeds_.size() +
+        artifact.transverse_carrier_memberships_.size() +
         artifact.triangle_local_reconciliation_.size() +
         artifact.candidate_dispositions_.size();
   }
@@ -4074,10 +4769,12 @@ private:
   const boolean_context<T, I> &context_;
   const precision_context<T> &precision_;
   std::shared_ptr<const canonical_candidate_stream<T, I>> candidates_;
+  std::shared_ptr<const vertex_facet_stage_type> vertex_facet_stage_;
   std::shared_ptr<const edge_stage_type> edge_stage_;
   std::shared_ptr<const edge_facet_stage_type> edge_facet_stage_;
   std::shared_ptr<const facet_stage_type> facet_stage_;
   std::shared_ptr<const overlay_stage_type> overlay_stage_;
+  std::shared_ptr<const transverse_stage_type> transverse_stage_;
   std::shared_ptr<const relation_execution_authority> execution_authority_;
   const relation_capabilities &capabilities_;
 
@@ -4088,6 +4785,7 @@ private:
   std::vector<interval_descriptor> interval_desc_;
   std::vector<region_descriptor> region_desc_;
   std::vector<symbolic_descriptor> symbolics_;
+  std::vector<transverse_membership_descriptor> transverse_membership_desc_;
   std::vector<disposition_descriptor> disposition_desc_;
   std::vector<std::vector<relation_request_key>> candidate_base_keys_;
   std::map<relation_request_key, relation_request_key> multiplicity_keys_;
@@ -4118,6 +4816,9 @@ private:
   std::vector<relation_candidate_disposition_record> dispositions_;
   std::vector<relation_triangle_local_reconciliation_record>
       triangle_local_reconciliation_;
+  std::vector<relation_transverse_carrier_membership_record>
+      transverse_carrier_memberships_;
+  std::uint64_t transverse_evaluated_records_consumed_ = 0;
   std::vector<feature_relation_id> candidate_relation_coverage_;
   std::vector<relation_event_seed_id> candidate_event_seed_coverage_;
   std::vector<relation_candidate_partition_record> candidate_partitions_;

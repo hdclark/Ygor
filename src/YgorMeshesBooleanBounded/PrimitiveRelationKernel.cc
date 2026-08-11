@@ -11,10 +11,26 @@ bounded_boolean_error primitive_relation_error(
 }
 
 bool valid_relation_truth_record(const relation_truth_record &record) noexcept {
-  if (record.reserved != 0 ||
+  if (record.schema_version != contract_versions::relation_truth_policy ||
+      record.bounded_schema_version != contract_versions::bounded_values ||
+      record.bounded_provider_version !=
+          contract_versions::finite_interval_provider ||
+      record.exact_schema_version !=
+          contract_versions::predicate_truth_layers ||
+      record.exact_ordered_input_count > record.exact_ordered_inputs.size() ||
+      record.exact_capacity_used > record.exact_capacity_limit ||
+      record.reserved != 0 ||
       !registered_rounded_operation(
           static_cast<rounded_operation_code>(record.rounded_formula)) ||
       !valid_exact_formula_code(record.exact_formula))
+    return false;
+  for (std::size_t i = record.exact_ordered_input_count;
+       i < record.exact_ordered_inputs.size(); ++i)
+    if (record.exact_ordered_inputs[i] != 0)
+      return false;
+  if (record.alternate_formulation_available !=
+      (record.disposition ==
+       predicate_disposition::try_permitted_alternate))
     return false;
 
   switch (record.bounded_sign) {
@@ -44,9 +60,13 @@ bool valid_relation_truth_record(const relation_truth_record &record) noexcept {
       record.exact_formula !=
       static_cast<std::uint16_t>(exact_relation_formula_code::invalid);
   if ((exact_formula_requested &&
-       record.exact_relation == exact_relation_status::unavailable) ||
-      (!exact_formula_requested &&
-       record.exact_relation != exact_relation_status::unavailable))
+       (record.exact_relation == exact_relation_status::unavailable ||
+        record.exact_evidence == 0 || record.exact_trace_root == 0 ||
+        record.exact_ordered_input_count == 0)) ||
+       (!exact_formula_requested &&
+        (record.exact_relation != exact_relation_status::unavailable ||
+         record.exact_evidence != 0 || record.exact_trace_root != 0 ||
+         record.exact_ordered_input_count != 0)))
     return false;
 
   if ((record.bounded_sign == bounded_sign_status::definitely_negative &&

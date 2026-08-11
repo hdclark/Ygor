@@ -126,10 +126,14 @@ bool preflight_intersection_event_records(
   plan.estimate.occurrence_count = seed_count;
   plan.estimate.seed_binding_count = seed_count;
   std::uint64_t fixed_incidence = 0;
-  if (!multiply(seed_count, std::uint64_t{2}, fixed_incidence, error,
-                "Component 08 fixed incidence count overflowed") ||
-      !add(declared_incidence, declared_candidate_incidence,
-           plan.estimate.incidence_count, error,
+  std::uint64_t expanded_candidate_incidence = 0;
+  if (!multiply(seed_count, std::uint64_t{4}, fixed_incidence, error,
+                 "Component 08 fixed incidence count overflowed") ||
+      !multiply(declared_candidate_incidence, std::uint64_t{8},
+                expanded_candidate_incidence, error,
+                "Component 08 candidate incidence expansion overflowed") ||
+      !add(declared_incidence, expanded_candidate_incidence,
+            plan.estimate.incidence_count, error,
            "Component 08 incidence count overflowed") ||
       !add(plan.estimate.incidence_count, fixed_incidence,
            plan.estimate.incidence_count, error,

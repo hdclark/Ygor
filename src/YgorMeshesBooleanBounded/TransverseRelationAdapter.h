@@ -1,6 +1,7 @@
 #pragma once
 
 #include "FacetFacetRelations.h"
+#include "EventInterning.h"
 #include "TransverseCarrierArrangements.h"
 
 #include <algorithm>
@@ -59,7 +60,7 @@ bool collect_component07_transverse_carrier_proposals(
 
   if (relations.verification() !=
           relation_verification_disposition::independently_verified ||
-      !relations.source_facet_stage()) {
+      !relations.source_facet_stage() || !relations.source_edge_facet_stage()) {
     error = transverse_relation_adapter_detail::adapter_error(
         intersection_subcode::predecessor_not_verified,
         "Component 08 transverse adapter requires the verified Component 07 facet/facet stage");
@@ -111,6 +112,32 @@ bool collect_component07_transverse_carrier_proposals(
           "Component 08 transverse adapter could not reconcile detailed carrier support");
       return false;
     }
+    std::uint64_t expected_memberships = 0;
+    const auto &edge_facet_stage = *relations.source_edge_facet_stage();
+    for (const auto consumer : stage_relation->edge_facet_consumers) {
+      if (consumer.ordinal() >= edge_facet_stage.relations.size()) {
+        error = transverse_relation_adapter_detail::adapter_error(
+            intersection_subcode::membership_incomplete,
+            "Component 08 transverse carrier consumer is absent");
+        return false;
+      }
+      expected_memberships +=
+          edge_facet_stage.relations[consumer.ordinal()].events.size();
+    }
+    const auto actual_memberships = static_cast<std::uint64_t>(std::count_if(
+        relations.transverse_carrier_memberships().begin(),
+        relations.transverse_carrier_memberships().end(),
+        [&](const auto &membership) {
+          return membership.carrier_relation == relation.id;
+        }));
+    if (actual_memberships != expected_memberships) {
+      error = transverse_relation_adapter_detail::adapter_error(
+          intersection_subcode::membership_incomplete,
+          "Component 08 transverse carrier membership population is incomplete");
+      return false;
+    }
+    if (expected_memberships == 0)
+      continue;
 
     const relation_construction_record *construction = nullptr;
     for (const auto &candidate : constructions) {
@@ -223,6 +250,193 @@ bool verify_component07_transverse_carrier_proposals(
         intersection_subcode::verifier_rejection,
         "Component 08 transverse carrier proposal reconstruction mismatch");
     return false;
+  }
+  return true;
+}
+
+template <class T, class I>
+bool collect_component07_transverse_membership_proposals(
+    const signed_feature_relations<T, I> &relations,
+    const event_interning_tables &interning,
+    std::vector<carrier_membership_proposal> &memberships,
+    std::vector<transverse_relation_interval_proposal> &intervals,
+    bounded_boolean_error &error) {
+  memberships.clear();
+  intervals.clear();
+  std::vector<transverse_carrier_proposal> carriers;
+  if (!collect_component07_transverse_carrier_proposals(relations, carriers,
+                                                        error))
+    return false;
+  for (const auto &record : relations.transverse_carrier_memberships()) {
+    if (record.carrier_relation.ordinal() >= relations.relations().size() ||
+        record.carrier_construction.ordinal() >=
+            relations.constructions().size() ||
+        record.member_relation.ordinal() >= relations.relations().size() ||
+        record.seed.ordinal() >= interning.seed_to_occurrence.size() ||
+        record.seed.ordinal() >= interning.seed_to_event.size() ||
+        record.parameter.ordinal() >= relations.interval_evidence().size() ||
+        record.first_region.ordinal() >=
+            relations.source_facet_regions().size() ||
+        record.second_region.ordinal() >=
+            relations.source_facet_regions().size()) {
+      error = transverse_relation_adapter_detail::adapter_error(
+          intersection_subcode::membership_incomplete,
+          "Component 08 transverse adapter found incomplete Component 07 membership references");
+      return false;
+    }
+    const auto carrier = std::find_if(
+        carriers.begin(), carriers.end(), [&](const auto &candidate) {
+          return candidate.relation == record.carrier_relation &&
+                 candidate.construction == record.carrier_construction;
+        });
+    if (carrier == carriers.end()) {
+      error = transverse_relation_adapter_detail::adapter_error(
+          intersection_subcode::transverse_carrier_invalid,
+          "Component 08 transverse membership has no unique carrier");
+      return false;
+    }
+    const auto occurrence = interning.seed_to_occurrence[record.seed.ordinal()];
+    const auto event = interning.seed_to_event[record.seed.ordinal()];
+    if (occurrence.ordinal() >= interning.occurrences.size() ||
+        event.ordinal() >= interning.events.size()) {
+      error = transverse_relation_adapter_detail::adapter_error(
+          intersection_subcode::membership_incomplete,
+          "Component 08 transverse membership seed was not interned");
+      return false;
+    }
+    const auto &parameter =
+        relations.interval_evidence()[record.parameter.ordinal()];
+    carrier_membership_proposal proposal;
+    proposal.carrier = carrier->key;
+    proposal.occurrence_key = interning.occurrences[occurrence.ordinal()].key;
+    proposal.occurrence = occurrence;
+    proposal.event = event;
+    proposal.parameter = parameter.id;
+    proposal.nominal_bits = parameter.rounded_nominal_bits;
+    proposal.lower_bits = parameter.lower_bits;
+    proposal.upper_bits = parameter.upper_bits;
+    proposal.parameter_lineage = record.parameter_lineage;
+    proposal.event_lineage = record.event_lineage;
+    proposal.relation_lineage = record.carrier_lineage;
+    proposal.relation = record.carrier_relation;
+    const auto shared_point_count = std::count_if(
+        relations.transverse_carrier_memberships().begin(),
+        relations.transverse_carrier_memberships().end(),
+        [&](const auto &candidate) {
+          return candidate.carrier_relation == record.carrier_relation &&
+                 candidate.carrier_construction == record.carrier_construction &&
+                 candidate.point_construction == record.point_construction;
+        });
+    proposal.exact_equal_eligible = shared_point_count > 1;
+    proposal.cluster_eligible = shared_point_count > 1;
+    proposal.transition = record.transition;
+    proposal.half_open_owner = record.half_open_owner;
+    proposal.numeric_owner = record.numeric_owner;
+    proposal.first_region_evidence = record.first_region;
+    proposal.second_region_evidence = record.second_region;
+    proposal.first_region_contains =
+        relations.source_facet_regions()[record.first_region.ordinal()]
+            .region.classification != source_facet_point_region_class::outside;
+    proposal.second_region_contains =
+        relations.source_facet_regions()[record.second_region.ordinal()]
+            .region.classification != source_facet_point_region_class::outside;
+    memberships.push_back(std::move(proposal));
+  }
+
+  std::sort(memberships.begin(), memberships.end(), [](const auto &a,
+                                                        const auto &b) {
+    const auto lower_a = from_bits<T>(
+        static_cast<floating_uint_t<T>>(a.lower_bits));
+    const auto lower_b = from_bits<T>(
+        static_cast<floating_uint_t<T>>(b.lower_bits));
+    if (!(a.carrier == b.carrier))
+      return a.carrier < b.carrier;
+    if (finite_numeric_less(lower_a, lower_b)) return true;
+    if (finite_numeric_less(lower_b, lower_a)) return false;
+    return a.occurrence_key < b.occurrence_key;
+  });
+  std::size_t begin = 0;
+  while (begin < memberships.size()) {
+    std::size_t end = begin + 1;
+    while (end < memberships.size() &&
+           memberships[end].carrier == memberships[begin].carrier)
+      ++end;
+    const carrier_membership_proposal *start = nullptr;
+    for (std::size_t offset = begin; offset < end;) {
+      std::size_t cluster_end = offset + 1;
+      while (cluster_end < end &&
+             memberships[cluster_end].event_lineage ==
+                 memberships[offset].event_lineage)
+        ++cluster_end;
+      const carrier_membership_proposal *transition = nullptr;
+      for (std::size_t member = offset; member < cluster_end; ++member) {
+        if (memberships[member].transition ==
+            relation_carrier_transition::tangent)
+          continue;
+        if (transition && transition->transition != memberships[member].transition) {
+          error = transverse_relation_adapter_detail::adapter_error(
+              intersection_subcode::membership_incomplete,
+              "Component 08 transverse boundary lineage has contradictory transitions");
+          return false;
+        }
+        if (!transition || memberships[member].numeric_owner)
+          transition = &memberships[member];
+      }
+      if (!transition) {
+        offset = cluster_end;
+        continue;
+      }
+      if (!start) {
+        start = transition;
+        offset = cluster_end;
+        continue;
+      }
+      const auto &finish = *transition;
+      const auto start_upper = from_bits<T>(
+          static_cast<floating_uint_t<T>>(start->upper_bits));
+      const auto finish_lower = from_bits<T>(
+          static_cast<floating_uint_t<T>>(finish.lower_bits));
+      if (!finite_numeric_less(start_upper, finish_lower)) {
+        error = transverse_relation_adapter_detail::adapter_error(
+            intersection_subcode::parameter_invalid,
+            "Component 08 transverse endpoint order is not bounded");
+        return false;
+      }
+      transverse_relation_interval_proposal interval;
+      interval.carrier = start->carrier;
+      interval.relation = start->relation;
+      interval.interval_lineage = start->relation_lineage;
+      interval.start_parameter = start->parameter;
+      interval.end_parameter = finish.parameter;
+      interval.start_lower_bits = start->lower_bits;
+      interval.start_upper_bits = start->upper_bits;
+      interval.end_lower_bits = finish.lower_bits;
+      interval.end_upper_bits = finish.upper_bits;
+      interval.start_occurrence = start->occurrence;
+      interval.end_occurrence = finish.occurrence;
+      interval.activation =
+          intersection_span_activation::active_transverse_intersection;
+      interval.first_region_evidence = start->first_region_evidence;
+      interval.second_region_evidence = start->second_region_evidence;
+      interval.first_region_contains = start->first_region_contains;
+      interval.second_region_contains = start->second_region_contains;
+      interval.ownership_verified = start->numeric_owner &&
+                                    finish.numeric_owner;
+      interval.start_closed =
+          start->half_open_owner == start->carrier.first_facet.operand;
+      interval.end_closed =
+          finish.half_open_owner == finish.carrier.second_facet.operand;
+      intervals.push_back(std::move(interval));
+      start = nullptr;
+      offset = cluster_end;
+    }
+    if (start) {
+      error = transverse_relation_adapter_detail::adapter_error(
+          intersection_subcode::membership_incomplete,
+          "Component 08 transverse carrier has an unmatched numeric transition");
+      return false;
+    }
+    begin = end;
   }
   return true;
 }

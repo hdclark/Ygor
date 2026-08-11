@@ -32,8 +32,14 @@ bounded_point3<T> point3(const context_owner_token &owner,
   for (std::size_t axis = 0; axis < 3; ++axis) {
     auto component = checked_bounded_singleton(owner, values[axis]);
     check(component.has_value(), "bounded singleton construction");
-    if (component.has_value())
+    if (component.has_value()) {
       result.coordinates.components[axis] = std::move(*component.value());
+      result.coordinates.components[axis].identity =
+          bounded_operations_detail::source_import_identity(
+              owner, bounded_value_id(identity * 4 + axis + 1),
+              result.provenance, result.lineage, values[axis],
+              result.coordinates.components[axis].uncertainty_enclosure);
+    }
   }
   result.coordinates.radial_error_upper = T(0);
   return result;

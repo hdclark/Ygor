@@ -81,7 +81,7 @@ int main() {
   require(plan.estimate.event_count == 1);
   require(plan.estimate.occurrence_count == 1);
   require(plan.estimate.seed_binding_count == 1);
-  require(plan.estimate.incidence_count == 5);
+  require(plan.estimate.incidence_count == 14);
   require(plan.estimate.persistent_bytes != 0);
   require(plan.estimate.temporary_bytes != 0);
 

@@ -33,6 +33,7 @@ struct relation_verifier_evidence_tag;
 struct relation_diagnostic_tag;
 struct relation_replay_checkpoint_tag;
 struct relation_triangle_local_reconciliation_tag;
+struct relation_transverse_carrier_membership_tag;
 
 using relation_request_id = strong_id<relation_request_tag>;
 using feature_relation_id = strong_id<feature_relation_tag>;
@@ -65,6 +66,8 @@ using relation_diagnostic_id = strong_id<relation_diagnostic_tag>;
 using relation_replay_checkpoint_id = strong_id<relation_replay_checkpoint_tag>;
 using relation_triangle_local_reconciliation_id =
     strong_id<relation_triangle_local_reconciliation_tag>;
+using relation_transverse_carrier_membership_id =
+    strong_id<relation_transverse_carrier_membership_tag>;
 
 inline constexpr std::uint64_t relation_invalid_ordinal =
     std::numeric_limits<std::uint64_t>::max();
@@ -128,6 +131,8 @@ enum class relation_interval_evidence_kind : std::uint8_t {
   segment_breakpoint_parameter = 13,
   segment_interval_witness_parameter = 14,
   segment_triangle_witness_parameter = 15,
+  transverse_carrier_parameter = 16,
+  transverse_carrier_point_residual = 17,
 };
 
 enum class relation_source_facet_region_kind : std::uint8_t {
@@ -137,6 +142,15 @@ enum class relation_source_facet_region_kind : std::uint8_t {
   overlay_vertex_witness = 4,
   overlay_partition_breakpoint = 5,
   overlay_partition_interval = 6,
+  source_vertex_source_facet = 7,
+  transverse_carrier_first_facet = 8,
+  transverse_carrier_second_facet = 9,
+};
+
+enum class relation_carrier_transition : std::uint8_t {
+  entering = 1,
+  leaving = 2,
+  tangent = 3,
 };
 
 enum class feature_relation_family : std::uint8_t {
@@ -233,6 +247,11 @@ enum class relation_construction_precedence : std::uint8_t {
 enum class relation_construction_coordinate_space : std::uint8_t {
   world_3d = 1,
   source_facet_projection = 2,
+};
+
+enum class relation_construction_compatibility_disposition : std::uint8_t {
+  authoritative = 1,
+  compatible_witness = 2,
 };
 
 enum class symbolic_relation_side : std::int8_t {
@@ -418,6 +437,7 @@ struct relation_capabilities final {
   std::uint64_t maximum_event_seeds = (std::uint64_t{1} << 34);
   std::uint64_t maximum_event_seed_incidence = (std::uint64_t{1} << 36);
   std::uint64_t maximum_candidate_coverage = (std::uint64_t{1} << 36);
+  std::uint64_t maximum_transverse_memberships = (std::uint64_t{1} << 34);
   std::uint64_t maximum_diagnostics = (std::uint64_t{1} << 20);
   std::uint64_t maximum_replay_checkpoints = 64;
   std::uint64_t maximum_canonical_bytes = (std::uint64_t{1} << 34);
@@ -465,6 +485,7 @@ struct relation_statistics final {
   std::uint64_t candidate_seed_coverage_count = 0;
   std::uint64_t candidate_partition_count = 0;
   std::uint64_t triangle_local_reconciliation_count = 0;
+  std::uint64_t transverse_carrier_membership_count = 0;
   std::uint64_t diagnostic_count = 0;
   std::uint64_t replay_checkpoint_count = 0;
   std::uint64_t sort_comparisons = 0;

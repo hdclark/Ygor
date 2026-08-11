@@ -62,6 +62,7 @@ template <class T> struct relation_artifact_envelope final {
   std::uint64_t event_seed_candidate_incidence_count = 0;
   std::uint64_t candidate_disposition_count = 0;
   std::uint64_t triangle_local_reconciliation_count = 0;
+  std::uint64_t transverse_carrier_membership_count = 0;
   bounded_boolean_digest triangle_local_reconciliation_digest{};
   std::uint64_t candidate_relation_coverage_count = 0;
   std::uint64_t candidate_seed_coverage_count = 0;

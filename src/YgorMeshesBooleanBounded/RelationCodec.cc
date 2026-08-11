@@ -13,14 +13,8 @@ void encode_digest(canonical_writer &writer,
 }
 
 void encode_truth(canonical_writer &writer,
-                  const relation_truth_record &record) {
-  writer.u64(record.rounded_nominal_bits);
-  writer.u8(static_cast<std::uint8_t>(record.bounded_sign));
-  writer.u8(static_cast<std::uint8_t>(record.exact_relation));
-  writer.u8(static_cast<std::uint8_t>(record.disposition));
-  writer.u16(record.rounded_formula);
-  writer.u16(record.exact_formula);
-  writer.u32(record.reserved);
+                   const relation_truth_record &record) {
+  encode_relation_truth_record(writer, record);
 }
 
 
@@ -138,6 +132,7 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u8(static_cast<std::uint8_t>(record.bounded_sign));
     writer.u8(static_cast<std::uint8_t>(record.disposition));
     writer.u16(record.rounded_formula);
+    encode_truth(writer, record.evidence);
     writer.u16(record.reserved16);
     writer.u32(record.reserved32);
   }
@@ -149,6 +144,7 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u32(record.truth_ordinal);
     writer.u8(static_cast<std::uint8_t>(record.status));
     writer.u16(record.exact_formula);
+    encode_truth(writer, record.evidence);
     writer.u16(record.reserved16);
     writer.u32(record.reserved32);
   }
@@ -187,6 +183,16 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     for (const auto bits : record.contributor_bits)
       writer.u64(bits);
     writer.u64(record.trace_root);
+    writer.u16(static_cast<std::uint16_t>(record.issued_operation));
+    writer.u64(record.issued_value);
+    writer.u64(record.issued_ledger_entry);
+    writer.u64(record.issued_parent_values.size());
+    for (const auto parent : record.issued_parent_values) writer.u64(parent);
+    writer.u64(record.issued_parent_trace_roots.size());
+    for (const auto parent : record.issued_parent_trace_roots) writer.u64(parent);
+    writer.u64(record.issued_parent_ledger_entries.size());
+    for (const auto parent : record.issued_parent_ledger_entries) writer.u64(parent);
+    writer.sized_bytes(record.issued_operation_evidence);
     writer.u64(record.comparison_boundary_bits);
     writer.u8(record.reserved8);
     writer.u16(record.reserved16);
@@ -236,6 +242,7 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u8(static_cast<std::uint8_t>(record.kind));
     writer.u8(static_cast<std::uint8_t>(record.precedence));
     writer.u8(static_cast<std::uint8_t>(record.coordinate_space));
+    writer.u8(static_cast<std::uint8_t>(record.compatibility));
     writer.u8(record.component_count);
     writer.u8(record.projection_axis);
     encode_relation_feature_key(writer, record.authoritative_source_feature);
@@ -244,6 +251,25 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     for (const auto bits : record.upper_bits) writer.u64(bits);
     writer.u64(record.source_provenance);
     writer.u64(record.geometric_lineage);
+    for (const auto &feature : record.defining_features)
+      encode_relation_feature_key(writer, feature);
+    writer.u8(record.defining_feature_count);
+    writer.u16(record.formula_version);
+    writer.u16(record.schema_version);
+    writer.u64(record.defining_dependency_begin);
+    writer.u64(record.defining_dependency_count);
+    writer.u64(record.radial_error_upper_bits);
+    for (const auto bits : record.axis_error_upper_bits) writer.u64(bits);
+    writer.u64(record.denominator_lower_bits);
+    writer.u64(record.denominator_upper_bits);
+    writer.u64(record.conditioning_lower_bits);
+    writer.u16(static_cast<std::uint16_t>(record.operation));
+    writer.u8(static_cast<std::uint8_t>(record.conditioning));
+    writer.u8(static_cast<std::uint8_t>(record.tolerance));
+    writer.u64(record.ordered_bounded_inputs.size());
+    for (const auto input : record.ordered_bounded_inputs) writer.u64(input);
+    writer.sized_bytes(record.certificate_evidence);
+    writer.u64(record.precision_trace_root);
     writer.boolean(record.accepted_source_vertex);
     writer.boolean(record.finite);
     writer.boolean(record.tolerance_compatible);
@@ -268,6 +294,7 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u64(record.source_relation.ordinal());
     writer.u8(static_cast<std::uint8_t>(record.precedence));
     writer.u8(static_cast<std::uint8_t>(record.coordinate_space));
+    writer.u8(static_cast<std::uint8_t>(record.compatibility));
     writer.u8(record.component_count);
     writer.u8(record.projection_axis);
     writer.u32(record.occurrence);
@@ -276,10 +303,27 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     for (const auto bits : record.upper_bits) writer.u64(bits);
     writer.u64(record.source_provenance);
     writer.u64(record.geometric_lineage);
+    for (const auto &feature : record.defining_features)
+      encode_relation_feature_key(writer, feature);
+    writer.u8(record.defining_feature_count);
+    writer.u16(record.formula_version);
+    writer.u16(record.schema_version);
+    writer.u64(record.precision_trace_root);
+    for (const auto bits : record.axis_error_upper_bits) writer.u64(bits);
+    writer.u64(record.radial_error_upper_bits);
+    writer.u64(record.denominator_lower_bits);
+    writer.u64(record.denominator_upper_bits);
+    writer.u64(record.conditioning_lower_bits);
+    writer.u16(static_cast<std::uint16_t>(record.operation));
+    writer.u8(static_cast<std::uint8_t>(record.conditioning));
+    writer.u8(static_cast<std::uint8_t>(record.tolerance));
+    writer.u64(record.ordered_bounded_inputs.size());
+    for (const auto input : record.ordered_bounded_inputs) writer.u64(input);
+    writer.sized_bytes(record.certificate_evidence);
     writer.boolean(record.accepted_source_vertex);
     writer.boolean(record.finite);
     writer.boolean(record.tolerance_compatible);
-    writer.boolean(record.synthetic_authority);
+    writer.boolean(record.authoritative_entry);
     writer.boolean(record.lineage_compatible);
     writer.boolean(record.enclosure_compatible);
     writer.boolean(record.parameter_compatible);
@@ -484,6 +528,38 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     reconciliation_writer.u32(record.reserved);
   }
   writer.sized_bytes(reconciliation_writer.take());
+  writer.u16(contract_versions::relation_transverse_carrier_membership_schema);
+  writer.u64(artifact.transverse_carrier_memberships_.size());
+  for (const auto &record : artifact.transverse_carrier_memberships_) {
+    writer.u64(record.id.ordinal());
+    writer.u64(record.carrier_relation.ordinal());
+    writer.u64(record.carrier_construction.ordinal());
+    writer.u64(record.member_relation.ordinal());
+    writer.u64(record.point_construction.ordinal());
+    writer.u64(record.seed.ordinal());
+    writer.u32(record.occurrence);
+    writer.u64(record.parameter.ordinal());
+    for (const auto residual : record.point_carrier_residuals)
+      writer.u64(residual.ordinal());
+    writer.u64(record.first_region.ordinal());
+    writer.u64(record.second_region.ordinal());
+    writer.u64(record.parameter_lineage);
+    writer.u64(record.carrier_lineage);
+    writer.u64(record.event_lineage);
+    writer.u32(static_cast<std::uint32_t>(record.numeric_crossing));
+    writer.u8(static_cast<std::uint8_t>(record.local_transition));
+    writer.u8(static_cast<std::uint8_t>(record.transition));
+    writer.u8(static_cast<std::uint8_t>(record.half_open_owner));
+    writer.boolean(record.numeric_owner);
+    writer.boolean(record.finite);
+    writer.boolean(record.conditioning_accepted);
+    writer.boolean(record.residuals_accepted);
+    writer.boolean(record.regions_complete);
+    writer.boolean(record.precision_evidence_complete);
+    writer.u16(record.schema_version);
+    writer.u16(record.reserved16);
+    writer.u32(record.reserved32);
+  }
   writer.u64(artifact.candidate_dispositions_.size());
   for (const auto &record : artifact.candidate_dispositions_) {
     writer.u64(record.id.ordinal());
@@ -550,6 +626,7 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   writer.u64(artifact.statistics_.candidate_seed_coverage_count);
   writer.u64(artifact.statistics_.candidate_partition_count);
   writer.u64(artifact.statistics_.triangle_local_reconciliation_count);
+  writer.u64(artifact.statistics_.transverse_carrier_membership_count);
   writer.u64(artifact.statistics_.diagnostic_count);
   writer.u64(artifact.statistics_.replay_checkpoint_count);
   writer.u64(artifact.statistics_.sort_comparisons);
@@ -585,27 +662,43 @@ inline bool read_digest(canonical_reader &reader,
   return true;
 }
 
-inline bool read_feature_key(canonical_reader &reader) {
+inline bool read_feature_key(canonical_reader &reader, relation_feature_key *out) {
+  relation_feature_key key;
   std::uint8_t operand = 0, kind = 0;
-  std::uint64_t primary = 0, secondary = 0;
-  std::uint32_t occurrence = 0;
-  std::uint16_t schema = 0;
-  return reader.u8(operand) && reader.u8(kind) && reader.u64(primary) &&
-         reader.u64(secondary) && reader.u32(occurrence) &&
-         reader.u16(schema);
+  if (!reader.u8(operand) || !reader.u8(kind) || !reader.u64(key.primary) ||
+      !reader.u64(key.secondary) || !reader.u32(key.occurrence) ||
+      !reader.u16(key.schema_version))
+    return false;
+  key.operand = static_cast<operand_id>(operand);
+  key.kind = static_cast<relation_feature_kind>(kind);
+  const bool none = key.kind == relation_feature_kind::none &&
+                    key.primary == 0 && key.secondary == 0 &&
+                    key.occurrence == 0 &&
+                    key.schema_version ==
+                        contract_versions::relation_feature_key_schema;
+  if (!none && !valid_relation_feature_key(key)) return false;
+  if (out) *out = key;
+  return true;
+}
+
+inline bool read_feature_key(canonical_reader &reader) {
+  return read_feature_key(reader, nullptr);
 }
 
 inline bool read_request_key(canonical_reader &reader) {
-  bounded_boolean_digest semantic_namespace{};
   std::uint8_t family = 0, scope = 0;
-  std::uint64_t directed_use = 0;
-  std::uint16_t formula = 0, policy = 0;
-  std::uint32_t occurrence = 0, reserved = 0;
-  return read_digest(reader, semantic_namespace) && reader.u8(family) &&
-         reader.u8(scope) && read_feature_key(reader) &&
-         read_feature_key(reader) && reader.u64(directed_use) &&
-         reader.u16(formula) && reader.u16(policy) &&
-         reader.u32(occurrence) && reader.u32(reserved);
+  std::uint32_t reserved = 0;
+  relation_request_key key;
+  if (!read_digest(reader, key.semantic_namespace) || !reader.u8(family) ||
+      !reader.u8(scope) || !read_feature_key(reader, &key.first) ||
+      !read_feature_key(reader, &key.second) || !reader.u64(key.directed_use) ||
+      !reader.u16(key.formula_version) || !reader.u16(key.policy_version) ||
+      !reader.u32(key.occurrence_discriminator) || !reader.u32(reserved) ||
+      reserved != 0)
+    return false;
+  key.family = static_cast<relation_request_family>(family);
+  key.scope = static_cast<relation_record_scope>(scope);
+  return valid_relation_request_key(key);
 }
 
 inline bool read_symbolic_rule_key(canonical_reader &reader) {
@@ -647,6 +740,57 @@ inline bool read_imported_geometry_record(canonical_reader &reader) {
          reader.u16(reserved16) && reader.u32(reserved32);
 }
 
+inline bool read_truth_record(canonical_reader &reader) {
+  std::uint16_t schema = 0;
+  std::array<std::uint64_t, 44> values{};
+  std::uint8_t bounded = 0, exact = 0, disposition = 0, publication = 0;
+  std::uint16_t rounded_formula = 0, exact_formula = 0, bounded_schema = 0,
+                bounded_provider = 0, exact_schema = 0, input_count = 0;
+  std::uint32_t normalization = 0, capacity_used = 0, capacity_limit = 0,
+                reserved = 0;
+  bool alternate = false;
+  if (!reader.u16(schema) || schema != contract_versions::relation_truth_policy)
+    return false;
+  for (auto &value : values)
+    if (!reader.u64(value)) return false;
+  if (!reader.u8(bounded) ||
+      bounded < static_cast<std::uint8_t>(bounded_sign_status::definitely_negative) ||
+      bounded > static_cast<std::uint8_t>(bounded_sign_status::definitely_positive) ||
+      !reader.u8(exact) ||
+      exact < static_cast<std::uint8_t>(exact_relation_status::exact_negative) ||
+      exact > static_cast<std::uint8_t>(exact_relation_status::unavailable) ||
+      !reader.u8(disposition) ||
+      disposition < static_cast<std::uint8_t>(predicate_disposition::accept_numeric_sign) ||
+      disposition > static_cast<std::uint8_t>(predicate_disposition::fail_invalid) ||
+      !reader.u16(rounded_formula) ||
+      !registered_rounded_operation(
+          static_cast<rounded_operation_code>(rounded_formula)) ||
+      !reader.u16(exact_formula) || !valid_exact_formula_code(exact_formula) ||
+      !reader.u16(bounded_schema) ||
+      bounded_schema != contract_versions::bounded_values ||
+      !reader.u16(bounded_provider) ||
+      bounded_provider != contract_versions::finite_interval_provider ||
+      !reader.u16(exact_schema) ||
+      exact_schema != contract_versions::predicate_truth_layers ||
+      !reader.u16(input_count) || input_count > 24 ||
+      !reader.u32(normalization) || !reader.u32(capacity_used) ||
+      !reader.u32(capacity_limit) || capacity_used > capacity_limit ||
+      !reader.u8(publication) ||
+      publication < static_cast<std::uint8_t>(bounded_publication_state::transaction_local) ||
+      publication > static_cast<std::uint8_t>(bounded_publication_state::committed) ||
+      !reader.boolean(alternate) || !reader.u32(reserved) || reserved != 0)
+    return false;
+  const bool requested =
+      exact_formula != static_cast<std::uint16_t>(exact_relation_formula_code::invalid);
+  for (std::size_t i = 20 + input_count; i < values.size(); ++i)
+    if (values[i] != 0) return false;
+  return requested
+             ? (values[18] != 0 && values[19] != 0 && input_count != 0 &&
+                exact != static_cast<std::uint8_t>(exact_relation_status::unavailable))
+             : (values[18] == 0 && values[19] == 0 && input_count == 0 &&
+                exact == static_cast<std::uint8_t>(exact_relation_status::unavailable));
+}
+
 inline bool read_bounded_primitive_record(canonical_reader &reader) {
   std::uint64_t id = 0, producer = 0, source = 0, nominal = 0;
   std::uint32_t truth = 0, reserved32 = 0;
@@ -654,8 +798,16 @@ inline bool read_bounded_primitive_record(canonical_reader &reader) {
   std::uint16_t formula = 0, reserved16 = 0;
   return reader.u64(id) && reader.u64(producer) && reader.u64(source) &&
          reader.u32(truth) && reader.u64(nominal) && reader.u8(bounded) &&
-         reader.u8(disposition) && reader.u16(formula) &&
-         reader.u16(reserved16) && reader.u32(reserved32);
+           bounded >= static_cast<std::uint8_t>(bounded_sign_status::definitely_negative) &&
+           bounded <= static_cast<std::uint8_t>(bounded_sign_status::definitely_positive) &&
+           reader.u8(disposition) &&
+           disposition >= static_cast<std::uint8_t>(predicate_disposition::accept_numeric_sign) &&
+           disposition < static_cast<std::uint8_t>(predicate_disposition::fail_invalid) &&
+           reader.u16(formula) && registered_rounded_operation(
+               static_cast<rounded_operation_code>(formula)) &&
+           read_truth_record(reader) &&
+         reader.u16(reserved16) && reserved16 == 0 &&
+         reader.u32(reserved32) && reserved32 == 0;
 }
 
 inline bool read_exact_relation_record(canonical_reader &reader) {
@@ -664,8 +816,13 @@ inline bool read_exact_relation_record(canonical_reader &reader) {
   std::uint8_t status = 0;
   std::uint16_t formula = 0, reserved16 = 0;
   return reader.u64(id) && reader.u64(producer) && reader.u64(source) &&
-         reader.u32(truth) && reader.u8(status) && reader.u16(formula) &&
-         reader.u16(reserved16) && reader.u32(reserved32);
+           reader.u32(truth) && reader.u8(status) &&
+           status >= static_cast<std::uint8_t>(exact_relation_status::exact_negative) &&
+           status <= static_cast<std::uint8_t>(exact_relation_status::exact_positive) &&
+           reader.u16(formula) && valid_exact_formula_code(formula) && formula != 0 &&
+           read_truth_record(reader) &&
+         reader.u16(reserved16) && reserved16 == 0 &&
+         reader.u32(reserved32) && reserved32 == 0;
 }
 
 inline bool read_truth_lineage_record(canonical_reader &reader) {
@@ -681,7 +838,7 @@ inline bool read_truth_lineage_record(canonical_reader &reader) {
 }
 
 inline bool read_interval_evidence_record(canonical_reader &reader) {
-  std::uint64_t value = 0;
+  std::uint64_t value = 0, count = 0;
   std::uint32_t occurrence = 0, reserved32 = 0;
   std::uint16_t reserved16 = 0;
   std::uint8_t byte = 0;
@@ -698,8 +855,19 @@ inline bool read_interval_evidence_record(canonical_reader &reader) {
     return false;
   for (std::size_t i = 0; i < 8; ++i)
     if (!reader.u64(value)) return false;
-  return reader.u64(value) && reader.u64(value) && reader.u8(byte) &&
-         reader.u16(reserved16) && reader.u32(reserved32);
+  if (!reader.u64(value) || !reader.u16(reserved16) ||
+      !reader.u64(value) || !reader.u64(value))
+    return false;
+  for (std::size_t identity = 0; identity < 3; ++identity) {
+    if (!reader.u64(count) || count > 64)
+      return false;
+    for (std::uint64_t parent = 0; parent < count; ++parent)
+      if (!reader.u64(value)) return false;
+  }
+  std::vector<std::uint8_t> evidence;
+  return reader.sized_bytes(evidence, std::uint64_t{1} << 24U) &&
+         reader.u64(value) && reader.u8(byte) &&
+          reader.u16(reserved16) && reader.u32(reserved32);
 }
 
 template <class T>
@@ -763,16 +931,6 @@ bool read_source_facet_region_record(
          reader.u32(reserved32);
 }
 
-inline bool read_truth_record(canonical_reader &reader) {
-  std::uint64_t nominal = 0;
-  std::uint8_t bounded = 0, exact = 0, disposition = 0;
-  std::uint16_t rounded_formula = 0, exact_formula = 0;
-  std::uint32_t reserved = 0;
-  return reader.u64(nominal) && reader.u8(bounded) && reader.u8(exact) &&
-         reader.u8(disposition) && reader.u16(rounded_formula) &&
-         reader.u16(exact_formula) && reader.u32(reserved);
-}
-
 inline bool read_relation_record(canonical_reader &reader) {
   std::uint64_t id = 0, producer = 0, truth_begin = 0, truth_count = 0;
   std::uint8_t family = 0, scope = 0, status = 0;
@@ -783,44 +941,151 @@ inline bool read_relation_record(canonical_reader &reader) {
          reader.u32(occurrence) && reader.u32(reserved);
 }
 
+inline bool read_transverse_membership_record(canonical_reader &reader,
+                                              std::uint64_t expected_id) {
+  constexpr auto invalid = std::numeric_limits<std::uint64_t>::max();
+  std::array<std::uint64_t, 6> identities{};
+  std::uint64_t parameter = 0, value = 0;
+  std::uint32_t occurrence = 0, numeric = 0, reserved32 = 0;
+  std::uint16_t schema = 0, reserved16 = 0;
+  std::uint8_t local = 0, transition = 0, owner = 0;
+  bool flag = false;
+  for (auto &identity : identities)
+    if (!reader.u64(identity)) return false;
+  if (identities[0] != expected_id ||
+      std::find(identities.begin(), identities.end(), invalid) !=
+          identities.end() ||
+      !reader.u32(occurrence) || !reader.u64(parameter) || parameter == invalid)
+    return false;
+  for (std::size_t i = 0; i < 8; ++i)
+    if (!reader.u64(value) || value == invalid) return false;
+  if (!reader.u32(numeric) ||
+      static_cast<std::int32_t>(numeric) < -1 ||
+      static_cast<std::int32_t>(numeric) > 1 ||
+      !reader.u8(local) || (local != 0 && local != 1 && local != 0xffU) ||
+      !reader.u8(transition) ||
+      transition < static_cast<std::uint8_t>(relation_carrier_transition::entering) ||
+      transition > static_cast<std::uint8_t>(relation_carrier_transition::tangent) ||
+      !reader.u8(owner) ||
+      (owner != static_cast<std::uint8_t>(operand_id::a) &&
+       owner != static_cast<std::uint8_t>(operand_id::b)))
+    return false;
+  for (std::size_t i = 0; i < 6; ++i)
+    if (!reader.boolean(flag)) return false;
+  return reader.u16(schema) &&
+         schema == contract_versions::relation_transverse_carrier_membership_schema &&
+         reader.u16(reserved16) && reserved16 == 0 &&
+         reader.u32(reserved32) && reserved32 == 0;
+}
+
 inline bool read_construction_record(canonical_reader &reader) {
-  std::uint64_t value = 0;
-  std::uint8_t byte = 0;
+  std::uint64_t value = 0, input_count = 0;
+  std::vector<std::uint8_t> certificate;
+  std::uint8_t kind = 0, precedence = 0, space = 0, compatibility = 0,
+               components = 0, projection = 0, defining_count = 0,
+               conditioning = 0, tolerance = 0;
+  std::uint16_t formula = 0, schema = 0, operation = 0;
   std::uint32_t reserved = 0;
   bool flag = false;
   if (!reader.u64(value) || !reader.u64(value) || !reader.u64(value) ||
-      !reader.u8(byte) || !reader.u8(byte) || !reader.u8(byte) ||
-      !reader.u8(byte) || !reader.u8(byte) || !read_feature_key(reader))
+      !reader.u8(kind) || !reader.u8(precedence) || !reader.u8(space) ||
+       !reader.u8(compatibility) || !reader.u8(components) ||
+       !reader.u8(projection) ||
+       !read_feature_key(reader))
+    return false;
+  if (kind < 1 || kind > 4 || precedence < 1 || precedence > 6 ||
+      space < 1 || space > 2 || compatibility < 1 || compatibility > 2 ||
+      !((kind == static_cast<std::uint8_t>(relation_construction_kind::bounded_point) &&
+         (components == 2 || components == 3)) ||
+        (kind == static_cast<std::uint8_t>(relation_construction_kind::bounded_carrier) &&
+         components == 6)) ||
+      (space == static_cast<std::uint8_t>(relation_construction_coordinate_space::world_3d)
+           ? projection != 3
+           : projection > 2 || components != 2))
     return false;
   for (std::size_t i = 0; i < 18; ++i)
     if (!reader.u64(value)) return false;
   if (!reader.u64(value) || !reader.u64(value)) return false;
+  if (!read_feature_key(reader) || !read_feature_key(reader) ||
+       !reader.u8(defining_count) || defining_count == 0 || defining_count > 2 ||
+       !reader.u16(formula) || formula == 0 || !reader.u16(schema) ||
+       schema != contract_versions::relation_construction_schema)
+    return false;
+  for (std::size_t i = 0; i < 3; ++i)
+    if (!reader.u64(value)) return false;
+  for (std::size_t i = 0; i < 6; ++i)
+    if (!reader.u64(value)) return false;
+  if (!reader.u64(value) || !reader.u64(value) || !reader.u64(value) ||
+      !reader.u16(operation) ||
+      !registered_rounded_operation(
+          static_cast<rounded_operation_code>(operation)) ||
+      !reader.u8(conditioning) || conditioning < 1 || conditioning > 6 ||
+      !reader.u8(tolerance) || tolerance < 1 || tolerance > 2 ||
+      !reader.u64(input_count) || input_count == 0 || input_count > 64)
+    return false;
+  for (std::uint64_t input = 0; input < input_count; ++input)
+    if (!reader.u64(value) || value == 0) return false;
+  if (!reader.sized_bytes(certificate, std::uint64_t{1} << 24U) ||
+      certificate.empty() || !reader.u64(value) || value == 0)
+    return false;
   for (std::size_t i = 0; i < 4; ++i)
     if (!reader.boolean(flag)) return false;
   if (!reader.u64(value)) return false;
   for (std::size_t i = 0; i < 10; ++i)
     if (!reader.u64(value)) return false;
-  return reader.u32(reserved);
+  return reader.u32(reserved) && reserved == 0;
 }
 
 inline bool read_construction_ledger_record(canonical_reader &reader) {
-  std::uint64_t value = 0;
-  std::uint8_t byte = 0;
+  std::uint64_t value = 0, input_count = 0;
+  std::vector<std::uint8_t> certificate;
+  std::uint8_t precedence = 0, space = 0, compatibility = 0,
+               components = 0, projection = 0, defining_count = 0,
+               conditioning = 0, tolerance = 0;
+  std::uint16_t formula = 0, schema = 0, operation = 0;
   std::uint32_t occurrence = 0, reserved = 0;
   bool flag = false;
   if (!reader.u64(value) || !reader.u64(value) || !reader.u64(value) ||
-      !reader.u8(byte) || !reader.u8(byte) || !reader.u8(byte) ||
-      !reader.u8(byte) || !reader.u32(occurrence))
+      !reader.u8(precedence) || !reader.u8(space) ||
+      !reader.u8(compatibility) || !reader.u8(components) ||
+      !reader.u8(projection) || !reader.u32(occurrence))
+    return false;
+  if (precedence < 1 || precedence > 6 || space < 1 || space > 2 ||
+      compatibility < 1 || compatibility > 2 ||
+      (space == static_cast<std::uint8_t>(relation_construction_coordinate_space::world_3d)
+           ? (projection != 3 || (components != 3 && components != 6))
+           : (projection > 2 || components != 2)))
     return false;
   for (std::size_t i = 0; i < 18; ++i)
     if (!reader.u64(value)) return false;
   if (!reader.u64(value) || !reader.u64(value)) return false;
+  if (!read_feature_key(reader) || !read_feature_key(reader) ||
+       !reader.u8(defining_count) || defining_count == 0 || defining_count > 2 ||
+       !reader.u16(formula) || formula == 0 || !reader.u16(schema) ||
+       schema != contract_versions::relation_construction_ledger_schema ||
+       !reader.u64(value) || value == 0)
+    return false;
+  for (std::size_t i = 0; i < 6; ++i)
+    if (!reader.u64(value)) return false;
+  if (!reader.u64(value) || !reader.u64(value) || !reader.u64(value) ||
+      !reader.u64(value) || !reader.u16(operation) ||
+      !registered_rounded_operation(
+          static_cast<rounded_operation_code>(operation)) ||
+      !reader.u8(conditioning) || conditioning < 1 || conditioning > 6 ||
+      !reader.u8(tolerance) || tolerance < 1 || tolerance > 2 ||
+      !reader.u64(input_count) || input_count == 0 || input_count > 64)
+    return false;
+  for (std::uint64_t input = 0; input < input_count; ++input)
+    if (!reader.u64(value) || value == 0) return false;
+  if (!reader.sized_bytes(certificate, std::uint64_t{1} << 24U) ||
+      certificate.empty())
+    return false;
   for (std::size_t i = 0; i < 9; ++i)
     if (!reader.boolean(flag)) return false;
   if (!reader.u64(value)) return false;
   for (std::size_t i = 0; i < 6; ++i)
     if (!reader.u64(value)) return false;
-  return reader.u32(reserved);
+  return reader.u32(reserved) && reserved == 0;
 }
 
 inline bool read_coplanar_event_node_record(
@@ -1565,6 +1830,23 @@ bool parse_relation_artifact_envelope(
           "Component 07 triangle-local reconciliation header is malformed");
   }
 
+  std::uint16_t transverse_schema = 0;
+  if (!reader.u16(transverse_schema) ||
+      transverse_schema !=
+          contract_versions::relation_transverse_carrier_membership_schema ||
+      !reader.u64(envelope.transverse_carrier_membership_count) ||
+      !count_fits(reader, envelope.transverse_carrier_membership_count,
+                  capabilities.maximum_transverse_memberships, 137))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 transverse membership header is malformed");
+  for (std::uint64_t i = 0;
+       i < envelope.transverse_carrier_membership_count; ++i)
+    if (!read_transverse_membership_record(reader, i))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 transverse membership table is truncated");
+
   if (!reader.u64(envelope.candidate_disposition_count) ||
       !count_fits(reader, envelope.candidate_disposition_count,
                   capabilities.maximum_relations, 71))
@@ -1644,6 +1926,7 @@ bool parse_relation_artifact_envelope(
       !reader.u64(statistics.candidate_seed_coverage_count) ||
        !reader.u64(statistics.candidate_partition_count) ||
        !reader.u64(statistics.triangle_local_reconciliation_count) ||
+       !reader.u64(statistics.transverse_carrier_membership_count) ||
       !reader.u64(statistics.diagnostic_count) ||
       !reader.u64(statistics.replay_checkpoint_count) ||
       !reader.u64(statistics.sort_comparisons) ||
@@ -1731,6 +2014,8 @@ bool parse_relation_artifact_envelope(
           envelope.candidate_partition_count ||
       statistics.triangle_local_reconciliation_count !=
           envelope.triangle_local_reconciliation_count ||
+      statistics.transverse_carrier_membership_count !=
+          envelope.transverse_carrier_membership_count ||
       statistics.diagnostic_count != envelope.diagnostic_count ||
       statistics.replay_checkpoint_count !=
           envelope.replay_checkpoint_count ||

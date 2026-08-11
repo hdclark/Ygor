@@ -79,8 +79,10 @@ classify_source_edge_relation(
   const auto a1 = nominal(first.end);
   const auto b0 = nominal(second.start);
   const auto b1 = nominal(second.end);
-  const auto exact_parallel =
-      exact_segment_directions_parallel_3d(a0, a1, b0, b1);
+  const auto exact_parallel = complete_exact_relation_record(
+      exact_segment_directions_parallel_3d(a0, a1, b0, b1),
+      std::array<const bounded_point3<T> *, 4>{{
+          &first.start, &first.end, &second.start, &second.end}});
   auto parallel_truth =
       make_truth(std::move(*parallel_measure.value()), exact_parallel,
                  rounded_operation_code::squared_norm);
@@ -96,8 +98,10 @@ classify_source_edge_relation(
           source_edge_relation_error(
               relation_subcode::source_edge_support_unresolved,
               "Component 07 source-edge coplanarity measure failed"));
-    const auto exact_coplanarity =
-        exact_coplanarity_3d(a0, a1, b0, b1);
+    const auto exact_coplanarity = complete_exact_relation_record(
+        exact_coplanarity_3d(a0, a1, b0, b1),
+        std::array<const bounded_point3<T> *, 4>{{
+            &first.start, &first.end, &second.start, &second.end}});
     auto truth =
         make_truth(std::move(*coplanarity_measure.value()),
                    exact_coplanarity, rounded_operation_code::dot3);
@@ -236,7 +240,8 @@ classify_source_edge_relation(
     auto construction = point_construction(
         candidate, first, second, *first_parameter.value(),
         *second_parameter.value(), residual_boundary, accepted_source_vertex,
-        first_endpoint, second_endpoint, owner);
+        first_endpoint, second_endpoint, owner,
+        denominator.value()->uncertainty_enclosure);
     if (!construction.has_value())
       return boolean_outcome<source_edge_relation_record<T>>::failure(
           *construction.error());
@@ -278,7 +283,10 @@ classify_source_edge_relation(
         source_edge_relation_error(
             relation_subcode::source_edge_support_unresolved,
             "Component 07 source-edge collinearity measure failed"));
-  const auto exact_collinearity = exact_collinearity_3d(a0, a1, b0);
+  const auto exact_collinearity = complete_exact_relation_record(
+      exact_collinearity_3d(a0, a1, b0),
+      std::array<const bounded_point3<T> *, 3>{{
+          &first.start, &first.end, &second.start}});
   auto collinearity_truth =
       make_truth(std::move(*collinearity_measure.value()),
                  exact_collinearity, rounded_operation_code::squared_norm);
@@ -491,7 +499,8 @@ classify_source_edge_relation(
     auto construction = point_construction(
         *source.point, first, second, source.first, source.second,
         residual_boundary, true, endpoint_mask(source.first.evidence),
-        endpoint_mask(source.second.evidence), owner);
+        endpoint_mask(source.second.evidence), owner,
+        finite_interval<T>::singleton(T(1)));
     if (!construction.has_value())
       return boolean_outcome<source_edge_relation_record<T>>::failure(
           *construction.error());
@@ -513,12 +522,14 @@ classify_source_edge_relation(
         *start_source.point, first, second, start_source.first,
         start_source.second, residual_boundary, true,
         endpoint_mask(start_source.first.evidence),
-        endpoint_mask(start_source.second.evidence), owner);
+        endpoint_mask(start_source.second.evidence), owner,
+        finite_interval<T>::singleton(T(1)));
     auto end_construction = point_construction(
         *end_source.point, first, second, end_source.first,
         end_source.second, residual_boundary, true,
         endpoint_mask(end_source.first.evidence),
-        endpoint_mask(end_source.second.evidence), owner);
+        endpoint_mask(end_source.second.evidence), owner,
+        finite_interval<T>::singleton(T(1)));
     if (!start_construction.has_value() || !end_construction.has_value())
       return boolean_outcome<source_edge_relation_record<T>>::failure(
           source_edge_relation_error(

@@ -30,10 +30,15 @@ struct carrier_membership_proposal final {
   std::uint64_t lower_bits = 0;
   std::uint64_t upper_bits = 0;
   std::uint64_t parameter_lineage = 0;
+  std::uint64_t event_lineage = 0;
   std::uint64_t relation_lineage = 0;
   feature_relation_id relation{intersection_invalid_ordinal};
   bool exact_equal_eligible = false;
   bool cluster_eligible = false;
+  relation_carrier_transition transition =
+      relation_carrier_transition::tangent;
+  operand_id half_open_owner = operand_id::a;
+  bool numeric_owner = false;
   relation_source_facet_region_id first_region_evidence{intersection_invalid_ordinal};
   relation_source_facet_region_id second_region_evidence{intersection_invalid_ordinal};
   bool first_region_contains = false;

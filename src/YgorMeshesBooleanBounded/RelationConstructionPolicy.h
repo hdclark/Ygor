@@ -62,6 +62,7 @@ template <class T> struct authority final {
       relation_construction_precedence::verification_witness;
   relation_feature_key source_feature{};
   geometry_snapshot<T> geometry{};
+  construction_operation_certificate<T> certificate{};
   std::uint32_t source_occurrence = 0;
 };
 
@@ -321,6 +322,7 @@ inline bool edge_point_authority(
   out = authority<T>{};
   out.source_relation = source_key;
   out.source_occurrence = point_ordinal;
+  out.certificate = point.certificate;
   std::uint64_t vertex = 0;
   operand_id vertex_operand = operand_id::a;
   bool has_vertex = false;
@@ -400,6 +402,7 @@ inline bool edge_facet_event_authority(
     const source_edge_facet_event_record<T> &event, std::uint32_t occurrence,
     authority<T> &out) noexcept {
   out = authority<T>{};
+  out.certificate = event.construction.certificate;
   std::uint64_t vertex = 0;
   operand_id vertex_operand = source_key.first.operand;
   bool has_vertex = false;
@@ -463,6 +466,7 @@ inline bool carrier_authority(
       relation_construction_precedence::source_facet_source_facet_carrier;
   out.source_feature = source_key.first;
   out.geometry = geometry_from_carrier(carrier);
+  out.certificate = carrier.certificate;
   return valid_relation_request_key(out.key) && valid_geometry(out.geometry);
 }
 
@@ -496,6 +500,7 @@ inline bool overlay_node_authority(
     has_vertex = false;
   if (has_vertex) {
     out = authority<T>{};
+    out.certificate = node.certificate;
     out.source_feature = source_vertex_feature(vertex_operand, vertex);
     out.key = construction_key(source_key, 1, 0, &out.source_feature);
     out.key.second = relation_feature_key{};
@@ -542,7 +547,8 @@ inline bool overlay_node_authority(
       out.source_feature = key.first;
       out.geometry = geometry_from_point(relation.points[point].point,
                                          relation.points[point].accepted_source_vertex,
-                                         relation.points[point].tolerance_compatible);
+                                          relation.points[point].tolerance_compatible);
+      out.certificate = relation.points[point].certificate;
       out.source_occurrence = point;
       if (valid_relation_request_key(out.key) && valid_geometry(out.geometry))
         return true;
@@ -556,6 +562,7 @@ inline bool overlay_node_authority(
   out.source_feature = source_key.first;
   out.geometry = geometry_from_projected(node.representative,
                                          source.facets[0].dropped_axis);
+  out.certificate = node.certificate;
   out.source_occurrence = static_cast<std::uint32_t>(node.id);
   return valid_relation_request_key(out.key) && valid_geometry(out.geometry);
 }
