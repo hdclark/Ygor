@@ -77,13 +77,16 @@ void test_candidate_derived_preflight_bound() {
           "candidate-derived relation preflight succeeds");
   const auto boundary_pairs = 2 * maximum_boundary * maximum_boundary;
   const auto vertex_facet_requests = 4 * maximum_boundary + 4;
-  require(plan.initial_request_upper_bound ==
+  require(plan.initial_request_upper_bound <=
               fixture.artifact->candidates().size() *
                   (boundary_pairs + vertex_facet_requests + 3) &&
-              plan.vertex_facet_upper_bound ==
+              plan.vertex_facet_upper_bound <=
                   fixture.artifact->candidates().size() *
-                      vertex_facet_requests,
-          "preflight covers complete facet-pair boundary closure and composite proposals");
+                      vertex_facet_requests &&
+              plan.maximum_candidate_boundary_pairs != 0 &&
+              plan.maximum_candidate_boundary_witness <
+                  fixture.artifact->candidates().size(),
+          "preflight uses complete candidate-local facet boundaries and retains the extremal witness");
   require(plan.relation_upper_bound == plan.initial_request_upper_bound &&
               plan.request_upper_bound > plan.initial_request_upper_bound &&
               plan.construction_upper_bound != 0 &&

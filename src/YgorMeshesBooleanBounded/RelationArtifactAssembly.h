@@ -6,6 +6,7 @@
 #include "RelationCanonicalization.h"
 #include "RelationConstructionPolicy.h"
 #include "RelationEventSeeds.h"
+#include "RelationPredecessorCommitments.h"
 #include "TransverseRelationEvaluation.h"
 
 #include <algorithm>
@@ -663,6 +664,17 @@ public:
       artifact.operation_ = context_.operation;
       artifact.residual_boundary_ = precision_.tolerance();
       artifact.symbolic_policy_digest_ = context_.symbolic.digest;
+      if (!build_relation_predecessor_commitments(
+              artifact.context_digest_, artifact.precision_digest_,
+              artifact.symbolic_policy_digest_, *candidates_,
+              artifact.predecessor_commitments_)) {
+        error = relation_error(
+            relation_subcode::predecessor_mismatch,
+            bounded_boolean_error_category::internal_invariant_error,
+            "Component 07 predecessor commitment reconstruction failed",
+            relation_checkpoint::predecessor_validation);
+        return false;
+      }
       fill_statistics(artifact);
       artifact.verification_evidence_.id = relation_verifier_evidence_id(0);
       artifact.verification_evidence_.verifier_version =

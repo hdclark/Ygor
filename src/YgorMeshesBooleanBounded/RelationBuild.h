@@ -6,6 +6,7 @@
 #include "ContextVerifier.h"
 #include "PrecisionContext.h"
 #include "RelationPreflight.h"
+#include "RelationPredecessorCommitments.h"
 #include "RelationReplay.h"
 #include "RelationArtifactAssembly.h"
 #include "RelationExecutionAuthority.h"
@@ -13,6 +14,7 @@
 #include "Transaction.h"
 
 #include <cstdint>
+#include <array>
 #include <memory>
 #include <new>
 #include <optional>
@@ -95,6 +97,7 @@ bool estimate_relation_persistent_bytes(
       !add_vector(artifact.candidate_event_seed_coverage()) ||
       !add_vector(artifact.candidate_partitions()) ||
       !add_vector(artifact.diagnostics()) ||
+      !add_vector(artifact.resource_evidence()) ||
       !add_vector(artifact.replay_checkpoints()) ||
       !add_vector(artifact.canonical_bytes()))
     return false;
@@ -190,7 +193,7 @@ public:
   boolean_outcome<std::shared_ptr<const signed_feature_relations<T, I>>> run() {
     try {
       if (!validate_contracts() || !preflight_and_reserve() ||
-          !build_execution_authority() ||
+          !build_execution_authority() || !reserve_closed_authority_domains() ||
           !build_source_vertex_facet_relations() ||
           !build_candidate_edge_relations() ||
           !build_candidate_edge_facet_relations() ||
@@ -266,19 +269,16 @@ private:
                   bounded_boolean_error_category::internal_invariant_error,
                   "Component 07 transaction did not open",
                   relation_checkpoint::context_policy_capability_validation);
-    if (!candidates_ || !verify_context(context_) ||
-        !context_.owner.same_owner(capabilities_.owner) ||
+    if (!candidates_ || !context_.owner.same_owner(capabilities_.owner) ||
         !precision_.owner().same_owner(capabilities_.owner) ||
-        !candidates_->owner().same_owner(capabilities_.owner) ||
-        precision_.boolean_context_digest() != context_.context_digest ||
-        candidates_->precision_digest() != precision_.digest() ||
-        candidates_->verification() !=
-            broad_phase_verification_disposition::independently_verified ||
-        !precision_.ordinary_success_eligible())
+        !candidates_->owner().same_owner(capabilities_.owner))
       return fail(relation_subcode::wrong_owner,
                   bounded_boolean_error_category::internal_invariant_error,
-                  "Component 07 context, precision, or candidate handshake failed",
-                  relation_checkpoint::context_policy_capability_validation);
+                   "Component 07 context, precision, or candidate handshake failed",
+                   relation_checkpoint::context_policy_capability_validation);
+    if (!validate_relation_predecessors_before_work(
+            context_, precision_, *candidates_, predecessor_commitments_, error_))
+      return false;
     if (capabilities_.provider_version != contract_versions::relation_provider ||
         capabilities_.graph_policy_version !=
             contract_versions::relation_graph_policy ||
@@ -324,13 +324,119 @@ private:
                   bounded_boolean_error_category::resource_limit,
                   "Component 07 resource reservation failed",
                   relation_checkpoint::discovery_resource_reservation);
-    if (!check_cancel(relation_checkpoint::discovery_resource_reservation))
+    const auto reserve_domain = [&](std::size_t index, resource_kind kind,
+                                    std::uint64_t amount) {
+      discovery_domain_reservations_[index] =
+          capabilities_.resources->reserve(kind, amount);
+      if (discovery_domain_reservations_[index])
+        return true;
+      const auto counters = capabilities_.resources->snapshot();
+      error_ = relation_error(relation_subcode::resource_preflight,
+                              bounded_boolean_error_category::resource_limit,
+                              "Component 07 discovery resource domain limit exceeded",
+                              relation_checkpoint::discovery_resource_reservation);
+      error_.witnesses[0] = index + 1;
+      error_.witnesses[1] = amount;
+      error_.witnesses[2] = counters[static_cast<std::size_t>(kind)].hard;
+      error_.witness_count = 3;
+      return false;
+    };
+    if (!reserve_domain(0, resource_kind::relation_request_records,
+                        preflight_.initial_request_upper_bound) ||
+        !reserve_domain(3, resource_kind::relation_graph_edges,
+                        preflight_.dependency_upper_bound) ||
+        !reserve_domain(11, resource_kind::relation_disposition_records,
+                        preflight_.disposition_upper_bound) ||
+        !reserve_domain(13, resource_kind::relation_private_buffers,
+                        preflight_.domains.private_buffers) ||
+        !check_cancel(relation_checkpoint::discovery_resource_reservation))
       return false;
     return transaction_.register_work() ||
            fail(relation_subcode::transaction_failure,
                 bounded_boolean_error_category::internal_invariant_error,
                 "Component 07 transaction could not register work",
                 relation_checkpoint::discovery_resource_reservation);
+  }
+
+  bool reserve_closed_authority_domains() {
+    if (!execution_authority_)
+      return fail(relation_subcode::internal_invariant,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 closed authority is absent",
+                  relation_checkpoint::discovery_resource_reservation);
+    const std::uint64_t exact_requests =
+        execution_authority_->graph.requests.size();
+    std::uint64_t exact_graph = 0;
+    if (!checked_add<std::uint64_t>(
+            execution_authority_->graph.dependencies.size(),
+            execution_authority_->graph.reverse_consumers.size(), exact_graph) ||
+        !checked_add<std::uint64_t>(
+            exact_graph, execution_authority_->graph.candidate_witnesses.size(),
+            exact_graph))
+      return fail(relation_subcode::count_overflow,
+                  bounded_boolean_error_category::index_overflow,
+                  "Component 07 closed-authority resource count overflow",
+                  relation_checkpoint::discovery_resource_reservation);
+    if ((discovery_domain_reservations_[0] &&
+         discovery_domain_reservations_[0]->amount() > exact_requests &&
+         !discovery_domain_reservations_[0]->shrink(exact_requests)) ||
+        (discovery_domain_reservations_[3] &&
+         discovery_domain_reservations_[3]->amount() > exact_graph &&
+         !discovery_domain_reservations_[3]->shrink(exact_graph)))
+      return fail(relation_subcode::resource_preflight,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 closed-authority reservation tightening failed",
+                  relation_checkpoint::discovery_resource_reservation);
+    const std::array<resource_kind, 17> kinds{{
+        resource_kind::relation_request_records,
+        resource_kind::relation_primitive_records,
+        resource_kind::relation_family_records,
+        resource_kind::relation_graph_edges,
+        resource_kind::relation_region_workspace,
+        resource_kind::relation_numerical_workspace,
+        resource_kind::relation_overlay_records,
+        resource_kind::relation_construction_records,
+        resource_kind::relation_crossing_records,
+        resource_kind::relation_symbolic_records,
+        resource_kind::relation_seed_records,
+        resource_kind::relation_disposition_records,
+        resource_kind::relation_canonical_workspace,
+        resource_kind::relation_private_buffers,
+        resource_kind::relation_codec_evidence,
+        resource_kind::relation_verifier_evidence,
+        resource_kind::relation_persistent_artifact}};
+    const std::array<std::uint64_t, 17> amounts{{
+        exact_requests, preflight_.domains.primitives,
+        preflight_.domains.relation_families, exact_graph,
+        preflight_.domains.regions, preflight_.domains.numerical_workspaces,
+        preflight_.domains.overlays, preflight_.domains.constructions,
+        preflight_.domains.crossings, preflight_.domains.symbolic,
+        preflight_.domains.seeds, preflight_.domains.dispositions,
+        preflight_.domains.canonical_merge, preflight_.domains.private_buffers,
+        preflight_.fixed_persistent_bytes, preflight_.domains.verifier,
+        preflight_.domains.persistent_artifact}};
+    for (std::size_t i = 0; i < amounts.size(); ++i) {
+      const std::uint64_t already = discovery_domain_reservations_[i]
+                                        ? discovery_domain_reservations_[i]->amount()
+                                        : 0;
+      const std::uint64_t additional = amounts[i] > already ? amounts[i] - already : 0;
+      closed_domain_reservations_[i] =
+          capabilities_.resources->reserve(kinds[i], additional);
+      if (!closed_domain_reservations_[i]) {
+        const auto counters = capabilities_.resources->snapshot();
+        error_ = relation_error(relation_subcode::resource_preflight,
+                                bounded_boolean_error_category::resource_limit,
+                                "Component 07 closed-authority resource domain limit exceeded",
+                                relation_checkpoint::discovery_resource_reservation);
+        error_.witnesses[0] = i + 1;
+        error_.witnesses[1] = amounts[i];
+        error_.witnesses[2] = counters[static_cast<std::size_t>(kinds[i])].hard;
+        error_.witnesses[3] = preflight_.maximum_candidate_boundary_witness;
+        error_.witness_count = 4;
+        return false;
+      }
+    }
+    return true;
   }
 
   bool build_candidate_edge_relations() {
@@ -507,22 +613,157 @@ private:
         std::move(transverse),
         std::make_shared<const relation_execution_authority>(
             std::move(*execution_authority_)), capabilities_);
-    return assembler.assemble(*artifact_, error_);
+    if (!assembler.assemble(*artifact_, error_))
+      return false;
+    return populate_resource_evidence();
+  }
+
+  bool populate_resource_evidence() {
+    std::array<std::uint64_t, 17> used{};
+    const auto add = [](std::uint64_t value, std::uint64_t &target) {
+      return checked_add(target, value, target);
+    };
+    used[0] = artifact_->execution_authority_.graph.requests.size();
+    if (!add(artifact_->imported_geometry_.size(), used[1]) ||
+        !add(artifact_->bounded_primitives_.size(), used[1]) ||
+        !add(artifact_->exact_relations_.size(), used[1]) ||
+        !add(artifact_->truth_lineage_.size(), used[1]) ||
+        !add(artifact_->relations_.size(), used[2]) ||
+        !add(artifact_->execution_authority_.graph.dependencies.size(), used[3]) ||
+        !add(artifact_->execution_authority_.graph.reverse_consumers.size(), used[3]) ||
+        !add(artifact_->execution_authority_.graph.candidate_witnesses.size(), used[3]) ||
+        !add(artifact_->interval_evidence_.size(), used[4]) ||
+        !add(artifact_->source_facet_regions_.size(), used[4]) ||
+        !add(artifact_->truth_records_.size(), used[5]) ||
+        !add(artifact_->coplanar_event_nodes_.size(), used[6]) ||
+        !add(artifact_->coplanar_oriented_arcs_.size(), used[6]) ||
+        !add(artifact_->coplanar_overlap_components_.size(), used[6]) ||
+        !add(artifact_->constructions_.size(), used[7]) ||
+        !add(artifact_->construction_ledger_.size(), used[7]) ||
+        !add(artifact_->crossings_.size(), used[8]) ||
+        !add(artifact_->symbolic_eligibility_.size(), used[9]) ||
+        !add(artifact_->symbolic_decisions_.size(), used[9]) ||
+        !add(artifact_->event_seeds_.size(), used[10]) ||
+        !add(artifact_->event_seed_incidence_.size(), used[10]) ||
+        !add(artifact_->event_seed_candidate_incidence_.size(), used[10]) ||
+        !add(artifact_->candidate_dispositions_.size(), used[11]) ||
+        !add(artifact_->candidate_relation_coverage_.size(), used[11]) ||
+        !add(artifact_->candidate_event_seed_coverage_.size(), used[11]))
+      return fail(relation_subcode::count_overflow,
+                  bounded_boolean_error_category::index_overflow,
+                  "Component 07 resource evidence count overflow",
+                  relation_checkpoint::resource_reconciliation);
+    used[12] = artifact_->request_graph_.requests.size() +
+               artifact_->request_graph_.dependencies.size();
+    used[13] = 0;
+    used[14] = artifact_->diagnostics_.size() + artifact_->replay_checkpoints_.size();
+    used[15] = artifact_->statistics_.verifier_work_units;
+
+    const std::array<relation_resource_domain, 17> domains{{
+        relation_resource_domain::requests,
+        relation_resource_domain::primitives,
+        relation_resource_domain::relation_families,
+        relation_resource_domain::graph, relation_resource_domain::regions,
+        relation_resource_domain::numerical_workspaces,
+        relation_resource_domain::overlays,
+        relation_resource_domain::constructions,
+        relation_resource_domain::crossings,
+        relation_resource_domain::symbolic, relation_resource_domain::seeds,
+        relation_resource_domain::dispositions,
+        relation_resource_domain::canonical_merge,
+        relation_resource_domain::private_buffers,
+        relation_resource_domain::codec_replay_diagnostics,
+        relation_resource_domain::verifier,
+        relation_resource_domain::persistent_artifact}};
+    const std::array<resource_kind, 17> kinds{{
+        resource_kind::relation_request_records,
+        resource_kind::relation_primitive_records,
+        resource_kind::relation_family_records,
+        resource_kind::relation_graph_edges,
+        resource_kind::relation_region_workspace,
+        resource_kind::relation_numerical_workspace,
+        resource_kind::relation_overlay_records,
+        resource_kind::relation_construction_records,
+        resource_kind::relation_crossing_records,
+        resource_kind::relation_symbolic_records,
+        resource_kind::relation_seed_records,
+        resource_kind::relation_disposition_records,
+        resource_kind::relation_canonical_workspace,
+        resource_kind::relation_private_buffers,
+        resource_kind::relation_codec_evidence,
+        resource_kind::relation_verifier_evidence,
+        resource_kind::relation_persistent_artifact}};
+    const std::array<std::uint64_t, 17> bounds{{
+        preflight_.domains.requests, preflight_.domains.primitives,
+        preflight_.domains.relation_families, preflight_.domains.graph,
+        preflight_.domains.regions, preflight_.domains.numerical_workspaces,
+        preflight_.domains.overlays, preflight_.domains.constructions,
+        preflight_.domains.crossings, preflight_.domains.symbolic,
+        preflight_.domains.seeds, preflight_.domains.dispositions,
+        preflight_.domains.canonical_merge, preflight_.domains.private_buffers,
+        preflight_.fixed_persistent_bytes, preflight_.domains.verifier,
+        preflight_.domains.persistent_artifact}};
+    artifact_->resource_evidence_.clear();
+    artifact_->resource_evidence_.reserve(domains.size());
+    for (std::size_t i = 0; i < domains.size(); ++i) {
+      relation_resource_evidence_record record;
+      record.id = relation_resource_evidence_id(i);
+      record.domain = domains[i];
+      record.resource = kinds[i];
+      record.required_limit = bounds[i];
+      record.preflight_reserved = bounds[i];
+      record.closed_authority_bound = (i == 0 || i == 3) ? used[i] : bounds[i];
+      record.reconciled_used = used[i];
+      record.witness_ordinal =
+          i == 6 ? preflight_.maximum_candidate_boundary_witness
+                 : relation_invalid_ordinal;
+      record.closed_authority_exact = i == 0 || i == 3;
+      artifact_->resource_evidence_.push_back(record);
+    }
+    domain_used_ = used;
+    return true;
   }
 
   bool encode_and_verify() {
     if (!check_cancel(relation_checkpoint::canonical_encoding))
       return false;
     artifact_->statistics_.persistent_bytes = 0;
+    if (!refresh_relation_section_digests(*artifact_))
+      return fail(relation_subcode::digest_mismatch,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 section digest construction failed",
+                  relation_checkpoint::canonical_encoding);
     if (!build_relation_replay_bundle(*artifact_, capabilities_, error_))
       return false;
+    if (!refresh_relation_section_digests(*artifact_))
+      return fail(relation_subcode::digest_mismatch,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 section digest reconstruction failed",
+                  relation_checkpoint::canonical_encoding);
     artifact_->canonical_bytes_ = encode_signed_feature_relations(*artifact_);
     if (artifact_->canonical_bytes_.size() >
         capabilities_.maximum_canonical_bytes)
       return fail(relation_subcode::resource_preflight,
                   bounded_boolean_error_category::resource_limit,
                   "Component 07 canonical bytes exceed the configured limit",
-                  relation_checkpoint::canonical_encoding);
+                   relation_checkpoint::canonical_encoding);
+    if (artifact_->resource_evidence_.size() == 17) {
+      std::uint64_t codec_evidence = artifact_->canonical_bytes_.size();
+      if (!checked_add(codec_evidence,
+                       encode_relation_diagnostic_semantics(
+                           artifact_->diagnostics_).size(),
+                       codec_evidence) ||
+          !checked_add(codec_evidence,
+                       encode_relation_replay_checkpoint_semantics(
+                           artifact_->replay_checkpoints_).size(),
+                       codec_evidence))
+        return fail(relation_subcode::byte_count_overflow,
+                    bounded_boolean_error_category::index_overflow,
+                    "Component 07 codec evidence byte count overflow",
+                    relation_checkpoint::resource_reconciliation);
+      artifact_->resource_evidence_[14].reconciled_used = codec_evidence;
+      domain_used_[14] = codec_evidence;
+    }
 
     std::uint64_t persistent = 0;
     if (!relation_build_detail::estimate_relation_persistent_bytes(
@@ -533,10 +774,26 @@ private:
                   "Component 07 persistent byte count overflow",
                   relation_checkpoint::resource_reconciliation);
     artifact_->statistics_.persistent_bytes = persistent;
+    if (!artifact_->resource_evidence_.empty()) {
+      artifact_->resource_evidence_.back().reconciled_used = persistent;
+      artifact_->resource_evidence_.back().closed_authority_bound = persistent;
+      artifact_->resource_evidence_.back().closed_authority_exact = true;
+      domain_used_[16] = persistent;
+    }
+    if (!refresh_relation_section_digests(*artifact_))
+      return fail(relation_subcode::digest_mismatch,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 reconciled section digest construction failed",
+                  relation_checkpoint::canonical_encoding);
     // Rebuild after final-size reconciliation. Record sizes are fixed, so this
     // changes only canonical evidence values and cannot change persistent use.
     if (!build_relation_replay_bundle(*artifact_, capabilities_, error_))
       return false;
+    if (!refresh_relation_section_digests(*artifact_))
+      return fail(relation_subcode::digest_mismatch,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 final section digest construction failed",
+                  relation_checkpoint::canonical_encoding);
     std::uint64_t reconciled_persistent = 0;
     if (!relation_build_detail::estimate_relation_persistent_bytes(
             *artifact_, edge_stage_, edge_facet_stage_, facet_stage_,
@@ -619,11 +876,25 @@ private:
     const auto fixed_used =
         std::min(persistent_reservation_->amount(), persistent_used_);
     const auto final_used = persistent_used_ - fixed_used;
-    return persistent_reservation_->commit(fixed_used) &&
+    if (!(persistent_reservation_->commit(fixed_used) &&
            final_persistent_reservation_->commit(final_used) &&
            codec_reservation_->commit(replay_used_) &&
            temporary_reservation_->commit(0) &&
-           work_reservation_->commit(work_used_);
+            work_reservation_->commit(work_used_)))
+      return false;
+    for (std::size_t i = 0; i < domain_used_.size(); ++i) {
+      const auto first_amount = discovery_domain_reservations_[i]
+                                    ? discovery_domain_reservations_[i]->amount()
+                                    : 0;
+      const auto first_used = std::min(first_amount, domain_used_[i]);
+      const auto second_used = domain_used_[i] - first_used;
+      if ((discovery_domain_reservations_[i] &&
+           !discovery_domain_reservations_[i]->commit(first_used)) ||
+          (closed_domain_reservations_[i] &&
+           !closed_domain_reservations_[i]->commit(second_used)))
+        return false;
+    }
+    return true;
   }
 
   const boolean_context<T, I> &context_;
@@ -631,6 +902,8 @@ private:
   std::shared_ptr<const canonical_candidate_stream<T, I>> candidates_;
   relation_capabilities capabilities_;
   relation_preflight_plan preflight_{};
+  std::array<relation_predecessor_commitment_record, 6>
+      predecessor_commitments_{};
   std::optional<edge_stage_type> edge_stage_;
   std::optional<vertex_facet_stage_type> vertex_facet_stage_;
   std::optional<edge_facet_stage_type> edge_facet_stage_;
@@ -645,6 +918,11 @@ private:
   std::optional<resource_reservation> codec_reservation_;
   std::optional<resource_reservation> temporary_reservation_;
   std::optional<resource_reservation> work_reservation_;
+  std::array<std::optional<resource_reservation>, 17>
+      discovery_domain_reservations_{};
+  std::array<std::optional<resource_reservation>, 17>
+      closed_domain_reservations_{};
+  std::array<std::uint64_t, 17> domain_used_{};
   std::uint64_t persistent_used_ = 0;
   std::uint64_t replay_used_ = 0;
   std::uint64_t work_used_ = 0;
@@ -693,6 +971,21 @@ decode_signed_feature_relations(
       !candidates->owner().same_owner(capabilities.owner))
     return fail(relation_subcode::wrong_owner,
                 "Component 07 decode owner handshake failed");
+  std::array<relation_predecessor_commitment_record, 6>
+      expected_commitments{};
+  bounded_boolean_error predecessor_error;
+  if (!validate_relation_predecessors_before_work(
+          context, precision, *candidates, expected_commitments,
+          predecessor_error)) {
+    relation_build_detail::bind_relation_error(
+        predecessor_error, context.context_digest, context.replay_digest);
+    return outcome_type::failure(std::move(predecessor_error));
+  }
+  for (std::size_t i = 0; i < expected_commitments.size(); ++i)
+    if (!same_relation_predecessor_commitment(
+            envelope.predecessor_commitments[i], expected_commitments[i]))
+      return fail(relation_subcode::predecessor_mismatch,
+                  "Component 07 decoded predecessor commitment mismatch");
   if (envelope.context_digest != context.context_digest ||
       envelope.precision_digest !=
           relation_precision_semantic_digest(precision) ||
@@ -713,7 +1006,8 @@ decode_signed_feature_relations(
   if (!rebuilt.has_value())
     return rebuilt;
   if ((*rebuilt.value())->canonical_bytes() != bytes ||
-      (*rebuilt.value())->graph_digest() != envelope.graph_digest)
+      (*rebuilt.value())->graph_digest() != envelope.graph_digest ||
+      (*rebuilt.value())->section_digests() != envelope.section_digests)
     return fail(relation_subcode::codec_error,
                 "Component 07 encoded artifact is not canonical");
   return rebuilt;

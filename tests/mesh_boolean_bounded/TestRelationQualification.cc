@@ -435,6 +435,26 @@ void test_deterministic_campaign_and_structural_gates() {
              serial.artifact->canonical_bytes()[mismatch] ==
                  parallel.artifact->canonical_bytes()[mismatch])
         ++mismatch;
+      std::size_t commitment_mismatch = 6;
+      for (std::size_t i = 0; i < 6; ++i) {
+        const auto &a = serial.artifact->predecessor_commitments()[i];
+        const auto &b = parallel.artifact->predecessor_commitments()[i];
+        if (a.schema_version != b.schema_version ||
+            a.provider_version != b.provider_version ||
+            a.policy_version != b.policy_version ||
+            a.codec_version != b.codec_version ||
+            a.verifier_version != b.verifier_version ||
+            a.artifact_digest_a != b.artifact_digest_a ||
+            a.artifact_digest_b != b.artifact_digest_b ||
+            a.semantic_digest_a != b.semantic_digest_a ||
+            a.semantic_digest_b != b.semantic_digest_b ||
+            a.exact_digest_a != b.exact_digest_a ||
+            a.exact_digest_b != b.exact_digest_b ||
+            a.policy_digest != b.policy_digest) {
+          commitment_mismatch = i;
+          break;
+        }
+      }
       throw std::runtime_error(
           "serial/parallel canonical byte mismatch for case " +
           std::to_string(index) + " at byte " + std::to_string(mismatch) +
@@ -444,7 +464,8 @@ void test_deterministic_campaign_and_structural_gates() {
           " context=" + std::to_string(serial.artifact->context_digest() == parallel.artifact->context_digest()) +
           " precision=" + std::to_string(serial.artifact->precision_digest() == parallel.artifact->precision_digest()) +
           " candidate=" + std::to_string(serial.artifact->candidate_digest() == parallel.artifact->candidate_digest()) +
-          " graph=" + std::to_string(serial.artifact->graph_digest() == parallel.artifact->graph_digest()));
+          " graph=" + std::to_string(serial.artifact->graph_digest() == parallel.artifact->graph_digest()) +
+          " commitment=" + std::to_string(commitment_mismatch));
     }
     require(serial.artifact->digest() == parallel.artifact->digest(),
             "serial and deterministic-parallel profiles publish identical artifact digests");

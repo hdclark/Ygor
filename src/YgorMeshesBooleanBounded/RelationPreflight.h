@@ -27,6 +27,9 @@ struct relation_preflight_plan final {
   std::uint64_t fixed_work_units = 0;
   std::uint64_t fixed_persistent_bytes = 0;
   std::uint64_t fixed_temporary_bytes = 0;
+  std::uint64_t maximum_candidate_boundary_pairs = 0;
+  std::uint64_t maximum_candidate_boundary_witness = relation_invalid_ordinal;
+  relation_resource_estimate domains{};
 };
 
 template <class T, class I>

@@ -608,6 +608,63 @@ struct relation_verification_evidence final {
   std::uint32_t reserved = 0;
 };
 
+struct relation_predecessor_commitment_record final {
+  relation_predecessor_component component =
+      relation_predecessor_component::component_01_context;
+  std::uint16_t schema_version = 0;
+  std::uint16_t provider_version = 0;
+  std::uint16_t policy_version = 0;
+  std::uint16_t codec_version = 0;
+  std::uint16_t verifier_version = 0;
+  bool independently_verified = false;
+  std::uint8_t reserved8 = 0;
+  bounded_boolean_digest artifact_digest_a{};
+  bounded_boolean_digest artifact_digest_b{};
+  bounded_boolean_digest semantic_digest_a{};
+  bounded_boolean_digest semantic_digest_b{};
+  bounded_boolean_digest exact_digest_a{};
+  bounded_boolean_digest exact_digest_b{};
+  bounded_boolean_digest policy_digest{};
+  std::uint16_t commitment_schema =
+      contract_versions::relation_predecessor_commitment_schema;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_resource_evidence_record final {
+  relation_resource_evidence_id id{0};
+  relation_resource_domain domain = relation_resource_domain::requests;
+  resource_kind resource = resource_kind::relation_request_records;
+  std::uint64_t required_limit = 0;
+  std::uint64_t preflight_reserved = 0;
+  std::uint64_t closed_authority_bound = 0;
+  std::uint64_t reconciled_used = 0;
+  std::uint64_t witness_ordinal = relation_invalid_ordinal;
+  bool closed_authority_exact = false;
+  std::uint8_t reserved8 = 0;
+  std::uint16_t schema_version =
+      contract_versions::relation_resource_evidence_schema;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_section_digest_record final {
+  relation_section_domain domain =
+      relation_section_domain::header_and_predecessors;
+  std::uint16_t layout_version =
+      contract_versions::relation_section_digest_layout;
+  std::uint32_t reserved32 = 0;
+  bounded_boolean_digest digest{};
+  friend bool operator==(const relation_section_digest_record &a,
+                         const relation_section_digest_record &b) noexcept {
+    return a.domain == b.domain && a.layout_version == b.layout_version &&
+           a.reserved32 == b.reserved32 && a.digest == b.digest;
+  }
+  friend bool operator!=(const relation_section_digest_record &a,
+                         const relation_section_digest_record &b) noexcept {
+    return !(a == b);
+  }
+};
+
 struct relation_diagnostic_record final {
   relation_diagnostic_id id{0};
   relation_diagnostic_kind kind =
@@ -794,6 +851,12 @@ public:
   const relation_replay_evidence &replay_evidence() const noexcept {
     return replay_evidence_;
   }
+  const std::array<relation_predecessor_commitment_record, 6> &
+  predecessor_commitments() const noexcept { return predecessor_commitments_; }
+  const std::vector<relation_resource_evidence_record> &resource_evidence()
+      const noexcept { return resource_evidence_; }
+  const std::array<relation_section_digest_record, 10> &section_digests()
+      const noexcept { return section_digests_; }
   const bounded_boolean_digest &context_digest() const noexcept {
     return context_digest_;
   }
@@ -879,6 +942,10 @@ private:
   std::vector<relation_diagnostic_record> diagnostics_;
   std::vector<relation_replay_checkpoint_record> replay_checkpoints_;
   relation_replay_evidence replay_evidence_{};
+  std::array<relation_predecessor_commitment_record, 6>
+      predecessor_commitments_{};
+  std::vector<relation_resource_evidence_record> resource_evidence_;
+  std::array<relation_section_digest_record, 10> section_digests_{};
   bounded_boolean_digest context_digest_{};
   bounded_boolean_digest precision_digest_{};
   bounded_boolean_digest candidate_digest_{};
@@ -896,6 +963,17 @@ private:
   template <class U, class J>
   friend std::vector<std::uint8_t>
   encode_signed_feature_relations(const signed_feature_relations<U, J> &);
+  template <class U, class J>
+  friend std::vector<std::uint8_t>
+  encode_relation_unframed_payload(
+      const signed_feature_relations<U, J> &,
+      std::array<std::size_t, 11> *);
+  template <class U, class J>
+  friend std::array<std::vector<std::uint8_t>, 10>
+  build_relation_section_payloads(const signed_feature_relations<U, J> &);
+  template <class U, class J>
+  friend bool refresh_relation_section_digests(
+      signed_feature_relations<U, J> &) noexcept;
   template <class U, class J>
   friend bool verify_relation_codec(
       const signed_feature_relations<U, J> &, bounded_boolean_error &);

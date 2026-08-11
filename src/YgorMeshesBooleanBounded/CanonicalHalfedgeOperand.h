@@ -214,6 +214,22 @@ public:
     return replay_presentation_digest_;
   }
   const bounded_boolean_digest &digest() const noexcept { return digest_; }
+  const bounded_boolean_digest &validated_operand_digest() const noexcept {
+    return validated_operand_digest_;
+  }
+  const bounded_boolean_digest &source_triangle_complex_digest() const noexcept {
+    return source_triangle_complex_digest_;
+  }
+  const bounded_boolean_digest &precision_digest() const noexcept {
+    return precision_digest_;
+  }
+  const std::shared_ptr<const validated_operand<T, I>> &validated() const noexcept {
+    return validated_;
+  }
+  const std::shared_ptr<const source_triangle_complex<T, I>> &
+  source_triangles() const noexcept {
+    return source_triangles_;
+  }
 
   const canonical_manifold_vertex_record<T> *vertex(
       manifold_vertex_id id, const context_owner_token &owner) const noexcept {

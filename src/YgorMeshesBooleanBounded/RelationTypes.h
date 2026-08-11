@@ -34,6 +34,7 @@ struct relation_diagnostic_tag;
 struct relation_replay_checkpoint_tag;
 struct relation_triangle_local_reconciliation_tag;
 struct relation_transverse_carrier_membership_tag;
+struct relation_resource_evidence_tag;
 
 using relation_request_id = strong_id<relation_request_tag>;
 using feature_relation_id = strong_id<feature_relation_tag>;
@@ -68,6 +69,7 @@ using relation_triangle_local_reconciliation_id =
     strong_id<relation_triangle_local_reconciliation_tag>;
 using relation_transverse_carrier_membership_id =
     strong_id<relation_transverse_carrier_membership_tag>;
+using relation_resource_evidence_id = strong_id<relation_resource_evidence_tag>;
 
 inline constexpr std::uint64_t relation_invalid_ordinal =
     std::numeric_limits<std::uint64_t>::max();
@@ -275,6 +277,33 @@ enum class relation_diagnostic_kind : std::uint8_t {
   resource_reconciliation_audit = 4,
   primary_failure = 5,
   cancellation_observation = 6,
+  minimum_positive_margin = 7,
+  maximum_uncertainty_width = 8,
+  maximum_exact_capacity = 9,
+};
+
+enum class relation_predecessor_component : std::uint8_t {
+  component_01_context = 1,
+  component_02_validated_operands = 2,
+  component_03_precision = 3,
+  component_04_source_triangles = 4,
+  component_05_canonical_manifolds = 5,
+  component_06_candidates = 6,
+};
+
+enum class relation_resource_domain : std::uint8_t {
+  requests = 1, primitives = 2, relation_families = 3, graph = 4,
+  regions = 5, numerical_workspaces = 6, overlays = 7,
+  constructions = 8, crossings = 9, symbolic = 10, seeds = 11,
+  dispositions = 12, canonical_merge = 13, private_buffers = 14,
+  codec_replay_diagnostics = 15, verifier = 16, persistent_artifact = 17,
+};
+
+enum class relation_section_domain : std::uint16_t {
+  header_and_predecessors = 1, keys_and_graph = 2,
+  bounded_operations = 3, exact_relations = 4, composites = 5,
+  constructions = 6, symbolic = 7, multiplicity = 8,
+  seeds_and_dispositions = 9, statistics_and_evidence = 10,
 };
 
 enum class relation_diagnostic_severity : std::uint8_t {
@@ -442,7 +471,37 @@ struct relation_capabilities final {
   std::uint64_t maximum_replay_checkpoints = 64;
   std::uint64_t maximum_canonical_bytes = (std::uint64_t{1} << 34);
   std::uint64_t maximum_work_units = (std::uint64_t{1} << 38);
+  std::array<std::uint64_t, 17> maximum_resource_domains{{
+      (std::uint64_t{1} << 40), (std::uint64_t{1} << 40),
+      (std::uint64_t{1} << 40), (std::uint64_t{1} << 40),
+      (std::uint64_t{1} << 40), (std::uint64_t{1} << 40),
+      (std::uint64_t{1} << 40), (std::uint64_t{1} << 40),
+      (std::uint64_t{1} << 40), (std::uint64_t{1} << 40),
+      (std::uint64_t{1} << 40), (std::uint64_t{1} << 40),
+      (std::uint64_t{1} << 40), (std::uint64_t{1} << 40),
+      (std::uint64_t{1} << 40), (std::uint64_t{1} << 40),
+      (std::uint64_t{1} << 40)}};
   std::uint32_t reserved = 0;
+};
+
+struct relation_resource_estimate final {
+  std::uint64_t requests = 0;
+  std::uint64_t primitives = 0;
+  std::uint64_t relation_families = 0;
+  std::uint64_t graph = 0;
+  std::uint64_t regions = 0;
+  std::uint64_t numerical_workspaces = 0;
+  std::uint64_t overlays = 0;
+  std::uint64_t constructions = 0;
+  std::uint64_t crossings = 0;
+  std::uint64_t symbolic = 0;
+  std::uint64_t seeds = 0;
+  std::uint64_t dispositions = 0;
+  std::uint64_t canonical_merge = 0;
+  std::uint64_t private_buffers = 0;
+  std::uint64_t codec_replay_diagnostics = 0;
+  std::uint64_t verifier = 0;
+  std::uint64_t persistent_artifact = 0;
 };
 
 inline bool relation_cancelled(

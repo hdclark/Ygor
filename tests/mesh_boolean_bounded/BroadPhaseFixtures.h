@@ -48,6 +48,10 @@ struct broad_phase_test_access final {
     return artifact.statistics_;
   }
   template <class T, class I>
+  static auto &predecessor_digest(canonical_candidate_stream<T, I> &artifact) {
+    return artifact.predecessor_digest_;
+  }
+  template <class T, class I>
   static void set_owner(canonical_candidate_stream<T, I> &artifact,
                         context_owner_token owner) {
     artifact.owner_ = std::move(owner);

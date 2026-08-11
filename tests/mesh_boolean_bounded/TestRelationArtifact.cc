@@ -212,6 +212,22 @@ struct relation_artifact_test_access final {
   }
 
   template <class T, class I>
+  static auto &predecessor_commitments(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.predecessor_commitments_;
+  }
+
+  template <class T, class I>
+  static auto &resource_evidence(signed_feature_relations<T, I> &artifact) {
+    return artifact.resource_evidence_;
+  }
+
+  template <class T, class I>
+  static auto &section_digests(signed_feature_relations<T, I> &artifact) {
+    return artifact.section_digests_;
+  }
+
+  template <class T, class I>
   static auto &replay_checkpoints(signed_feature_relations<T, I> &artifact) {
     return artifact.replay_checkpoints_;
   }
@@ -234,6 +250,8 @@ struct relation_artifact_test_access final {
 
   template <class T, class I>
   static void repair_codec(signed_feature_relations<T, I> &artifact) {
+    if (!refresh_relation_section_digests(artifact))
+      throw std::runtime_error("could not refresh Component 07 section digests");
     artifact.canonical_bytes_ = encode_signed_feature_relations(artifact);
     artifact.digest_ = sha256::digest(artifact.canonical_bytes_);
   }
@@ -306,9 +324,9 @@ void require_no_live_resources(const bounded::resource_manager &resources,
 void require_replay_contract(
     const bounded::signed_feature_relations<double, std::uint32_t> &artifact) {
   require(artifact.replay_checkpoints().size() == 17 &&
-              artifact.diagnostics().size() == 4 &&
-              artifact.statistics().replay_checkpoint_count == 17 &&
-              artifact.statistics().diagnostic_count == 4,
+               artifact.diagnostics().size() == 7 &&
+               artifact.statistics().replay_checkpoint_count == 17 &&
+               artifact.statistics().diagnostic_count == 7,
           "relation replay publishes the complete fixed checkpoint and diagnostic sets");
   std::uint64_t previous_work = 0;
   for (std::size_t i = 0; i < artifact.replay_checkpoints().size(); ++i) {
@@ -324,11 +342,14 @@ void require_replay_contract(
             "relation replay checkpoints retain canonical IDs, work, and digests");
     previous_work = checkpoint.cumulative_work_units;
   }
-  const std::array<bounded::relation_diagnostic_kind, 4> expected_kinds{{
+  const std::array<bounded::relation_diagnostic_kind, 7> expected_kinds{{
       bounded::relation_diagnostic_kind::owner_exclusion_audit,
       bounded::relation_diagnostic_kind::selection_boundary_audit,
       bounded::relation_diagnostic_kind::replay_completeness_audit,
-      bounded::relation_diagnostic_kind::resource_reconciliation_audit}};
+      bounded::relation_diagnostic_kind::resource_reconciliation_audit,
+      bounded::relation_diagnostic_kind::minimum_positive_margin,
+      bounded::relation_diagnostic_kind::maximum_uncertainty_width,
+      bounded::relation_diagnostic_kind::maximum_exact_capacity}};
   for (std::size_t i = 0; i < artifact.diagnostics().size(); ++i) {
     const auto &diagnostic_record = artifact.diagnostics()[i];
     require(diagnostic_record.id.ordinal() == i &&
@@ -336,9 +357,11 @@ void require_replay_contract(
                 diagnostic_record.severity ==
                     bounded::relation_diagnostic_severity::retained_finding &&
                 !diagnostic_record.has_candidate &&
-                !diagnostic_record.has_relation &&
                 !diagnostic_record.has_source_features &&
-                !diagnostic_record.has_numeric_evidence &&
+                (i < 4 || diagnostic_record.has_relation ==
+                              diagnostic_record.has_numeric_evidence) &&
+                (i >= 4 || (!diagnostic_record.has_relation &&
+                            !diagnostic_record.has_numeric_evidence)) &&
                 diagnostic_record.replay_checkpoint.ordinal() <
                     artifact.replay_checkpoints().size() &&
                 diagnostic_record.schema_version ==
@@ -1481,7 +1504,77 @@ void test_matched_mutation_rejection() {
   error = bounded_boolean_error{};
   require(!bounded::verify_signed_feature_relations(
               replay_evidence_mutation, error),
-          "matched replay-evidence mutation is independently rejected");
+           "matched replay-evidence mutation is independently rejected");
+
+  require(artifact->predecessor_commitments().size() == 6 &&
+              artifact->resource_evidence().size() == 17 &&
+              artifact->section_digests().size() == 10,
+          "artifact publishes complete predecessor, resource, and section commitments");
+  bounded::signed_feature_relations_view<double, std::uint32_t> checked_view(
+      *artifact, artifact->owner());
+  require(checked_view.predecessor_commitments() != nullptr &&
+              checked_view.section_digests() != nullptr &&
+              checked_view.resource_evidence().size() == 17,
+          "checked downstream view exposes immutable Component 07 commitments");
+
+  auto predecessor_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  bounded::relation_artifact_test_access::predecessor_commitments(
+      predecessor_mutation)[3].artifact_digest_a.bytes[0] ^= 1U;
+  bounded::relation_artifact_test_access::repair_codec(predecessor_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(predecessor_mutation, error),
+          "matched predecessor commitment mutation is independently rejected");
+
+  auto resource_mutation = bounded::relation_artifact_test_access::copy(*artifact);
+  ++bounded::relation_artifact_test_access::resource_evidence(resource_mutation)
+        .front().reconciled_used;
+  bounded::relation_artifact_test_access::repair_codec(resource_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(resource_mutation, error),
+          "matched resource-domain mutation is independently rejected");
+
+  auto numerical_mutation = bounded::relation_artifact_test_access::copy(*artifact);
+  require(numerical_mutation.diagnostics().size() == 7,
+          "numerical mutation fixture requires retained extrema");
+  ++bounded::relation_artifact_test_access::diagnostics(numerical_mutation)[4]
+        .margin_bits;
+  bounded::relation_artifact_test_access::repair_codec(numerical_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(numerical_mutation, error),
+          "matched numerical-extremum mutation is independently rejected");
+
+  for (std::size_t section = 0; section < artifact->section_digests().size();
+       ++section) {
+    auto section_mutation = artifact->canonical_bytes();
+    std::size_t frame = 12;
+    for (std::size_t i = 0; i < section; ++i) {
+      std::uint64_t length = 0;
+      for (std::size_t byte = 0; byte < 8; ++byte)
+        length |= std::uint64_t(section_mutation[frame + 40 + byte])
+                  << (8 * byte);
+      frame += 48 + static_cast<std::size_t>(length);
+    }
+    std::uint64_t payload_length = 0;
+    for (std::size_t byte = 0; byte < 8; ++byte)
+      payload_length |= std::uint64_t(section_mutation[frame + 40 + byte])
+                        << (8 * byte);
+    require(payload_length != 0,
+            "every Component 07 frame carries semantic payload bytes");
+    section_mutation[frame + 48 + payload_length / 2] ^= 1U;
+    auto section_fixture = overlapping_fixture();
+    bounded::resource_manager section_resources(
+        resource_policy::conservative_defaults());
+    auto rejected = bounded::decode_signed_feature_relations(
+        section_mutation, section_fixture.predecessor.context,
+        *section_fixture.predecessor.precision, section_fixture.artifact,
+        capabilities(section_fixture, &section_resources));
+    require(!rejected.has_value(),
+            "decode rejects corruption of every Component 07 section digest");
+    require_no_live_resources(
+        section_resources,
+        "section-digest corruption must not reserve or commit resources");
+  }
 
   auto trailing = artifact->canonical_bytes();
   trailing.push_back(0);
@@ -1598,7 +1691,7 @@ void test_resource_boundary_and_cancellation() {
       resource_policy::conservative_defaults());
   auto diagnostic_limited_caps =
       capabilities(diagnostic_limited_fixture, &diagnostic_limited_resources);
-  diagnostic_limited_caps.maximum_diagnostics = 3;
+  diagnostic_limited_caps.maximum_diagnostics = 6;
   auto diagnostic_limited = bounded::build_signed_feature_relations(
       diagnostic_limited_fixture.predecessor.context,
       *diagnostic_limited_fixture.predecessor.precision,
@@ -1656,6 +1749,111 @@ void test_resource_boundary_and_cancellation() {
           "retry after cancellation reproduces canonical relation bytes");
 }
 
+void test_per_domain_preflight_boundaries() {
+  auto fixture = overlapping_fixture();
+  auto caps = capabilities(fixture);
+  bounded::relation_preflight_plan reference;
+  bounded_boolean_error error;
+  require(bounded::preflight_relation_foundation(
+              *fixture.artifact, caps, reference, error),
+          "candidate-local Component 07 domain preflight succeeds");
+  const std::array<std::uint64_t, 17> bounds{{
+      reference.domains.requests, reference.domains.primitives,
+      reference.domains.relation_families, reference.domains.graph,
+      reference.domains.regions, reference.domains.numerical_workspaces,
+      reference.domains.overlays, reference.domains.constructions,
+      reference.domains.crossings, reference.domains.symbolic,
+      reference.domains.seeds, reference.domains.dispositions,
+      reference.domains.canonical_merge, reference.domains.private_buffers,
+      reference.fixed_persistent_bytes, reference.domains.verifier,
+      reference.domains.persistent_artifact}};
+  require(reference.maximum_candidate_boundary_witness !=
+              bounded::relation_invalid_ordinal &&
+              reference.maximum_candidate_boundary_pairs != 0,
+          "candidate-local preflight retains the least maximum-boundary witness");
+  for (std::size_t domain = 0; domain < bounds.size(); ++domain) {
+    require(bounds[domain] != 0,
+            "nonempty resource fixture exercises every Component 07 domain");
+    auto below = caps;
+    below.maximum_resource_domains[domain] = bounds[domain] - 1;
+    bounded::relation_preflight_plan rejected;
+    error = bounded_boolean_error{};
+    require(!bounded::preflight_relation_foundation(
+                *fixture.artifact, below, rejected, error) &&
+                error.category == bounded_boolean_error_category::resource_limit &&
+                error.witness_count == 4 && error.witnesses[0] == domain + 1 &&
+                error.witnesses[1] == bounds[domain] &&
+                error.witnesses[2] == bounds[domain] - 1,
+            "every Component 07 domain has an exact limit-minus-one witness");
+    auto exact = caps;
+    exact.maximum_resource_domains[domain] = bounds[domain];
+    bounded::relation_preflight_plan exact_plan;
+    error = bounded_boolean_error{};
+    require(bounded::preflight_relation_foundation(
+                *fixture.artifact, exact, exact_plan, error),
+            "every Component 07 domain accepts its exact preflight limit");
+    auto above = caps;
+    above.maximum_resource_domains[domain] = bounds[domain] + 1;
+    bounded::relation_preflight_plan above_plan;
+    error = bounded_boolean_error{};
+    require(bounded::preflight_relation_foundation(
+                *fixture.artifact, above, above_plan, error) &&
+                above_plan.maximum_candidate_boundary_pairs ==
+                    reference.maximum_candidate_boundary_pairs,
+            "every Component 07 domain accepts limit-plus-one deterministically");
+  }
+
+  auto exact_fixture = overlapping_fixture();
+  bounded::resource_manager exact_resources(
+      resource_policy::conservative_defaults());
+  auto exact_caps = capabilities(exact_fixture, &exact_resources);
+  exact_caps.maximum_resource_domains = bounds;
+  auto exact_result = bounded::build_signed_feature_relations(
+      exact_fixture.predecessor.context, *exact_fixture.predecessor.precision,
+      exact_fixture.artifact, exact_caps);
+  require(exact_result.has_value(),
+          "exact Component 07 domain ceilings publish successfully");
+  auto plus_fixture = overlapping_fixture();
+  bounded::resource_manager plus_resources(
+      resource_policy::conservative_defaults());
+  auto plus_caps = capabilities(plus_fixture, &plus_resources);
+  for (std::size_t i = 0; i < bounds.size(); ++i)
+    plus_caps.maximum_resource_domains[i] = bounds[i] + 1;
+  auto plus_result = bounded::build_signed_feature_relations(
+      plus_fixture.predecessor.context, *plus_fixture.predecessor.precision,
+      plus_fixture.artifact, plus_caps);
+  require(plus_result.has_value() &&
+              (*exact_result.value())->canonical_bytes() ==
+                  (*plus_result.value())->canonical_bytes(),
+          "exact and limit-plus-one Component 07 domain ceilings are byte-identical");
+}
+
+void test_predecessor_rejection_precedes_resources() {
+  auto fixture = overlapping_fixture();
+  auto candidate = bounded::broad_phase_test_access::copy(*fixture.artifact);
+  bounded::broad_phase_test_access::predecessor_digest(candidate).bytes[0] ^= 1U;
+  auto malformed = std::make_shared<const bounded::canonical_candidate_stream<
+      double, std::uint32_t>>(std::move(candidate));
+  bounded::resource_manager resources(resource_policy::conservative_defaults());
+  auto result = bounded::build_signed_feature_relations(
+      fixture.predecessor.context, *fixture.predecessor.precision,
+      std::move(malformed), capabilities(fixture, &resources));
+  require(!result.has_value() &&
+              result.error()->subcode == static_cast<std::uint32_t>(
+                  bounded::relation_subcode::predecessor_mismatch) &&
+              result.error()->checkpoint == static_cast<std::uint32_t>(
+                  bounded::relation_checkpoint::predecessor_validation),
+          "malformed committed predecessor is rejected at the handshake checkpoint");
+  const auto snapshot = resources.snapshot();
+  for (std::size_t kind = static_cast<std::size_t>(
+           bounded::resource_kind::relation_request_records);
+       kind <= static_cast<std::size_t>(
+           bounded::resource_kind::relation_persistent_artifact);
+       ++kind)
+    require(snapshot[kind].reserved == 0 && snapshot[kind].committed == 0,
+            "predecessor rejection precedes every Component 07 reservation");
+}
+
 void test_capability_and_resource_boundary_matrix() {
   auto reference_fixture = overlapping_fixture();
   bounded::resource_manager reference_resources(
@@ -1707,7 +1905,7 @@ void test_capability_and_resource_boundary_matrix() {
       {"candidate coverage",
        &bounded::relation_capabilities::maximum_candidate_coverage,
        plan.candidate_coverage_upper_bound},
-      {"diagnostics", &bounded::relation_capabilities::maximum_diagnostics, 4},
+      {"diagnostics", &bounded::relation_capabilities::maximum_diagnostics, 7},
       {"replay checkpoints",
        &bounded::relation_capabilities::maximum_replay_checkpoints, 17},
       {"work units", &bounded::relation_capabilities::maximum_work_units,
@@ -1851,7 +2049,7 @@ void test_capability_and_resource_boundary_matrix() {
     const auto snapshot = resources.snapshot();
     require(snapshot[static_cast<std::size_t>(
                 bounded::resource_kind::replay_bytes)]
-                .committed == reference->canonical_bytes().size(),
+                .committed == (*result.value())->canonical_bytes().size(),
             "replay bytes are committed exactly at exact and plus-one limits");
   }
 }
@@ -1930,6 +2128,8 @@ int main() {
     test_nonempty_determinism_and_decode();
     test_matched_mutation_rejection();
     test_resource_boundary_and_cancellation();
+    test_per_domain_preflight_boundaries();
+    test_predecessor_rejection_precedes_resources();
     test_capability_and_resource_boundary_matrix();
     test_deterministic_cancellation_matrix();
     std::cout << "Component 07 final artifact qualification checks passed\n";

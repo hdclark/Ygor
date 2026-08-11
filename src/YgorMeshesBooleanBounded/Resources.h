@@ -34,7 +34,16 @@ enum class resource_kind : std::uint8_t {
     intersection_memberships=53,intersection_clusters=54,intersection_intervals=55,
     intersection_carriers=56,intersection_overlaps=57,intersection_aggregates=58,
     intersection_descriptors=59,intersection_order_certificates=60,
-    intersection_verifier_work=61,count=62
+    intersection_verifier_work=61,
+    relation_request_records=62,relation_primitive_records=63,
+    relation_family_records=64,relation_graph_edges=65,
+    relation_region_workspace=66,relation_numerical_workspace=67,
+    relation_overlay_records=68,relation_construction_records=69,
+    relation_crossing_records=70,relation_symbolic_records=71,
+    relation_seed_records=72,relation_disposition_records=73,
+    relation_canonical_workspace=74,relation_private_buffers=75,
+    relation_codec_evidence=76,relation_verifier_evidence=77,
+    relation_persistent_artifact=78,count=79
 };
 struct resource_counter { std::uint64_t hard=0,advisory=0,reserved=0,committed=0,peak_live=0,cumulative=0; };
 class resource_manager;
@@ -42,7 +51,7 @@ class resource_reservation {
   public:
     resource_reservation() noexcept=default;resource_reservation(const resource_reservation&)=delete;resource_reservation&operator=(const resource_reservation&)=delete;
     resource_reservation(resource_reservation&& other) noexcept;resource_reservation&operator=(resource_reservation&& other) noexcept;~resource_reservation();
-    bool commit(std::uint64_t used) noexcept;void release() noexcept;std::uint64_t amount()const noexcept{return amount_;}
+    bool commit(std::uint64_t used) noexcept;bool shrink(std::uint64_t amount) noexcept;void release() noexcept;std::uint64_t amount()const noexcept{return amount_;}
   private:
     resource_reservation(resource_manager *owner,resource_kind kind,std::uint64_t amount) noexcept:owner_(owner),kind_(kind),amount_(amount){}
     resource_manager *owner_=nullptr;resource_kind kind_=resource_kind::temporary_bytes;std::uint64_t amount_=0;friend class resource_manager;

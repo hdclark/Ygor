@@ -1,6 +1,7 @@
 #include "StrictFloatingBuild.h"
 #include "RelationVerifier.h"
 #include "RelationCandidateEvidenceVerifier.h"
+#include "RelationPredecessorCommitments.h"
 #include "RelationReplay.h"
 #include "RelationVerificationRecords.h"
 
@@ -1581,6 +1582,19 @@ bool verify_signed_feature_relations(
           broad_phase_verification_disposition::independently_verified)
     return fail(relation_subcode::predecessor_mismatch,
                 "Component 07 candidate predecessor handshake failed");
+  std::array<relation_predecessor_commitment_record, 6>
+      expected_commitments{};
+  if (!build_relation_predecessor_commitments(
+          artifact.context_digest_, artifact.precision_digest_,
+          artifact.symbolic_policy_digest_, *artifact.candidates_,
+          expected_commitments))
+    return fail(relation_subcode::predecessor_mismatch,
+                "Component 07 predecessor commitments cannot be reconstructed");
+  for (std::size_t i = 0; i < expected_commitments.size(); ++i)
+    if (!same_relation_predecessor_commitment(
+            artifact.predecessor_commitments_[i], expected_commitments[i]))
+      return fail(relation_subcode::predecessor_mismatch,
+                  "Component 07 predecessor commitment does not reconstruct");
 
   std::map<std::pair<relation_request_id, std::uint32_t>, std::uint32_t>
       canonical_edge_facet_occurrences;
@@ -4729,6 +4743,114 @@ bool verify_signed_feature_relations(
           artifact.replay_checkpoints_.size())
     return fail(relation_subcode::verifier_rejection,
                 "Component 07 statistics do not reconstruct from records");
+
+  if (artifact.resource_evidence_.size() != 17)
+    return fail(relation_subcode::verifier_rejection,
+                "Component 07 resource-domain evidence is incomplete");
+  std::array<std::uint64_t, 17> resource_used{};
+  const auto add_resource = [](std::uint64_t value, std::uint64_t &target) {
+    return checked_add(target, value, target);
+  };
+  resource_used[0] = artifact.execution_authority_.graph.requests.size();
+  if (!add_resource(artifact.imported_geometry_.size(), resource_used[1]) ||
+      !add_resource(artifact.bounded_primitives_.size(), resource_used[1]) ||
+      !add_resource(artifact.exact_relations_.size(), resource_used[1]) ||
+      !add_resource(artifact.truth_lineage_.size(), resource_used[1]) ||
+      !add_resource(artifact.relations_.size(), resource_used[2]) ||
+      !add_resource(artifact.execution_authority_.graph.dependencies.size(), resource_used[3]) ||
+      !add_resource(artifact.execution_authority_.graph.reverse_consumers.size(), resource_used[3]) ||
+      !add_resource(artifact.execution_authority_.graph.candidate_witnesses.size(), resource_used[3]) ||
+      !add_resource(artifact.interval_evidence_.size(), resource_used[4]) ||
+      !add_resource(artifact.source_facet_regions_.size(), resource_used[4]) ||
+      !add_resource(artifact.truth_records_.size(), resource_used[5]) ||
+      !add_resource(artifact.coplanar_event_nodes_.size(), resource_used[6]) ||
+      !add_resource(artifact.coplanar_oriented_arcs_.size(), resource_used[6]) ||
+      !add_resource(artifact.coplanar_overlap_components_.size(), resource_used[6]) ||
+      !add_resource(artifact.constructions_.size(), resource_used[7]) ||
+      !add_resource(artifact.construction_ledger_.size(), resource_used[7]) ||
+      !add_resource(artifact.crossings_.size(), resource_used[8]) ||
+      !add_resource(artifact.symbolic_eligibility_.size(), resource_used[9]) ||
+      !add_resource(artifact.symbolic_decisions_.size(), resource_used[9]) ||
+      !add_resource(artifact.event_seeds_.size(), resource_used[10]) ||
+      !add_resource(artifact.event_seed_incidence_.size(), resource_used[10]) ||
+      !add_resource(artifact.event_seed_candidate_incidence_.size(), resource_used[10]) ||
+      !add_resource(artifact.candidate_dispositions_.size(), resource_used[11]) ||
+      !add_resource(artifact.candidate_relation_coverage_.size(), resource_used[11]) ||
+      !add_resource(artifact.candidate_event_seed_coverage_.size(), resource_used[11]))
+    return fail(relation_subcode::count_overflow,
+                "Component 07 resource-domain reconstruction overflowed");
+  resource_used[12] = artifact.request_graph_.requests.size() +
+                      artifact.request_graph_.dependencies.size();
+  resource_used[13] = 0;
+  resource_used[14] = artifact.canonical_bytes_.size();
+  if (!add_resource(encode_relation_diagnostic_semantics(artifact.diagnostics_).size(),
+                    resource_used[14]) ||
+      !add_resource(encode_relation_replay_checkpoint_semantics(
+                        artifact.replay_checkpoints_).size(),
+                    resource_used[14]))
+    return fail(relation_subcode::count_overflow,
+                "Component 07 codec resource reconstruction overflowed");
+  resource_used[15] = artifact.statistics_.verifier_work_units;
+  resource_used[16] = artifact.statistics_.persistent_bytes;
+  const std::array<resource_kind, 17> resource_kinds{{
+      resource_kind::relation_request_records,
+      resource_kind::relation_primitive_records,
+      resource_kind::relation_family_records,
+      resource_kind::relation_graph_edges,
+      resource_kind::relation_region_workspace,
+      resource_kind::relation_numerical_workspace,
+      resource_kind::relation_overlay_records,
+      resource_kind::relation_construction_records,
+      resource_kind::relation_crossing_records,
+      resource_kind::relation_symbolic_records,
+      resource_kind::relation_seed_records,
+      resource_kind::relation_disposition_records,
+      resource_kind::relation_canonical_workspace,
+      resource_kind::relation_private_buffers,
+      resource_kind::relation_codec_evidence,
+      resource_kind::relation_verifier_evidence,
+      resource_kind::relation_persistent_artifact}};
+  for (std::size_t i = 0; i < artifact.resource_evidence_.size(); ++i) {
+    const auto &record = artifact.resource_evidence_[i];
+    const bool exact = i == 0 || i == 3 || i == 16;
+    const char *resource_failure = nullptr;
+    if (record.id.ordinal() != i ||
+        record.domain != static_cast<relation_resource_domain>(i + 1) ||
+        record.resource != resource_kinds[i])
+      resource_failure = "Component 07 resource-domain identity mismatch";
+    else if (record.preflight_reserved != record.required_limit)
+      resource_failure = "Component 07 resource-domain required limit mismatch";
+    else if (record.reconciled_used > record.preflight_reserved)
+      resource_failure = "Component 07 resource-domain reservation underrun";
+    else if (record.closed_authority_exact != exact ||
+             (exact && record.closed_authority_bound != resource_used[i]) ||
+             (!exact &&
+              record.closed_authority_bound != record.preflight_reserved))
+      resource_failure = "Component 07 resource-domain exactness mismatch";
+    else if (
+        (i != 6 && record.witness_ordinal != relation_invalid_ordinal) ||
+        (i == 6 && record.witness_ordinal != relation_invalid_ordinal &&
+         record.witness_ordinal >= expected_candidates))
+      resource_failure = "Component 07 resource-domain witness mismatch";
+    else if (
+        record.schema_version !=
+            contract_versions::relation_resource_evidence_schema ||
+        record.reserved8 != 0 || record.reserved32 != 0)
+      resource_failure = "Component 07 resource-domain schema mismatch";
+    else if (record.reconciled_used != resource_used[i])
+      resource_failure =
+          "Component 07 resource-domain usage does not reconstruct";
+    if (resource_failure) {
+        error = verifier_error(
+            relation_subcode::verifier_rejection, resource_failure);
+        error.witnesses[0] = i + 1;
+        error.witnesses[1] = record.reconciled_used;
+        error.witnesses[2] = resource_used[i];
+        error.witnesses[3] = record.required_limit;
+        error.witness_count = 4;
+        return false;
+    }
+  }
 
   const auto &evidence = artifact.verification_evidence_;
   if (evidence.id.ordinal() != 0 ||

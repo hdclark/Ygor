@@ -16,7 +16,10 @@ resource_manager::resource_manager(const resource_policy&p)noexcept {
         {resource_kind::budget_proposals,p.budget_proposals},
         {resource_kind::budget_reservations,p.budget_reservations},
         {resource_kind::budget_commits,p.budget_commits},
-        {resource_kind::precision_verifier_work,p.precision_verifier_work}};
+        {resource_kind::precision_verifier_work,p.precision_verifier_work},
+        {resource_kind::relation_private_buffers,p.temporary_bytes},
+        {resource_kind::relation_codec_evidence,p.persistent_bytes},
+        {resource_kind::relation_persistent_artifact,p.persistent_bytes}};
     for(const auto &entry:limits){auto &counter=counters_[static_cast<std::size_t>(entry.first)];counter.advisory=entry.second.advisory;counter.hard=entry.second.hard;}
 }
 std::optional<resource_reservation> resource_manager::reserve(resource_kind k,std::uint64_t amount)noexcept{std::lock_guard<std::mutex>l(mutex_);auto&c=counters_[static_cast<std::size_t>(k)];std::uint64_t live=0,next=0;if(!checked_add(c.reserved,c.committed,live)||!checked_add(live,amount,next)||next>c.hard)return std::nullopt;c.reserved+=amount;c.peak_live=std::max(c.peak_live,next);if(k==resource_kind::work_units)c.cumulative+=amount;return resource_reservation(this,k,amount);}
@@ -34,5 +37,6 @@ resource_reservation::resource_reservation(resource_reservation&&o)noexcept:owne
 resource_reservation&resource_reservation::operator=(resource_reservation&&o)noexcept{if(this!=&o){release();owner_=o.owner_;kind_=o.kind_;amount_=o.amount_;o.owner_=nullptr;o.amount_=0;}return*this;}
 resource_reservation::~resource_reservation(){release();}
 bool resource_reservation::commit(std::uint64_t used)noexcept{if(!owner_||!owner_->commit(kind_,amount_,used))return false;owner_=nullptr;amount_=0;return true;}
+bool resource_reservation::shrink(std::uint64_t amount)noexcept{if(!owner_||amount>amount_)return false;owner_->release(kind_,amount_-amount);amount_=amount;return true;}
 void resource_reservation::release()noexcept{if(owner_)owner_->release(kind_,amount_);owner_=nullptr;amount_=0;}
 }

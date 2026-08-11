@@ -54,6 +54,53 @@ kernels are unusable. The existing source-feature kernels, coplanar topology,
 construction/event lineage, canonical encoding, replay, cancellation, and
 mutation-sensitive tests provide the foundation for the remaining work.
 
+## Completed per-domain accounting, predecessor handshake, digest, and diagnostic remediation
+
+Component 7e remediates post-implementation audit item 7 and the corresponding
+Plan 07 Sections 9, 10, 22, and 24.12 obligations:
+
+- preflight now resolves each candidate's actual opposite and incident source
+  facets and accumulates checked candidate-local boundary products instead of
+  multiplying every candidate by one global maximum; it retains the least
+  canonical maximum-boundary candidate as the deterministic witness;
+- seventeen Component 07 resource domains have distinct resource kinds,
+  capability limits, staged discovery/closed-authority reservations, immutable
+  versioned required/reserved/used evidence and deterministic
+  limit/observed/domain/candidate failure witnesses. Request and graph leases are
+  tightened to their exact closed-authority populations, while output-dependent
+  domains retain conservative bounds; caller ceilings remain invocation-only and
+  all leases reconcile on failure, cancellation, decode rejection, and commit;
+- the artifact publishes six owner-free version/digest/verification commitments
+  for Components 01-06, including truth-table, symbolic-policy, strict floating
+  profile, source semantic, exact triangulation/topology, primitive-table, and
+  candidate evidence. One shared pure builder reconstructs these commitments for
+  pre-work validation, artifact assembly, decode, and independent verification;
+  malformed committed predecessors fail at the predecessor checkpoint before
+  preflight or relation-domain reservation, while runtime owner anchors and
+  execution schedules remain nonsemantic;
+- canonical encoding now consists of ten closed ordered frames spanning the
+  complete semantic payload. Every frame carries its domain tag, layout version,
+  zero reserved field, checked length, full-payload SHA-256 digest, and payload;
+  the envelope carries a complete digest. Decode validates all frame metadata and
+  payload digests before semantic record parsing or rebuild, checked public access
+  exposes the exact frame digests, and the verifier independently reconstructs
+  every payload and digest;
+- retained diagnostics now include deterministic minimum-positive-margin,
+  maximum-uncertainty-width, and maximum-exact-capacity findings selected from
+  canonical truth producers with stable first-record tie handling. Resource
+  findings are first-class per-domain evidence rather than a single aggregate
+  persistent-byte statement; and
+- the Component 07 artifact/diagnostic/resource/section schemas and codec and
+  verifier contracts were advanced. Qualification covers every domain at
+  limit-minus-one/exact/limit-plus-one, every predecessor commitment mutation,
+  every framed-section payload corruption before resource acquisition, numerical
+  diagnostic mutation, resource-evidence mutation, serial/parallel determinism,
+  decode/rebuild determinism, cancellation rollback, and retry identity.
+
+Validation after remediation passes all 16 registered Component 07 tests, all
+16 Component 06 predecessor tests, and all 22 registered Component 08 tests in
+the strict C++17 build.
+
 ## Completed pre-evaluation authority and triangle reconciliation remediation
 
 Component 7a now closes and independently verifies a topology-derived execution
@@ -953,9 +1000,9 @@ machine-readable diagnostic evidence required by Plan 07 Section 22:
 - every checkpoint records versioned input/output counts, cumulative deterministic
   work, a chained semantic digest, and a canonical completed disposition without
   schedule, worker, thread, path, pointer, or runtime-owner data;
-- four bounded retained findings record the owner-exclusion,
-  selection-boundary, replay-completeness, and resource-reconciliation audits in
-  a fixed owner-free schema;
+- seven bounded retained findings record the owner-exclusion,
+  selection-boundary, replay-completeness, resource-reconciliation, and three
+  deterministic numerical-extremum audits in a fixed owner-free schema;
 - replay checkpoints, diagnostics, replay evidence, statistics, codec sections,
   exact persistent accounting, decode, and the complete artifact digest are
   published transactionally and rejected on unknown versions, malformed ranges,

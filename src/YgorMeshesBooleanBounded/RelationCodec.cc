@@ -69,12 +69,54 @@ void encode_symbolic(canonical_writer &writer,
   writer.u32(record.reserved);
 }
 
+void encode_predecessor_commitment(
+    canonical_writer &writer,
+    const relation_predecessor_commitment_record &record) {
+  writer.u8(static_cast<std::uint8_t>(record.component));
+  writer.u16(record.schema_version);
+  writer.u16(record.provider_version);
+  writer.u16(record.policy_version);
+  writer.u16(record.codec_version);
+  writer.u16(record.verifier_version);
+  writer.boolean(record.independently_verified);
+  writer.u8(record.reserved8);
+  encode_digest(writer, record.artifact_digest_a);
+  encode_digest(writer, record.artifact_digest_b);
+  encode_digest(writer, record.semantic_digest_a);
+  encode_digest(writer, record.semantic_digest_b);
+  encode_digest(writer, record.exact_digest_a);
+  encode_digest(writer, record.exact_digest_b);
+  encode_digest(writer, record.policy_digest);
+  writer.u16(record.commitment_schema);
+  writer.u16(record.reserved16);
+  writer.u32(record.reserved32);
+}
+
+void encode_resource_evidence(canonical_writer &writer,
+                              const relation_resource_evidence_record &record) {
+  writer.u64(record.id.ordinal());
+  writer.u8(static_cast<std::uint8_t>(record.domain));
+  writer.u8(static_cast<std::uint8_t>(record.resource));
+  writer.u64(record.required_limit);
+  writer.u64(record.preflight_reserved);
+  writer.u64(record.closed_authority_bound);
+  writer.u64(record.reconciled_used);
+  writer.u64(record.witness_ordinal);
+  writer.boolean(record.closed_authority_exact);
+  writer.u8(record.reserved8);
+  writer.u16(record.schema_version);
+  writer.u32(record.reserved32);
+}
+
 } // namespace
 
 template <class T, class I>
-std::vector<std::uint8_t>
-encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) {
+std::vector<std::uint8_t> encode_relation_unframed_payload(
+    const signed_feature_relations<T, I> &artifact,
+    std::array<std::size_t, 11> *boundaries = nullptr) {
   canonical_writer writer;
+  if (boundaries)
+    (*boundaries)[0] = 0;
   writer.u32(0x37465259U); // YRF7
   writer.u16(artifact.schema_version_);
   writer.u16(artifact.provider_version_);
@@ -91,6 +133,12 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   writer.u8(static_cast<std::uint8_t>(artifact.operation_));
   writer.floating(artifact.residual_boundary_);
   encode_digest(writer, artifact.symbolic_policy_digest_);
+  writer.u16(contract_versions::relation_predecessor_commitment_schema);
+  writer.u16(static_cast<std::uint16_t>(artifact.predecessor_commitments_.size()));
+  for (const auto &record : artifact.predecessor_commitments_)
+    encode_predecessor_commitment(writer, record);
+  if (boundaries)
+    (*boundaries)[1] = writer.bytes().size();
   writer.boolean(static_cast<bool>(artifact.source_edge_stage_));
   if (artifact.source_edge_stage_)
     writer.sized_bytes(encode_candidate_source_edge_relation_semantics(
@@ -112,6 +160,8 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   const auto graph_bytes =
       encode_relation_request_graph_semantics(artifact.request_graph_);
   writer.sized_bytes(graph_bytes);
+  if (boundaries)
+    (*boundaries)[2] = writer.bytes().size();
   writer.u64(artifact.imported_geometry_.size());
   for (const auto &record : artifact.imported_geometry_) {
     writer.u64(record.id.ordinal());
@@ -136,6 +186,8 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u16(record.reserved16);
     writer.u32(record.reserved32);
   }
+  if (boundaries)
+    (*boundaries)[3] = writer.bytes().size();
   writer.u64(artifact.exact_relations_.size());
   for (const auto &record : artifact.exact_relations_) {
     writer.u64(record.id.ordinal());
@@ -160,6 +212,8 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u16(record.reserved16);
     writer.u32(record.reserved32);
   }
+  if (boundaries)
+    (*boundaries)[4] = writer.bytes().size();
   writer.u16(contract_versions::relation_interval_evidence_schema);
   writer.u16(contract_versions::relation_source_facet_region_publication_schema);
   writer.u64(artifact.interval_evidence_.size());
@@ -231,6 +285,8 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u32(record.occurrence);
     writer.u32(record.reserved);
   }
+  if (boundaries)
+    (*boundaries)[5] = writer.bytes().size();
   writer.u16(contract_versions::relation_construction_schema);
   writer.u16(contract_versions::relation_construction_registry_policy);
   writer.u16(contract_versions::relation_construction_ledger_schema);
@@ -413,12 +469,16 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u16(record.reserved16);
     writer.u32(record.reserved32);
   }
+  if (boundaries)
+    (*boundaries)[6] = writer.bytes().size();
   writer.u64(artifact.symbolic_eligibility_.size());
   for (const auto &record : artifact.symbolic_eligibility_)
     encode_eligibility(writer, record);
   writer.u64(artifact.symbolic_decisions_.size());
   for (const auto &record : artifact.symbolic_decisions_)
     encode_symbolic(writer, record);
+  if (boundaries)
+    (*boundaries)[7] = writer.bytes().size();
   writer.u64(artifact.crossings_.size());
   for (const auto &record : artifact.crossings_) {
     writer.u64(record.relation.ordinal());
@@ -436,6 +496,8 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u16(record.reserved16);
     writer.u32(record.reserved32);
   }
+  if (boundaries)
+    (*boundaries)[8] = writer.bytes().size();
   writer.u64(artifact.event_seeds_.size());
   for (const auto &record : artifact.event_seeds_) {
     writer.u64(record.id.ordinal());
@@ -661,6 +723,8 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u16(record.schema_version);
     writer.u32(record.reserved);
   }
+  if (boundaries)
+    (*boundaries)[9] = writer.bytes().size();
   writer.u64(artifact.statistics_.candidate_count);
   writer.u64(artifact.statistics_.request_proposal_count);
   writer.u64(artifact.statistics_.unique_request_count);
@@ -705,12 +769,73 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   writer.u64(artifact.verification_evidence_.verifier_work_units);
   encode_digest(writer, artifact.verification_evidence_.semantic_digest);
   writer.u32(artifact.verification_evidence_.reserved);
+  writer.u16(contract_versions::relation_resource_evidence_schema);
+  writer.u16(static_cast<std::uint16_t>(artifact.resource_evidence_.size()));
+  for (const auto &record : artifact.resource_evidence_)
+    encode_resource_evidence(writer, record);
   writer.sized_bytes(
       encode_relation_diagnostic_semantics(artifact.diagnostics_));
   writer.sized_bytes(encode_relation_replay_checkpoint_semantics(
       artifact.replay_checkpoints_));
   writer.sized_bytes(
       encode_relation_replay_evidence_semantics(artifact.replay_evidence_));
+  if (boundaries)
+    (*boundaries)[10] = writer.bytes().size();
+  return writer.take();
+}
+
+template <class T, class I>
+std::array<std::vector<std::uint8_t>, 10> build_relation_section_payloads(
+    const signed_feature_relations<T, I> &artifact) {
+  std::array<std::size_t, 11> boundaries{};
+  const auto payload = encode_relation_unframed_payload(artifact, &boundaries);
+  std::array<std::vector<std::uint8_t>, 10> sections;
+  for (std::size_t i = 0; i < sections.size(); ++i) {
+    const auto begin = boundaries[i];
+    const auto end = boundaries[i + 1];
+    sections[i].assign(payload.begin() + begin, payload.begin() + end);
+  }
+  return sections;
+}
+
+template <class T, class I>
+bool refresh_relation_section_digests(
+    signed_feature_relations<T, I> &artifact) noexcept {
+  try {
+    const auto sections = build_relation_section_payloads(artifact);
+    for (std::size_t i = 0; i < sections.size(); ++i) {
+      artifact.section_digests_[i].domain =
+          static_cast<relation_section_domain>(i + 1);
+      artifact.section_digests_[i].layout_version =
+          contract_versions::relation_section_digest_layout;
+      artifact.section_digests_[i].reserved32 = 0;
+      artifact.section_digests_[i].digest = sha256::digest(sections[i]);
+    }
+    return true;
+  } catch (...) {
+    return false;
+  }
+}
+
+template <class T, class I>
+std::vector<std::uint8_t>
+encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) {
+  const auto sections = build_relation_section_payloads(artifact);
+  canonical_writer writer;
+  writer.u32(0x46375259U); // YR7F framed artifact.
+  writer.u16(contract_versions::relation_codec);
+  writer.u16(static_cast<std::uint16_t>(sections.size()));
+  writer.u32(0);
+  for (std::size_t i = 0; i < sections.size(); ++i) {
+    const auto &record = artifact.section_digests_[i];
+    writer.u16(static_cast<std::uint16_t>(record.domain));
+    writer.u16(record.layout_version);
+    writer.u32(record.reserved32);
+    encode_digest(writer, record.digest);
+    writer.sized_bytes(sections[i]);
+  }
+  const auto digest = sha256::digest(writer.bytes());
+  encode_digest(writer, digest);
   return writer.take();
 }
 
@@ -1389,7 +1514,7 @@ inline bool read_diagnostic_section(
         kind < static_cast<std::uint8_t>(
                    relation_diagnostic_kind::owner_exclusion_audit) ||
         kind > static_cast<std::uint8_t>(
-                   relation_diagnostic_kind::cancellation_observation) ||
+                   relation_diagnostic_kind::maximum_exact_capacity) ||
         !reader.u8(severity) ||
         severity < static_cast<std::uint8_t>(
                        relation_diagnostic_severity::retained_finding) ||
@@ -1534,7 +1659,62 @@ bool parse_relation_artifact_envelope(
                          bounded_boolean_error_category::resource_limit,
                          "Component 07 encoded artifact exceeds configured limit");
 
-  canonical_reader reader(bytes);
+  if (bytes.size() < 12 + 10 * 48 + 32)
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 framed artifact is truncated");
+  canonical_reader frame_reader(bytes);
+  std::uint32_t frame_magic = 0, frame_reserved = 0;
+  std::uint16_t frame_codec = 0, frame_count = 0;
+  if (!frame_reader.u32(frame_magic) || !frame_reader.u16(frame_codec) ||
+      !frame_reader.u16(frame_count) || !frame_reader.u32(frame_reserved) ||
+      frame_magic != 0x46375259U ||
+      frame_codec != contract_versions::relation_codec ||
+      frame_count != envelope.section_digests.size() || frame_reserved != 0)
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 framed artifact header is malformed");
+  std::vector<std::uint8_t> semantic_bytes;
+  semantic_bytes.reserve(bytes.size());
+  for (std::size_t i = 0; i < envelope.section_digests.size(); ++i) {
+    auto &record = envelope.section_digests[i];
+    std::uint16_t domain = 0;
+    std::vector<std::uint8_t> payload;
+    if (!frame_reader.u16(domain) ||
+        !frame_reader.u16(record.layout_version) ||
+        !frame_reader.u32(record.reserved32) ||
+        !read_digest(frame_reader, record.digest) ||
+        !frame_reader.sized_bytes(payload, capabilities.maximum_canonical_bytes) ||
+        domain != i + 1 ||
+        record.layout_version !=
+            contract_versions::relation_section_digest_layout ||
+        record.reserved32 != 0 || sha256::digest(payload) != record.digest)
+      return codec_failure(relation_subcode::digest_mismatch,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 framed section digest mismatch");
+    record.domain = static_cast<relation_section_domain>(domain);
+    std::uint64_t combined = 0;
+    if (!checked_add<std::uint64_t>(semantic_bytes.size(), payload.size(),
+                                    combined) ||
+        combined > capabilities.maximum_canonical_bytes)
+      return codec_failure(relation_subcode::resource_preflight,
+                           bounded_boolean_error_category::resource_limit,
+                           "Component 07 framed section bytes exceed limit");
+    semantic_bytes.insert(semantic_bytes.end(), payload.begin(), payload.end());
+  }
+  bounded_boolean_digest framed_digest{};
+  if (!read_digest(frame_reader, framed_digest) || !frame_reader.complete())
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 framed artifact has trailing or missing bytes");
+  sha256 framed_hash;
+  framed_hash.update(bytes.data(), bytes.size() - framed_digest.bytes.size());
+  if (framed_hash.finish() != framed_digest)
+    return codec_failure(relation_subcode::digest_mismatch,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 complete framed artifact digest mismatch");
+
+  canonical_reader reader(semantic_bytes);
   std::uint32_t magic = 0;
   std::uint8_t provider = 0, verification = 0, operation = 0;
   if (!reader.u32(magic) || magic != 0x37465259U ||
@@ -1544,8 +1724,11 @@ bool parse_relation_artifact_envelope(
       !reader.u16(envelope.truth_policy_version) ||
       !reader.u16(envelope.codec_version) ||
       !reader.u16(envelope.verifier_version) || !reader.u8(provider) ||
-      !reader.u8(verification) ||
-      !read_digest(reader, envelope.context_digest) ||
+      !reader.u8(verification))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 encoded artifact header is malformed");
+  if (!read_digest(reader, envelope.context_digest) ||
       !read_digest(reader, envelope.precision_digest) ||
       !read_digest(reader, envelope.candidate_digest) ||
       !read_digest(reader, envelope.graph_digest) || reader.u8(operation) == false ||
@@ -1554,6 +1737,42 @@ bool parse_relation_artifact_envelope(
     return codec_failure(relation_subcode::codec_error,
                          bounded_boolean_error_category::input_contract_error,
                          "Component 07 encoded artifact header is malformed");
+  std::uint16_t commitment_schema = 0, commitment_count = 0;
+  if (!reader.u16(commitment_schema) || !reader.u16(commitment_count) ||
+      commitment_schema !=
+          contract_versions::relation_predecessor_commitment_schema ||
+      commitment_count != envelope.predecessor_commitments.size())
+    return codec_failure(relation_subcode::unsupported_version,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 predecessor commitment section is unsupported");
+  for (std::size_t i = 0; i < envelope.predecessor_commitments.size(); ++i) {
+    auto &record = envelope.predecessor_commitments[i];
+    std::uint8_t component = 0;
+    if (!reader.u8(component) || !reader.u16(record.schema_version) ||
+        !reader.u16(record.provider_version) ||
+        !reader.u16(record.policy_version) ||
+        !reader.u16(record.codec_version) ||
+        !reader.u16(record.verifier_version) ||
+        !reader.boolean(record.independently_verified) ||
+        !reader.u8(record.reserved8) ||
+        !read_digest(reader, record.artifact_digest_a) ||
+        !read_digest(reader, record.artifact_digest_b) ||
+        !read_digest(reader, record.semantic_digest_a) ||
+        !read_digest(reader, record.semantic_digest_b) ||
+        !read_digest(reader, record.exact_digest_a) ||
+        !read_digest(reader, record.exact_digest_b) ||
+        !read_digest(reader, record.policy_digest) ||
+        !reader.u16(record.commitment_schema) ||
+        !reader.u16(record.reserved16) || !reader.u32(record.reserved32) ||
+        component != i + 1 || !record.independently_verified ||
+        record.commitment_schema != commitment_schema ||
+        record.reserved8 != 0 || record.reserved16 != 0 ||
+        record.reserved32 != 0)
+      return codec_failure(relation_subcode::predecessor_mismatch,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 predecessor commitment payload is malformed");
+    record.component = static_cast<relation_predecessor_component>(component);
+  }
 
   envelope.provider = static_cast<relation_provider_kind>(provider);
   envelope.verification =
@@ -2027,6 +2246,35 @@ bool parse_relation_artifact_envelope(
                          bounded_boolean_error_category::input_contract_error,
                          "Component 07 verifier evidence is malformed");
 
+  std::uint16_t resource_schema = 0, resource_count = 0;
+  if (!reader.u16(resource_schema) || !reader.u16(resource_count) ||
+      resource_schema != contract_versions::relation_resource_evidence_schema ||
+      resource_count != 17)
+    return codec_failure(relation_subcode::unsupported_version,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 resource evidence section is unsupported");
+  envelope.resource_evidence_count = resource_count;
+  for (std::uint64_t i = 0; i < resource_count; ++i) {
+    std::uint64_t id = 0, required = 0, reserved = 0, closed = 0, used = 0,
+                  witness = 0;
+    std::uint8_t domain = 0, resource = 0, reserved8 = 0;
+    std::uint16_t schema = 0;
+    std::uint32_t reserved32 = 0;
+    bool exact = false;
+    if (!reader.u64(id) || !reader.u8(domain) || !reader.u8(resource) ||
+        !reader.u64(required) || !reader.u64(reserved) ||
+        !reader.u64(closed) || !reader.u64(used) ||
+        !reader.u64(witness) || !reader.boolean(exact) ||
+        !reader.u8(reserved8) || !reader.u16(schema) ||
+        !reader.u32(reserved32) || id != i || domain != i + 1 ||
+        resource >= static_cast<std::uint8_t>(resource_kind::count) ||
+        reserved != required || used > required ||
+        schema != resource_schema || reserved8 != 0 || reserved32 != 0)
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 resource evidence payload is malformed");
+  }
+
   std::vector<std::uint8_t> diagnostic_bytes, checkpoint_bytes, replay_bytes;
   if (!reader.sized_bytes(diagnostic_bytes,
                           capabilities.maximum_canonical_bytes) ||
@@ -2102,7 +2350,16 @@ bool parse_relation_artifact_envelope(
 template <class T, class I>
 bool verify_relation_codec(const signed_feature_relations<T, I> &artifact,
                            bounded_boolean_error &error) {
-  const auto encoded = encode_signed_feature_relations(artifact);
+  auto reconstructed = artifact;
+  if (!refresh_relation_section_digests(reconstructed) ||
+      reconstructed.section_digests_ != artifact.section_digests_) {
+    error = relation_error(relation_subcode::digest_mismatch,
+                           bounded_boolean_error_category::internal_invariant_error,
+                           "Component 07 section digest table mismatch",
+                           relation_checkpoint::canonical_encoding);
+    return false;
+  }
+  const auto encoded = encode_signed_feature_relations(reconstructed);
   if (encoded != artifact.canonical_bytes_ ||
       sha256::digest(encoded) != artifact.digest_) {
     error = relation_error(relation_subcode::digest_mismatch,
@@ -2126,6 +2383,15 @@ encode_signed_feature_relations<double, std::uint32_t>(
 template std::vector<std::uint8_t>
 encode_signed_feature_relations<double, std::uint64_t>(
     const signed_feature_relations<double, std::uint64_t> &);
+
+template bool refresh_relation_section_digests<float, std::uint32_t>(
+    signed_feature_relations<float, std::uint32_t> &) noexcept;
+template bool refresh_relation_section_digests<float, std::uint64_t>(
+    signed_feature_relations<float, std::uint64_t> &) noexcept;
+template bool refresh_relation_section_digests<double, std::uint32_t>(
+    signed_feature_relations<double, std::uint32_t> &) noexcept;
+template bool refresh_relation_section_digests<double, std::uint64_t>(
+    signed_feature_relations<double, std::uint64_t> &) noexcept;
 
 template bool verify_relation_codec<float, std::uint32_t>(
     const signed_feature_relations<float, std::uint32_t> &,

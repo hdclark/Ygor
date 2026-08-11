@@ -77,7 +77,9 @@ struct relation_artifact_test_access final {
     relation_capabilities capabilities;
     capabilities.owner = artifact.owner_;
     bounded_boolean_error error;
-    if (!build_relation_replay_bundle(artifact, capabilities, error))
+    if (!refresh_relation_section_digests(artifact) ||
+        !build_relation_replay_bundle(artifact, capabilities, error) ||
+        !refresh_relation_section_digests(artifact))
       throw std::runtime_error("unable to rebuild relation replay mutation");
     artifact.canonical_bytes_ = encode_signed_feature_relations(artifact);
     artifact.digest_ = sha256::digest(artifact.canonical_bytes_);

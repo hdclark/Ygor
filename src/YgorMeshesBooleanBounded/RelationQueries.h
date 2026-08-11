@@ -104,6 +104,19 @@ public:
   const relation_replay_evidence *replay_evidence() const noexcept {
     return valid_owner() ? &artifact_->replay_evidence() : nullptr;
   }
+  const std::array<relation_predecessor_commitment_record, 6> *
+  predecessor_commitments() const noexcept {
+    return valid_owner() ? &artifact_->predecessor_commitments() : nullptr;
+  }
+  const std::vector<relation_resource_evidence_record> &resource_evidence()
+      const noexcept {
+    return valid_owner() ? artifact_->resource_evidence()
+                         : empty_vector<relation_resource_evidence_record>();
+  }
+  const std::array<relation_section_digest_record, 10> *section_digests()
+      const noexcept {
+    return valid_owner() ? &artifact_->section_digests() : nullptr;
+  }
 
   const bounded_boolean_digest &digest() const noexcept {
     return valid_owner() ? artifact_->digest() : empty_digest();

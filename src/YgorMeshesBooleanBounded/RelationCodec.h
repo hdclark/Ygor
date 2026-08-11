@@ -9,6 +9,10 @@ std::vector<std::uint8_t>
 encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact);
 
 template <class T, class I>
+bool refresh_relation_section_digests(
+    signed_feature_relations<T, I> &artifact) noexcept;
+
+template <class T, class I>
 bool verify_relation_codec(const signed_feature_relations<T, I> &artifact,
                            bounded_boolean_error &error);
 
@@ -30,10 +34,13 @@ template <class T> struct relation_artifact_envelope final {
   boolean_operation operation = boolean_operation::set_union;
   T residual_boundary = T(0);
   bounded_boolean_digest symbolic_policy_digest{};
+  std::array<relation_predecessor_commitment_record, 6>
+      predecessor_commitments{};
   std::array<bool, 4> detailed_stage_present{};
   bounded_boolean_digest detailed_stage_digest{};
   bounded_boolean_digest execution_authority_digest{};
   bounded_boolean_digest graph_section_digest{};
+  std::array<relation_section_digest_record, 10> section_digests{};
   std::uint64_t imported_geometry_count = 0;
   std::uint64_t bounded_primitive_count = 0;
   std::uint64_t exact_relation_count = 0;
@@ -73,6 +80,7 @@ template <class T> struct relation_artifact_envelope final {
   std::uint16_t replay_policy_version = 0;
   std::uint64_t diagnostic_count = 0;
   std::uint64_t replay_checkpoint_count = 0;
+  std::uint64_t resource_evidence_count = 0;
   bounded_boolean_digest diagnostic_digest{};
   bounded_boolean_digest replay_checkpoint_digest{};
   bounded_boolean_digest replay_evidence_digest{};

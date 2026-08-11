@@ -1,5 +1,6 @@
 #include "StrictFloatingBuild.h"
 #include "RelationReplay.h"
+#include "RelationCodec.h"
 #include "RelationArtifactInternalAccess.h"
 
 #include "RelationCodec.h"
@@ -267,7 +268,7 @@ template <class T, class I>
 std::vector<relation_diagnostic_record> populate_diagnostics(
     const signed_feature_relations<T, I> &artifact) {
   std::vector<relation_diagnostic_record> records;
-  records.reserve(4);
+  records.reserve(7);
   const auto add = [&](relation_diagnostic_kind kind,
                        relation_checkpoint checkpoint,
                        relation_subcode subcode,
@@ -303,6 +304,74 @@ std::vector<relation_diagnostic_record> populate_diagnostics(
       relation_replay_checkpoint_id(16), resource_kind::persistent_bytes,
       artifact.statistics().persistent_bytes,
       artifact.statistics().persistent_bytes);
+  const relation_bounded_primitive_record *minimum_margin = nullptr;
+  const relation_bounded_primitive_record *maximum_width = nullptr;
+  for (const auto &record : artifact.bounded_primitives()) {
+    const T margin = from_bits<T>(static_cast<floating_uint_t<T>>(
+        record.evidence.separation_margin_bits));
+    const T width = from_bits<T>(static_cast<floating_uint_t<T>>(
+        record.evidence.uncertainty_width_bits));
+    if (finite_bits(margin) && margin > T(0) &&
+        (!minimum_margin ||
+         margin < from_bits<T>(static_cast<floating_uint_t<T>>(
+                      minimum_margin->evidence.separation_margin_bits))))
+      minimum_margin = &record;
+    if (finite_bits(width) && width >= T(0) &&
+        (!maximum_width ||
+         width > from_bits<T>(static_cast<floating_uint_t<T>>(
+                     maximum_width->evidence.uncertainty_width_bits))))
+      maximum_width = &record;
+  }
+  const relation_exact_relation_record *maximum_capacity = nullptr;
+  for (const auto &record : artifact.exact_relations())
+    if (!maximum_capacity ||
+        record.evidence.exact_capacity_used >
+            maximum_capacity->evidence.exact_capacity_used)
+      maximum_capacity = &record;
+  const auto add_numeric = [&](relation_diagnostic_kind kind,
+                               const relation_truth_record *truth,
+                               feature_relation_id relation) {
+    relation_diagnostic_record record;
+    record.id = relation_diagnostic_id(records.size());
+    record.kind = kind;
+    record.severity = relation_diagnostic_severity::retained_finding;
+    record.checkpoint = relation_checkpoint::producer_verification;
+    record.subcode = static_cast<std::uint32_t>(relation_subcode::truth_layer_mismatch);
+    record.replay_checkpoint = relation_replay_checkpoint_id(14);
+    if (truth) {
+      record.has_relation = true;
+      record.has_numeric_evidence = true;
+      record.relation_ordinal = relation.ordinal();
+      record.rounded_nominal_bits = truth->rounded_nominal_bits;
+      record.lower_bits = truth->lower_bits;
+      record.upper_bits = truth->upper_bits;
+      record.margin_bits = kind == relation_diagnostic_kind::maximum_uncertainty_width
+                               ? truth->uncertainty_width_bits
+                           : kind == relation_diagnostic_kind::maximum_exact_capacity
+                               ? truth->exact_capacity_used
+                               : truth->separation_margin_bits;
+      record.bounded_sign = truth->bounded_sign;
+      record.exact_relation = truth->exact_relation;
+      record.disposition = truth->disposition;
+      record.rounded_formula = truth->rounded_formula;
+      record.exact_formula = truth->exact_formula;
+      record.trace_root = truth->trace_root;
+    }
+    record.semantic_digest = diagnostic_record_digest(record);
+    records.push_back(record);
+  };
+  add_numeric(relation_diagnostic_kind::minimum_positive_margin,
+              minimum_margin ? &minimum_margin->evidence : nullptr,
+              minimum_margin ? minimum_margin->source_relation
+                             : feature_relation_id(0));
+  add_numeric(relation_diagnostic_kind::maximum_uncertainty_width,
+              maximum_width ? &maximum_width->evidence : nullptr,
+              maximum_width ? maximum_width->source_relation
+                            : feature_relation_id(0));
+  add_numeric(relation_diagnostic_kind::maximum_exact_capacity,
+              maximum_capacity ? &maximum_capacity->evidence : nullptr,
+              maximum_capacity ? maximum_capacity->source_relation
+                               : feature_relation_id(0));
   return records;
 }
 
@@ -396,6 +465,13 @@ bool relation_replay_bundle_builder<T, I>::build(
     projection.statistics_.replay_checkpoint_count = 0;
     projection.canonical_bytes_.clear();
     projection.digest_ = bounded_boolean_digest{};
+    if (!refresh_relation_section_digests(projection)) {
+      error = relation_error(relation_subcode::digest_mismatch,
+                             bounded_boolean_error_category::internal_invariant_error,
+                             "Component 07 replay projection section digest failed",
+                             relation_checkpoint::canonical_encoding);
+      return false;
+    }
     const auto base_digest =
         sha256::digest(encode_signed_feature_relations(projection));
     artifact.replay_checkpoints_ =
@@ -472,7 +548,7 @@ bool verify_relation_replay_bundle(
                 "Component 07 replay evidence header is inconsistent");
 
   if (artifact.replay_checkpoints_.size() != 17 ||
-      artifact.diagnostics_.size() != 4)
+      artifact.diagnostics_.size() != 7)
     return fail(relation_subcode::verifier_rejection,
                 "Component 07 replay checkpoint or diagnostic set is incomplete");
 
@@ -485,6 +561,9 @@ bool verify_relation_replay_bundle(
   projection.statistics_.replay_checkpoint_count = 0;
   projection.canonical_bytes_.clear();
   projection.digest_ = bounded_boolean_digest{};
+  if (!refresh_relation_section_digests(projection))
+    return fail(relation_subcode::digest_mismatch,
+                "Component 07 replay projection section digest failed");
   const auto base_digest =
       sha256::digest(encode_signed_feature_relations(projection));
   if (evidence.input_equivalence_digest != input_digest ||
@@ -539,7 +618,7 @@ bool verify_relation_replay_bundle(
       relation_subcode::digest_mismatch,
       relation_subcode::resource_preflight}};
   const std::array<std::uint64_t, 4> checkpoint_ids{{14, 13, 15, 16}};
-  for (std::size_t index = 0; index < artifact.diagnostics_.size(); ++index) {
+  for (std::size_t index = 0; index < 4; ++index) {
     const auto &record = artifact.diagnostics_[index];
     const bool resource_record = index == 3;
     if (record.id.ordinal() != index || record.kind != kinds[index] ||
@@ -573,6 +652,41 @@ bool verify_relation_replay_bundle(
         record.semantic_digest != diagnostic_record_digest(record))
       return fail(relation_subcode::verifier_rejection,
                   "Component 07 retained diagnostic does not reconstruct");
+  }
+  const auto expected = populate_diagnostics(artifact);
+  for (std::size_t index = 4; index < artifact.diagnostics_.size(); ++index) {
+    const auto &record = artifact.diagnostics_[index];
+    const auto &reference = expected[index];
+    if (record.id != reference.id || record.kind != reference.kind ||
+        record.severity != reference.severity ||
+        record.checkpoint != reference.checkpoint ||
+        record.subcode != reference.subcode ||
+        record.has_candidate != reference.has_candidate ||
+        record.has_relation != reference.has_relation ||
+        record.has_source_features != reference.has_source_features ||
+        record.has_numeric_evidence != reference.has_numeric_evidence ||
+        record.candidate_ordinal != reference.candidate_ordinal ||
+        record.relation_ordinal != reference.relation_ordinal ||
+        record.rounded_nominal_bits != reference.rounded_nominal_bits ||
+        record.lower_bits != reference.lower_bits ||
+        record.upper_bits != reference.upper_bits ||
+        record.margin_bits != reference.margin_bits ||
+        record.bounded_sign != reference.bounded_sign ||
+        record.exact_relation != reference.exact_relation ||
+        record.disposition != reference.disposition ||
+        record.rounded_formula != reference.rounded_formula ||
+        record.exact_formula != reference.exact_formula ||
+        record.trace_root != reference.trace_root ||
+        record.resource != reference.resource ||
+        record.resource_limit != reference.resource_limit ||
+        record.resource_used != reference.resource_used ||
+        record.cancellation_progress != reference.cancellation_progress ||
+        record.replay_checkpoint != reference.replay_checkpoint ||
+        record.schema_version != reference.schema_version ||
+        record.reserved16 != 0 || record.reserved32 != 0 ||
+        record.semantic_digest != diagnostic_record_digest(record))
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 numerical diagnostic does not reconstruct");
   }
   const auto diagnostic_digest = sha256::digest(
       encode_relation_diagnostic_semantics(artifact.diagnostics_));
