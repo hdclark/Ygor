@@ -1,5 +1,59 @@
 # Component 07 implementation status
 
+## Post-implementation audit
+
+The completion claim at the end of this document describes the state reported by
+the incremental implementation work. A subsequent audit against
+`plan_07_floating_relation_kernel_symbolic_perturbation.md` found that Component
+07 is substantial and its existing qualification may pass, but it does not yet
+meet the reviewed definition of done. `tracker.md` is authoritative for the
+remaining gates.
+
+The audit found these material gaps, in implementation order:
+
+1. The final request graph is assembled after the edge/edge, edge/facet,
+   facet/facet, and coplanar numerical stages have run. It is therefore a
+   retrospective publication graph rather than the required closed,
+   independently checked pre-evaluation execution authority.
+2. Component 06 candidates whose edge is a facet-internal triangulation diagonal
+   are skipped during request proposal generation and later marked absorbed
+   without a published bookkeeping relation and reconciliation proof. The plan
+   requires every such discovery to map to a public source-feature composite or
+   an evidenced no-public-relation disposition.
+3. First-class public primitive truth records do not retain the complete finite
+   enclosure, margin, uncertainty, trace, conditioning, and precision evidence
+   required with rounded bits, bounded sign, exact relation, and consumer
+   disposition. First-class source-vertex/source-facet relations and bounded
+   transverse event-to-carrier membership are also missing.
+4. The immutable artifact exposes predecessor candidates and private detailed
+   stages, and Component 08 consumes them directly. The checked downstream view
+   does not expose all published coplanar and carrier evidence needed to remove
+   that access, so the Component 07/08 capability boundary is not yet enforced.
+5. The final verifier delegates material checks to producer stage verifiers and,
+   for source-edge relations, reuses producer proposal generation, request-graph
+   construction, input assembly, and numerical classification. This does not
+   satisfy the plan's independent-control-flow verification requirement.
+6. The symbolic matrix is structurally total, but many consequences do not vary
+   meaningfully by Boolean operation and semantically impossible combinations
+   are accepted. Reviewed operation-specific expansion/contraction, contact, and
+   coincident-sheet known answers remain required.
+7. Component-specific resource kinds are not reserved and reconciled separately;
+   preflight uses coarse global facet bounds; and the artifact header, section
+   digests, and deterministic failure witnesses do not carry all required
+   predecessor, floating-profile, truth-table, numerical, and resource evidence.
+8. Qualification remains incomplete beyond the currently passing focused suite:
+   exact-oracle coverage is concentrated on source-edge/source-edge relations,
+   full `float`/`double` and `uint32_t`/`uint64_t` artifact coverage is absent,
+   deterministic-parallel tests do not force alternate schedules or merges, and
+   internal-diagonal reconciliation, independent fan conservation,
+   production-path selection-boundary instrumentation, durable fuzz shrinking,
+   and complete golden artifacts are not demonstrated.
+
+These are contract gaps rather than evidence that the implemented numerical
+kernels are unusable. The existing source-feature kernels, coplanar topology,
+construction/event lineage, canonical encoding, replay, cancellation, and
+mutation-sensitive tests provide the foundation for the remaining work.
+
 ## Implemented relation-graph foundation
 
 The foundation establishes the fail-closed first implementation slice required by
@@ -857,9 +911,10 @@ boundary deterministically:
 - the dependency-closure cancellation path now reports its correct checkpoint
   rather than the initial-grouping checkpoint.
 
-## Component 07 completion evidence
+## Prior Component 07 completion claim
 
-Component 07 is complete against the reviewed Plan 07 contract. All fourteen
+The incremental implementation work reported Component 07 complete against the
+reviewed Plan 07 contract. All fourteen
 strict optimized Clang 17 C++17 Component 07 tests pass, covering source-edge,
 candidate/source-edge, edge/facet,
 facet/facet, final-artifact, exact-oracle/handoff, foundation graph/owner/

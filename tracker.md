@@ -5,8 +5,13 @@
 - [x] Component 4: source polygon triangulation and provenance.
 - [x] Component 5: canonical halfedge topology.
 - [x] Component 6: broad phase, gated against exhaustive enumeration.
-- [ ] Component 7: incomplete: assess implemented and missing elements and update this tracker.
-- [ ] Component 7: missing conponents
+- [x] Component 7 audit: assess the implementation against the reviewed plan and record the missing elements.
+- [ ] Component 7a: make the closed canonical request DAG the pre-evaluation execution authority and publish explicit triangle-local/internal-diagonal reconciliation evidence.
+- [ ] Component 7b: complete public truth/construction evidence, first-class source-vertex/source-facet relations, and transverse event-to-carrier membership.
+- [ ] Component 7c: enforce the downstream view boundary and replace producer-kernel reuse in the verifier with independent reconstruction.
+- [ ] Component 7d: freeze semantically valid operation-specific symbolic consequences and reject impossible symbolic matrix keys.
+- [ ] Component 7e: complete per-domain resource accounting, predecessor/version handshakes, section digests, and deterministic numerical diagnostics.
+- [ ] Component 7f: complete exact-oracle, type/index, internal-diagonal, fan-conservation, scheduling, selection-boundary, fuzz/shrinking, and golden-artifact qualification.
 - [ ] Component 8: canonical event registry and shared construction lineage.
 - [ ] Component 9: connectivity and winding classification.
 - [ ] Component 10: Boolean selection and topological occurrence accounting.
