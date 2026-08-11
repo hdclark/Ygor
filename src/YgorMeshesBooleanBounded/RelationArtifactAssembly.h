@@ -2653,7 +2653,9 @@ private:
             for (const auto acting : {operand_id::a, operand_id::b}) {
               const auto rule_key = make_symbolic_rule_key(
                   symbolic_family_for_overlay(source.classification),
-                  orientation_from_status(base.status), acting,
+                  orientation_from_status(
+                      facet_status(source.support_relation.classification)),
+                  acting,
                   coincident
                       ? symbolic_ownership_role::coincident_sheet_pair
                       : symbolic_ownership_role::shared_source_feature,

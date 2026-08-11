@@ -892,19 +892,24 @@ candidate disposition:
 
 ## Implemented complete symbolic policy and operand-exchange slice
 
-The reviewed Component 01/07 symbolic contract is now represented by one total,
-versioned, operation-specific matrix rather than the earlier four-field subset:
+The reviewed Component 01/07 symbolic contract is now represented by one
+versioned, operation-specific matrix over the semantically valid key domain:
 
-- the pure policy generator materializes all 34,560 combinations of Boolean
-  operation, acting operand, relation family, orientation relation, source-feature
-  ownership role, half-open endpoint/edge role, transition orientation, and
-  occurrence class with direct canonical ordinal lookup and no fallback path;
+- one auditable validity predicate rejects impossible coincidence/ownership,
+  shared-occurrence/ownership, coplanarity/orientation, tangency/transition,
+  directed-transition, and half-open-role combinations before lookup;
+- the pure policy generator exhaustively filters the raw field Cartesian product,
+  canonically sorts only valid keys, and assigns them contiguous stable ordinals
+  with no fallback path;
 - every rule publishes conceptual offset/order, symbolic crossing, contact class,
   expected disposition, half-open owner, coincident owner preference, feature
   priority, owner-rank eligibility, occurrence separation, stable explanation,
   and an explicit six-component owner-ranking key description covering final
   orientation capability, operand priority, symbolic feature priority, complete
   canonical source feature, directed use, and occurrence;
+- operation-specific conceptual ordering freezes expansion-biased union and
+  directed-difference evidence and contraction-biased intersection and symmetric
+  difference evidence while leaving final selection to Component 10;
 - operand exchange remaps the operation, acting operand, ownership role, and
   transition, records the exchanged rule ordinal, is involutive over the complete
   domain, reverses nonzero conceptual order and crossing contribution, and retains
@@ -915,22 +920,25 @@ versioned, operation-specific matrix rather than the earlier four-field subset:
   eligibility, occurrence constraint, explanation, and exchanged rule without
   modifying nominal geometry or performing final Boolean selection;
 - edge/edge, edge/facet, facet/facet support, and coplanar overlay discovery build
-  the exact matrix key from predecessor evidence; coplanar and coincident subjects
+  the exact matrix key from predecessor evidence; overlay keys retain the
+  independently verified same/opposite support orientation rather than degrading
+  area contacts to an impossible indeterminate-orientation key; coplanar subjects
   publish both operand-role decisions, while lower-dimensional contacts retain the
   documented transform for the exchanged invocation without inventing a second
   subject in the current artifact;
 - event-seed requests depend on the exact symbolic subject and acting operand,
   removing the former ambiguous occurrence-only lookup, and seeds retain the
   complete symbolic consequence needed by Components 08-10;
+- the symbolic adapter rejects relation, event-occurrence, and coplanar-component
+  subjects that are incompatible with an otherwise valid matrix key;
 - the independent verifier reconstructs every key dimension, subject identity,
   decision request and dependency, complete expected subject population, frozen
   rule, ranking descriptor, seed consequence, and operand-exchange relation from
   predecessor artifacts and the Component 01 policy digest; and
-- exhaustive Component 01 qualification covers all 34,560 keys, ordinal and
-  exchange round trips, byte/rule mutations, conceptual-order and crossing
-  reversal, while Component 07 matched mutations reject repaired ranking-key and
-  event-seed consequences and the complete thirteen-test strict Clang C++17 chain
-  passes.
+- exhaustive qualification enumerates the complete raw field product, proves
+  every valid key has exactly one ordinal and every impossible key is rejected,
+  checks operand-role and all-five-operation known consequences, and retains
+  byte/rule, ranking-key, event-seed, and subject-compatibility mutations.
 
 ## Completed canonical replay and retained diagnostic slice
 

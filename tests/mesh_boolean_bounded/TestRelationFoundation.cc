@@ -246,11 +246,29 @@ void test_symbolic_boundary() {
   eligibility.owner_is_original_source_feature = true;
 
   const auto &table = materialize_symbolic_policy();
+  std::uint64_t valid_key_count = 0;
+  std::uint64_t rejected_key_count = 0;
+  for (std::uint64_t raw = 0; raw < symbolic_raw_rule_count; ++raw) {
+    const auto candidate = symbolic_raw_rule_key_from_ordinal(raw);
+    if (valid_symbolic_rule_key(candidate)) {
+      const auto ordinal = symbolic_rule_ordinal(candidate);
+      check(ordinal < symbolic_rule_count &&
+                symbolic_rule_key_from_ordinal(ordinal) == candidate,
+            "every valid symbolic key must have one stable matrix ordinal");
+      ++valid_key_count;
+    } else {
+      check(symbolic_rule_ordinal(candidate) == symbolic_rule_count,
+            "every impossible symbolic key must be rejected before lookup");
+      ++rejected_key_count;
+    }
+  }
+  check(valid_key_count == symbolic_rule_count && rejected_key_count != 0,
+        "symbolic matrix must total only the frozen semantic key domain");
   symbolic_rule_key rule_key;
   rule_key.operation = boolean_operation::set_union;
   rule_key.acting_operand = operand_id::a;
   rule_key.relation = relation_family::vertex_face;
-  rule_key.orientation = orientation_relation::same;
+  rule_key.orientation = orientation_relation::indeterminate;
   rule_key.ownership_role =
       symbolic_ownership_role::acting_source_feature;
   rule_key.half_open_role = symbolic_half_open_role::interior;
@@ -294,42 +312,69 @@ void test_symbolic_boundary() {
           "mutated symbolic tie-key description must be rejected");
   }
 
-  const std::array<symbolic_ownership_role, 4> ownership_roles = {
-      symbolic_ownership_role::acting_source_feature,
-      symbolic_ownership_role::opposite_source_feature,
-      symbolic_ownership_role::shared_source_feature,
-      symbolic_ownership_role::coincident_sheet_pair};
-  for (std::size_t role_ordinal = 0; role_ordinal < ownership_roles.size();
-       ++role_ordinal) {
-    auto ownership_key = rule_key;
-    ownership_key.ownership_role = ownership_roles[role_ordinal];
-    ownership_key.half_open_role =
-        role_ordinal == 0 ? symbolic_half_open_role::interior
-        : role_ordinal == 1 ? symbolic_half_open_role::source_edge
-        : role_ordinal == 2 ? symbolic_half_open_role::source_endpoint
-                            : symbolic_half_open_role::none;
-    ownership_key.occurrence_class =
-        role_ordinal == 3 ? symbolic_occurrence_class::coincident_sheet
-                          : symbolic_occurrence_class::lower_dimensional_contact;
-    const auto ownership_decision = resolve_symbolic_relation_decision(
-        table, ownership_key,
-        role_ordinal == 3
-            ? symbolic_relation_subject_kind::coplanar_component
-            : symbolic_relation_subject_kind::event_occurrence,
-        20 + role_ordinal, eligibility);
-    check(ownership_decision.has_value(),
-          "every ownership role must resolve through the Component 07 symbolic adapter");
-    if (!ownership_decision.has_value())
-      continue;
-    bounded_boolean_error ownership_error;
-    check(ownership_decision.value()->rule_key.ownership_role ==
-                  ownership_roles[role_ordinal] &&
-              ownership_decision.value()->exchanged_rule_key ==
-                  exchange_symbolic_rule_key(ownership_key) &&
-              verify_symbolic_relation_decision(
-                  table, eligibility, *ownership_decision.value(),
-                  ownership_error),
-          "Component 07 must retain and independently reproduce every ownership role");
+  auto impossible = rule_key;
+  impossible.ownership_role =
+      symbolic_ownership_role::coincident_sheet_pair;
+  check(!valid_symbolic_rule_key(impossible),
+        "lower-dimensional contact cannot claim coincident-sheet ownership");
+  impossible = rule_key;
+  impossible.relation = relation_family::tangent;
+  check(!valid_symbolic_rule_key(impossible),
+        "tangent relation requires a tangent transition");
+  impossible = rule_key;
+  impossible.transition = symbolic_transition_orientation::tangent;
+  check(!valid_symbolic_rule_key(impossible),
+        "non-tangent relation cannot carry a tangent transition");
+  impossible = rule_key;
+  impossible.half_open_role = symbolic_half_open_role::none;
+  check(!valid_symbolic_rule_key(impossible),
+        "lower-dimensional contact requires a half-open boundary role");
+
+  auto coincident_key = rule_key;
+  coincident_key.relation = relation_family::coincident_face;
+  coincident_key.orientation = orientation_relation::same;
+  coincident_key.ownership_role =
+      symbolic_ownership_role::coincident_sheet_pair;
+  coincident_key.half_open_role = symbolic_half_open_role::none;
+  coincident_key.occurrence_class =
+      symbolic_occurrence_class::coincident_sheet;
+  check(valid_symbolic_rule_key(coincident_key),
+        "coincident-sheet key should be in the frozen semantic domain");
+  auto coincident_decision = resolve_symbolic_relation_decision(
+      table, coincident_key,
+      symbolic_relation_subject_kind::coplanar_component, 20, eligibility);
+  check(coincident_decision.has_value(),
+        "coincident-sheet component should resolve symbolically");
+  auto mismatched_subject = resolve_symbolic_relation_decision(
+      table, coincident_key, symbolic_relation_subject_kind::event_occurrence,
+      20, eligibility);
+  check(!mismatched_subject.has_value(),
+        "symbolic subject must agree with the matrix key semantics");
+
+  const std::array<boolean_operation, 5> operations = {
+      boolean_operation::set_union, boolean_operation::intersection,
+      boolean_operation::a_minus_b, boolean_operation::b_minus_a,
+      boolean_operation::symmetric_difference};
+  const std::array<symbolic_offset_disposition, 5> expected_a = {
+      symbolic_offset_disposition::positive,
+      symbolic_offset_disposition::negative,
+      symbolic_offset_disposition::positive,
+      symbolic_offset_disposition::positive,
+      symbolic_offset_disposition::negative};
+  for (std::size_t operation = 0; operation < operations.size(); ++operation) {
+    auto operation_key = coincident_key;
+    operation_key.operation = operations[operation];
+    const auto ordinal = symbolic_rule_ordinal(operation_key);
+    check(ordinal < table.rules.size() &&
+              table.rules[ordinal].conceptual_offset == expected_a[operation],
+          "operation-specific symbolic offset must match the frozen matrix");
+    operation_key.acting_operand = operand_id::b;
+    const auto opposite_ordinal = symbolic_rule_ordinal(operation_key);
+    check(opposite_ordinal < table.rules.size() &&
+              static_cast<std::int8_t>(
+                  table.rules[opposite_ordinal].conceptual_offset) ==
+                  -static_cast<std::int8_t>(expected_a[operation]),
+          "operation-specific symbolic offset must reverse by operand role");
   }
 
   auto rounded_only = eligibility;

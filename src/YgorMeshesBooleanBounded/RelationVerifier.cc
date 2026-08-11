@@ -3801,8 +3801,11 @@ bool verify_signed_feature_relations(
       const auto &source =
           artifact.coplanar_overlay_stage_->overlays[descriptor->ordinal];
       coplanar_facet_overlay_class derived_classification;
+      source_facet_support_relation_class derived_support_classification;
       if (!verifier_derive_overlay_classification(source,
-                                                  derived_classification))
+                                                  derived_classification) ||
+          !verifier_derive_facet_classification(
+              source.support_relation, derived_support_classification))
         return fail(relation_subcode::verifier_rejection,
                     "Component 07 symbolic overlay category is unresolved");
       reconstructed_evidence =
@@ -3831,7 +3834,8 @@ bool verify_signed_feature_relations(
       expected_rule_key = verifier_symbolic_rule_key(
           artifact.operation_, decision.acting_operand,
           verifier_symbolic_family_for_overlay(derived_classification),
-          verifier_orientation_from_status(overlay_status(derived_classification)),
+          verifier_orientation_from_status(
+              facet_status(derived_support_classification)),
           coincident ? symbolic_ownership_role::coincident_sheet_pair
                      : symbolic_ownership_role::shared_source_feature,
           component_kind == relation_coplanar_component_kind::isolated_point

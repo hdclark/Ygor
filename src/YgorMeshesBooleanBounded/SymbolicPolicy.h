@@ -3,6 +3,7 @@
 #include "ContractVersions.h"
 #include "Policies.h"
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <tuple>
@@ -216,7 +217,7 @@ inline constexpr std::uint64_t symbolic_ownership_role_count = 4;
 inline constexpr std::uint64_t symbolic_half_open_role_count = 4;
 inline constexpr std::uint64_t symbolic_transition_count = 4;
 inline constexpr std::uint64_t symbolic_occurrence_class_count = 4;
-inline constexpr std::uint64_t symbolic_rule_count =
+inline constexpr std::uint64_t symbolic_raw_rule_count =
     symbolic_operation_count * symbolic_operand_count *
     symbolic_relation_family_count * symbolic_orientation_count *
     symbolic_ownership_role_count * symbolic_half_open_role_count *
@@ -235,16 +236,71 @@ inline bool valid_symbolic_rule_key(const symbolic_rule_key &key) noexcept {
   const auto half_open = static_cast<std::uint8_t>(key.half_open_role);
   const auto transition = static_cast<std::uint8_t>(key.transition);
   const auto occurrence = static_cast<std::uint8_t>(key.occurrence_class);
-  return operation >= 1 && operation <= symbolic_operation_count &&
-         operand < symbolic_operand_count && relation >= 1 &&
-         relation <= symbolic_relation_family_count && orientation >= 1 &&
-         orientation <= symbolic_orientation_count && ownership >= 1 &&
-         ownership <= symbolic_ownership_role_count &&
-         half_open < symbolic_half_open_role_count &&
-         transition < symbolic_transition_count && occurrence >= 1 &&
-         occurrence <= symbolic_occurrence_class_count &&
-         key.schema_version == contract_versions::symbolic_policy &&
-         key.reserved == 0;
+  if (!(operation >= 1 && operation <= symbolic_operation_count &&
+        operand < symbolic_operand_count && relation >= 1 &&
+        relation <= symbolic_relation_family_count && orientation >= 1 &&
+        orientation <= symbolic_orientation_count && ownership >= 1 &&
+        ownership <= symbolic_ownership_role_count &&
+        half_open < symbolic_half_open_role_count &&
+        transition < symbolic_transition_count && occurrence >= 1 &&
+        occurrence <= symbolic_occurrence_class_count &&
+        key.schema_version == contract_versions::symbolic_policy &&
+        key.reserved == 0))
+    return false;
+
+  const bool coincident_relation =
+      key.relation == relation_family::coincident_face;
+  const bool coplanar_relation = key.relation == relation_family::coplanar;
+  const bool coincident_occurrence =
+      key.occurrence_class == symbolic_occurrence_class::coincident_sheet;
+  const bool coincident_ownership =
+      key.ownership_role == symbolic_ownership_role::coincident_sheet_pair;
+  const bool shared_occurrence =
+      key.occurrence_class == symbolic_occurrence_class::shared_source_feature;
+  const bool shared_ownership =
+      key.ownership_role == symbolic_ownership_role::shared_source_feature;
+  const bool tangent_relation = key.relation == relation_family::tangent;
+  const bool tangent_transition =
+      key.transition == symbolic_transition_orientation::tangent;
+  const bool directed_transition =
+      key.transition == symbolic_transition_orientation::negative_to_positive ||
+      key.transition == symbolic_transition_orientation::positive_to_negative;
+
+  if (coincident_occurrence != coincident_ownership ||
+      (shared_occurrence && !shared_ownership))
+    return false;
+  if (coincident_occurrence &&
+      (!(coincident_relation || coplanar_relation) ||
+       key.orientation == orientation_relation::indeterminate ||
+       key.half_open_role != symbolic_half_open_role::none ||
+       key.transition != symbolic_transition_orientation::none))
+    return false;
+  if (coincident_relation && !coincident_occurrence)
+    return false;
+  if (coplanar_relation &&
+      key.orientation == orientation_relation::indeterminate)
+    return false;
+  if ((key.relation == relation_family::vertex_face ||
+       key.relation == relation_family::edge_face || tangent_relation) &&
+      key.orientation != orientation_relation::indeterminate)
+    return false;
+  if (coincident_occurrence)
+    return true;
+  if (tangent_relation != tangent_transition)
+    return false;
+  if (directed_transition &&
+      (coplanar_relation || coincident_relation ||
+       key.relation == relation_family::equal_edge))
+    return false;
+  if (key.occurrence_class == symbolic_occurrence_class::ordinary)
+    return key.half_open_role == symbolic_half_open_role::none &&
+           key.transition == symbolic_transition_orientation::none &&
+           !coplanar_relation && !coincident_relation && !tangent_relation &&
+           (key.ownership_role ==
+                symbolic_ownership_role::acting_source_feature ||
+            key.ownership_role ==
+                symbolic_ownership_role::opposite_source_feature);
+  return key.half_open_role != symbolic_half_open_role::none;
 }
 
 inline symbolic_ownership_role exchange_symbolic_ownership_role(
@@ -284,10 +340,8 @@ exchange_symbolic_rule_key(symbolic_rule_key key) noexcept {
   return key;
 }
 
-inline std::uint64_t symbolic_rule_ordinal(
+inline std::uint64_t symbolic_raw_rule_ordinal(
     const symbolic_rule_key &key) noexcept {
-  if (!valid_symbolic_rule_key(key))
-    return symbolic_rule_count;
   std::uint64_t ordinal = static_cast<std::uint8_t>(key.operation) - 1;
   ordinal = ordinal * symbolic_operand_count +
             static_cast<std::uint8_t>(key.acting_operand);
@@ -306,10 +360,10 @@ inline std::uint64_t symbolic_rule_ordinal(
   return ordinal;
 }
 
-inline symbolic_rule_key symbolic_rule_key_from_ordinal(
+inline symbolic_rule_key symbolic_raw_rule_key_from_ordinal(
     std::uint64_t ordinal) noexcept {
   symbolic_rule_key key;
-  if (ordinal >= symbolic_rule_count) {
+  if (ordinal >= symbolic_raw_rule_count) {
     key.schema_version = 0;
     return key;
   }
@@ -336,6 +390,45 @@ inline symbolic_rule_key symbolic_rule_key_from_ordinal(
   ordinal /= symbolic_operand_count;
   key.operation = static_cast<boolean_operation>(ordinal + 1);
   return key;
+}
+
+inline const std::vector<symbolic_rule_key> &symbolic_valid_rule_keys() {
+  static const std::vector<symbolic_rule_key> keys = [] {
+    std::vector<symbolic_rule_key> out;
+    out.reserve(static_cast<std::size_t>(symbolic_raw_rule_count));
+    for (std::uint64_t ordinal = 0; ordinal < symbolic_raw_rule_count;
+         ++ordinal) {
+      const auto key = symbolic_raw_rule_key_from_ordinal(ordinal);
+      if (valid_symbolic_rule_key(key))
+        out.push_back(key);
+    }
+    return out;
+  }();
+  return keys;
+}
+
+inline const std::uint64_t symbolic_rule_count =
+    symbolic_valid_rule_keys().size();
+
+inline std::uint64_t symbolic_rule_ordinal(
+    const symbolic_rule_key &key) noexcept {
+  if (!valid_symbolic_rule_key(key))
+    return symbolic_rule_count;
+  const auto &keys = symbolic_valid_rule_keys();
+  const auto found = std::lower_bound(keys.begin(), keys.end(), key);
+  return found == keys.end() || *found != key
+             ? symbolic_rule_count
+             : static_cast<std::uint64_t>(found - keys.begin());
+}
+
+inline symbolic_rule_key symbolic_rule_key_from_ordinal(
+    std::uint64_t ordinal) noexcept {
+  if (ordinal >= symbolic_rule_count) {
+    symbolic_rule_key invalid;
+    invalid.schema_version = 0;
+    return invalid;
+  }
+  return symbolic_valid_rule_keys()[static_cast<std::size_t>(ordinal)];
 }
 
 inline operand_id symbolic_preferred_operand(boolean_operation operation) noexcept {
@@ -407,13 +500,18 @@ symbolic_explanation_for(relation_family family) noexcept {
 
 inline symbolic_offset_disposition symbolic_offset_for(
     const symbolic_rule_key &key) noexcept {
+  const std::int8_t operation_bias =
+      key.operation == boolean_operation::intersection ||
+              key.operation == boolean_operation::symmetric_difference
+          ? std::int8_t{-1}
+          : std::int8_t{1};
   std::int8_t value = 0;
   switch (key.transition) {
   case symbolic_transition_orientation::negative_to_positive:
-    value = 1;
+    value = operation_bias;
     break;
   case symbolic_transition_orientation::positive_to_negative:
-    value = -1;
+    value = static_cast<std::int8_t>(-operation_bias);
     break;
   case symbolic_transition_orientation::tangent:
     value = 0;
@@ -424,6 +522,7 @@ inline symbolic_offset_disposition symbolic_offset_for(
             : key.orientation == orientation_relation::opposite
                 ? std::int8_t{-1}
                 : std::int8_t{0};
+    value = static_cast<std::int8_t>(value * operation_bias);
     if (key.acting_operand == operand_id::b)
       value = static_cast<std::int8_t>(-value);
     break;

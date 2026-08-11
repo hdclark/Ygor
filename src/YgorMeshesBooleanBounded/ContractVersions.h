@@ -13,7 +13,7 @@ struct contract_versions final {
     static constexpr std::uint16_t sha256 = 1;
     static constexpr std::uint16_t policies = 1;
     static constexpr std::uint16_t truth_table = 1;
-    static constexpr std::uint16_t symbolic_policy = 2;
+    static constexpr std::uint16_t symbolic_policy = 3;
     static constexpr std::uint16_t identities = 1;
     static constexpr std::uint16_t errors = 1;
     static constexpr std::uint16_t resources = 1;

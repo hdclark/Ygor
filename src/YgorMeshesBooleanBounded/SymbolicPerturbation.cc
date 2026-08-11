@@ -26,6 +26,30 @@ bool valid_subject(symbolic_relation_subject_kind kind) noexcept {
   return false;
 }
 
+bool valid_subject_for_key(symbolic_relation_subject_kind kind,
+                           const symbolic_rule_key &key) noexcept {
+  switch (kind) {
+  case symbolic_relation_subject_kind::relation:
+    return key.occurrence_class == symbolic_occurrence_class::ordinary ||
+           key.occurrence_class ==
+               symbolic_occurrence_class::shared_source_feature ||
+           (key.occurrence_class ==
+                symbolic_occurrence_class::coincident_sheet &&
+            key.relation == relation_family::coplanar);
+  case symbolic_relation_subject_kind::event_occurrence:
+    return key.occurrence_class !=
+               symbolic_occurrence_class::coincident_sheet &&
+           key.occurrence_class != symbolic_occurrence_class::ordinary &&
+           key.relation != relation_family::coplanar &&
+           key.relation != relation_family::coincident_face;
+  case symbolic_relation_subject_kind::coplanar_component:
+    return key.relation == relation_family::coplanar ||
+           key.relation == relation_family::equal_edge ||
+           key.relation == relation_family::coincident_face;
+  }
+  return false;
+}
+
 symbolic_relation_side side_from_offset(
     symbolic_offset_disposition value) noexcept {
   return value == symbolic_offset_disposition::negative
@@ -51,7 +75,8 @@ resolve_symbolic_relation_decision(
     symbolic_relation_subject_kind subject_kind, std::uint64_t subject_ordinal,
     const symbolic_eligibility_record &eligibility) {
   if (!verify_symbolic_policy(table) || !eligible(eligibility) ||
-      !valid_symbolic_rule_key(key) || !valid_subject(subject_kind))
+      !valid_symbolic_rule_key(key) || !valid_subject(subject_kind) ||
+      !valid_subject_for_key(subject_kind, key))
     return boolean_outcome<symbolic_relation_decision_record>::failure(
         symbolic_error(relation_subcode::symbolic_ineligible,
                        "symbolic relation is not eligible for matrix lookup"));
@@ -112,7 +137,9 @@ bool verify_symbolic_relation_decision(
   };
   if (!verify_symbolic_policy(table) || !eligible(eligibility) ||
       decision.request != eligibility.request ||
-      !valid_subject(decision.subject_kind) || decision.reserved8 != 0 ||
+      !valid_subject(decision.subject_kind) ||
+      !valid_subject_for_key(decision.subject_kind, decision.rule_key) ||
+      decision.reserved8 != 0 ||
       decision.schema_version !=
           contract_versions::relation_symbolic_decision_schema ||
       decision.reserved != 0)
