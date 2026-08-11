@@ -629,6 +629,18 @@ bool verify_signed_feature_relations(
     error = graph_error;
     return false;
   }
+  const auto &authority = artifact.execution_authority_;
+  if (authority.schema_version !=
+          contract_versions::relation_execution_authority_schema ||
+      authority.graph_policy_version != contract_versions::relation_graph_policy ||
+      !authority.owner.same_owner(artifact.owner_) ||
+      !authority.closed_before_evaluation || !authority.independently_verified ||
+      authority.reserved != 0 ||
+      !verify_relation_request_graph(authority.graph, graph_error) ||
+      authority.semantic_digest != sha256::digest(
+          encode_relation_execution_authority_semantics(authority)))
+    return fail(relation_subcode::unclosed_dependency,
+                "Component 07 pre-evaluation execution authority is invalid");
   if (artifact.graph_digest_ != artifact.request_graph_.semantic_digest)
     return fail(relation_subcode::digest_mismatch,
                 "Component 07 graph digest mismatch");
@@ -637,6 +649,33 @@ bool verify_signed_feature_relations(
       !artifact.coplanar_overlay_stage_)
     return fail(relation_subcode::predecessor_mismatch,
                 "Component 07 detailed predecessor stages are missing");
+  if (!execution_authorizes(authority,
+                            artifact.source_edge_stage_->request_graph) ||
+      !execution_authorizes(authority,
+                            artifact.source_edge_facet_stage_->request_graph) ||
+      !execution_authorizes(authority,
+                            artifact.source_facet_stage_->request_graph))
+    return fail(relation_subcode::unclosed_dependency,
+                "Component 07 numerical producer escaped execution authority");
+  for (const auto &link : artifact.coplanar_overlay_stage_->links) {
+    if (link.support_relation.ordinal() >=
+        artifact.source_facet_stage_->request_graph.requests.size())
+      return fail(relation_subcode::unclosed_dependency,
+                  "Component 07 coplanar producer has no support authority");
+    auto key = artifact.source_facet_stage_->request_graph
+                   .requests[link.support_relation.ordinal()]
+                   .key;
+    key.family = relation_request_family::coplanar_source_facet_overlay;
+    const auto planned = std::lower_bound(
+        authority.graph.requests.begin(), authority.graph.requests.end(), key,
+        [](const canonical_relation_request &request,
+           const relation_request_key &candidate) {
+          return request.key < candidate;
+        });
+    if (planned == authority.graph.requests.end() || planned->key != key)
+      return fail(relation_subcode::unclosed_dependency,
+                  "Component 07 coplanar evaluation escaped execution authority");
+  }
   if (!artifact.candidates_->owner().same_owner(artifact.owner_) ||
       artifact.candidates_->candidate_digest() != artifact.candidate_digest_ ||
       artifact.candidates_->verification() !=

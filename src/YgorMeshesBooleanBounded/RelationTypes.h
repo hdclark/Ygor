@@ -32,6 +32,7 @@ struct relation_candidate_partition_tag;
 struct relation_verifier_evidence_tag;
 struct relation_diagnostic_tag;
 struct relation_replay_checkpoint_tag;
+struct relation_triangle_local_reconciliation_tag;
 
 using relation_request_id = strong_id<relation_request_tag>;
 using feature_relation_id = strong_id<feature_relation_tag>;
@@ -62,6 +63,8 @@ using relation_candidate_partition_id =
 using relation_verifier_evidence_id = strong_id<relation_verifier_evidence_tag>;
 using relation_diagnostic_id = strong_id<relation_diagnostic_tag>;
 using relation_replay_checkpoint_id = strong_id<relation_replay_checkpoint_tag>;
+using relation_triangle_local_reconciliation_id =
+    strong_id<relation_triangle_local_reconciliation_tag>;
 
 inline constexpr std::uint64_t relation_invalid_ordinal =
     std::numeric_limits<std::uint64_t>::max();
@@ -179,6 +182,16 @@ enum class candidate_relation_disposition_kind : std::uint8_t {
   contributed_coplanar_or_coincident_relation = 5,
   retained_zero_measure_contact = 6,
   internal_diagonal_bookkeeping_absorbed = 7,
+};
+
+enum class triangle_local_reconciliation_disposition : std::uint8_t {
+  mapped_to_public_composite = 1,
+  no_public_relation = 2,
+};
+
+enum class triangle_local_no_public_reason : std::uint8_t {
+  not_applicable = 0,
+  complete_source_facet_classification_has_no_contact = 1,
 };
 
 enum class relation_contact_dimension : std::uint8_t {
@@ -451,6 +464,7 @@ struct relation_statistics final {
   std::uint64_t candidate_relation_coverage_count = 0;
   std::uint64_t candidate_seed_coverage_count = 0;
   std::uint64_t candidate_partition_count = 0;
+  std::uint64_t triangle_local_reconciliation_count = 0;
   std::uint64_t diagnostic_count = 0;
   std::uint64_t replay_checkpoint_count = 0;
   std::uint64_t sort_comparisons = 0;

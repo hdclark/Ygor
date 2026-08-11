@@ -120,10 +120,12 @@ struct contract_versions final {
     static constexpr std::uint16_t broad_phase_encoding_policy = 1;
 
     // Component 07 canonical relation graph and symbolic perturbation.
-    static constexpr std::uint16_t relation_artifact_schema = 11;
+    static constexpr std::uint16_t relation_artifact_schema = 12;
     static constexpr std::uint16_t relation_precision_projection = 1;
     static constexpr std::uint16_t relation_provider = 1;
-    static constexpr std::uint16_t relation_graph_policy = 1;
+    static constexpr std::uint16_t relation_graph_policy = 2;
+    static constexpr std::uint16_t relation_execution_authority_schema = 1;
+    static constexpr std::uint16_t relation_triangle_local_publication_schema = 1;
     static constexpr std::uint16_t relation_family_precedence_policy = 1;
     static constexpr std::uint16_t relation_truth_policy = 1;
     static constexpr std::uint16_t relation_primitive_formula_binding = 1;
@@ -174,8 +176,8 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_replay_evidence_schema = 1;
     static constexpr std::uint16_t relation_replay_policy = 1;
     static constexpr std::uint16_t relation_cancellation_observer = 1;
-    static constexpr std::uint16_t relation_codec = 12;
-    static constexpr std::uint16_t relation_verifier = 12;
+    static constexpr std::uint16_t relation_codec = 13;
+    static constexpr std::uint16_t relation_verifier = 13;
 
     // Component 08 canonical intersection-event registry.
     static constexpr std::uint16_t intersection_artifact_schema = 1;

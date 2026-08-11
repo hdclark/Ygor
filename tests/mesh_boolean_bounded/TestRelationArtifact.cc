@@ -142,6 +142,17 @@ struct relation_artifact_test_access final {
   }
 
   template <class T, class I>
+  static auto &execution_authority(signed_feature_relations<T, I> &artifact) {
+    return artifact.execution_authority_;
+  }
+
+  template <class T, class I>
+  static auto &triangle_local_reconciliation(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.triangle_local_reconciliation_;
+  }
+
+  template <class T, class I>
   static auto &diagnostics(signed_feature_relations<T, I> &artifact) {
     return artifact.diagnostics_;
   }
@@ -405,8 +416,32 @@ void test_nonempty_determinism_and_decode() {
               first->candidate_dispositions().size() ==
                   first_fixture.artifact->candidates().size() &&
               first->candidate_partitions().size() ==
-                  first_fixture.artifact->partitions().size(),
+                  first_fixture.artifact->partitions().size() &&
+              first->execution_authority().closed_before_evaluation &&
+              first->execution_authority().independently_verified &&
+              first->triangle_local_reconciliation().size() ==
+                  first_fixture.artifact->candidates().size(),
           "nonempty artifact publishes primitive support, complete event incidence, and candidate partitions");
+  std::size_t internal_diagonal_reconciliations = 0;
+  for (const auto &record : first->triangle_local_reconciliation()) {
+    require(record.complete &&
+                record.bookkeeping_request.ordinal() <
+                    first->execution_authority().graph.requests.size(),
+            "every candidate retains complete triangle-local authority evidence");
+    if (!record.internal_diagonal)
+      continue;
+    ++internal_diagonal_reconciliations;
+    require(record.disposition ==
+                bounded::triangle_local_reconciliation_disposition::
+                    mapped_to_public_composite &&
+                !record.source_feature_owner &&
+                !record.symbolic_contact_owner &&
+                !record.classification_barrier &&
+                !record.retained_surface_feature,
+            "internal diagonals reconcile to source-facet semantics without ownership");
+  }
+  require(internal_diagonal_reconciliations != 0,
+          "qualification fixture exercises internal-diagonal reconciliation");
   std::size_t expected_exact = 0;
   for (const auto &truth : first->truth_records())
     expected_exact += truth.exact_formula != 0 ? 1U : 0U;
@@ -591,7 +626,33 @@ void test_matched_mutation_rejection() {
       disposition_mutation.candidate_dispositions().size());
   bounded::relation_artifact_test_access::repair_codec(disposition_mutation);
   require(!bounded::verify_signed_feature_relations(disposition_mutation, error),
-          "matched candidate-disposition mutation is rejected");
+           "matched candidate-disposition mutation is rejected");
+
+  auto authority_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  auto &authority =
+      bounded::relation_artifact_test_access::execution_authority(
+          authority_mutation);
+  authority.closed_before_evaluation = false;
+  bounded::relation_artifact_test_access::repair_codec(authority_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(authority_mutation, error),
+          "matched pre-evaluation authority mutation is rejected");
+
+  auto reconciliation_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  auto &reconciliation =
+      bounded::relation_artifact_test_access::triangle_local_reconciliation(
+          reconciliation_mutation);
+  require(!reconciliation.empty(),
+          "mutation fixture requires triangle-local reconciliation");
+  reconciliation.front().complete = false;
+  bounded::relation_artifact_test_access::repair_codec(
+      reconciliation_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(reconciliation_mutation,
+                                                    error),
+          "matched triangle-local reconciliation mutation is rejected");
 
   auto import_mutation =
       bounded::relation_artifact_test_access::copy(*artifact);

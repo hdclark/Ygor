@@ -8,6 +8,7 @@
 #include "RelationPreflight.h"
 #include "RelationReplay.h"
 #include "RelationArtifactAssembly.h"
+#include "RelationExecutionAuthority.h"
 #include "RelationVerifier.h"
 #include "Transaction.h"
 
@@ -83,7 +84,8 @@ bool estimate_relation_persistent_bytes(
       !add_vector(artifact.crossings()) ||
       !add_vector(artifact.event_seeds()) ||
       !add_vector(artifact.event_seed_incidence()) ||
-      !add_vector(artifact.event_seed_candidate_incidence()) ||
+       !add_vector(artifact.event_seed_candidate_incidence()) ||
+       !add_vector(artifact.triangle_local_reconciliation()) ||
       !add_vector(artifact.candidate_dispositions()) ||
       !add_vector(artifact.candidate_relation_coverage()) ||
       !add_vector(artifact.candidate_event_seed_coverage()) ||
@@ -160,6 +162,7 @@ public:
   boolean_outcome<std::shared_ptr<const signed_feature_relations<T, I>>> run() {
     try {
       if (!validate_contracts() || !preflight_and_reserve() ||
+          !build_execution_authority() ||
           !build_candidate_edge_relations() ||
           !build_candidate_edge_facet_relations() ||
           !build_candidate_facet_relations() ||
@@ -310,6 +313,28 @@ private:
       return false;
     }
     edge_stage_.emplace(std::move(*stage.value()));
+    if (!execution_authorizes(*execution_authority_,
+                              edge_stage_->request_graph))
+      return fail(relation_subcode::unclosed_dependency,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 edge evaluation escaped its frozen authority",
+                  relation_checkpoint::edge_edge_evaluation);
+    return true;
+  }
+
+  bool build_execution_authority() {
+    if (!check_cancel(relation_checkpoint::candidate_scan) ||
+        !check_cancel(relation_checkpoint::initial_request_grouping) ||
+        !check_cancel(relation_checkpoint::dependency_closure) ||
+        !check_cancel(relation_checkpoint::graph_finalization))
+      return false;
+    auto authority = ygor::mesh_boolean::bounded::build_relation_execution_authority(
+        *candidates_, context_.context_digest, capabilities_);
+    if (!authority.has_value()) {
+      error_ = *authority.error();
+      return false;
+    }
+    execution_authority_.emplace(std::move(*authority.value()));
     return true;
   }
 
@@ -329,6 +354,12 @@ private:
       return false;
     }
     edge_facet_stage_.emplace(std::move(*stage.value()));
+    if (!execution_authorizes(*execution_authority_,
+                              edge_facet_stage_->request_graph))
+      return fail(relation_subcode::unclosed_dependency,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 edge/facet evaluation escaped its frozen authority",
+                  relation_checkpoint::edge_facet_evaluation);
     return true;
   }
 
@@ -348,6 +379,12 @@ private:
       return false;
     }
     facet_stage_.emplace(std::move(*stage.value()));
+    if (!execution_authorizes(*execution_authority_,
+                              facet_stage_->request_graph))
+      return fail(relation_subcode::unclosed_dependency,
+                  bounded_boolean_error_category::internal_invariant_error,
+                  "Component 07 facet evaluation escaped its frozen authority",
+                  relation_checkpoint::facet_facet_evaluation);
     return true;
   }
 
@@ -372,7 +409,8 @@ private:
   bool build_final_artifact() {
     if (!check_cancel(relation_checkpoint::initial_request_grouping))
       return false;
-    if (!edge_stage_ || !edge_facet_stage_ || !facet_stage_ || !overlay_stage_)
+    if (!execution_authority_ || !edge_stage_ || !edge_facet_stage_ ||
+        !facet_stage_ || !overlay_stage_)
       return fail(relation_subcode::internal_invariant,
                   bounded_boolean_error_category::internal_invariant_error,
                   "Component 07 final assembly is missing a verified predecessor stage",
@@ -390,7 +428,8 @@ private:
     relation_artifact_assembler<T, I> assembler(
         context_, precision_, candidates_, std::move(edge),
         std::move(edge_facet), std::move(facet), std::move(overlay),
-        capabilities_);
+        std::make_shared<const relation_execution_authority>(
+            std::move(*execution_authority_)), capabilities_);
     return assembler.assemble(*artifact_, error_);
   }
 
@@ -474,7 +513,8 @@ private:
         !add_work(artifact_->crossings_.size()) ||
         !add_work(artifact_->event_seeds_.size()) ||
         !add_work(artifact_->event_seed_incidence_.size()) ||
-        !add_work(artifact_->event_seed_candidate_incidence_.size()) ||
+         !add_work(artifact_->event_seed_candidate_incidence_.size()) ||
+         !add_work(artifact_->triangle_local_reconciliation_.size()) ||
         !add_work(artifact_->candidate_dispositions_.size()) ||
         !add_work(artifact_->candidate_relation_coverage_.size()) ||
         !add_work(artifact_->candidate_event_seed_coverage_.size()) ||
@@ -515,6 +555,7 @@ private:
   std::optional<edge_facet_stage_type> edge_facet_stage_;
   std::optional<facet_stage_type> facet_stage_;
   std::optional<overlay_stage_type> overlay_stage_;
+  std::optional<relation_execution_authority> execution_authority_;
   std::unique_ptr<artifact_type> artifact_;
   stage_transaction transaction_;
   std::optional<resource_reservation> persistent_reservation_;

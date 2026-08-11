@@ -54,6 +54,31 @@ kernels are unusable. The existing source-feature kernels, coplanar topology,
 construction/event lineage, canonical encoding, replay, cancellation, and
 mutation-sensitive tests provide the foundation for the remaining work.
 
+## Completed pre-evaluation authority and triangle reconciliation remediation
+
+Component 7a now closes and independently verifies a topology-derived execution
+authority before the first numerical relation stage runs. The authority retains
+canonical source-edge/source-edge, source-edge/source-facet,
+source-facet/source-facet, potential coplanar-overlay, and per-candidate
+triangle-local bookkeeping requests with strict family-ordered dependencies.
+Every numerical producer and realized coplanar overlay is rejected unless its
+complete owner-free key was admitted by that frozen authority.
+
+Facet-internal diagonals now contribute source-facet/source-facet discovery
+instead of being skipped. Every Component 06 candidate publishes one canonical
+triangle-local reconciliation record containing its exact edge and triangle
+lineage, halfedge incidences, bookkeeping producer, source-facet composite
+mapping, and public relation. Internal diagonals are required to map to exactly
+one public source-facet composite while retaining no source-feature ownership,
+symbolic ownership, classification barrier, retained-surface status, event
+authority, or coordinate-derived identity. The artifact codec, statistics,
+resource accounting, verifier, decode/rebuild path, and mutation tests include
+the new authority and reconciliation evidence.
+
+The complete fourteen-test strict Component 07 CTest matrix passes, including
+live internal-diagonal coverage and repaired-codec mutations of the execution
+authority and reconciliation records.
+
 ## Implemented relation-graph foundation
 
 The foundation establishes the fail-closed first implementation slice required by

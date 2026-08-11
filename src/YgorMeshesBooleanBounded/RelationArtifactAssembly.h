@@ -504,12 +504,15 @@ public:
       std::shared_ptr<const edge_facet_stage_type> edge_facet_stage,
       std::shared_ptr<const facet_stage_type> facet_stage,
       std::shared_ptr<const overlay_stage_type> overlay_stage,
+      std::shared_ptr<const relation_execution_authority> execution_authority,
       const relation_capabilities &capabilities)
       : context_(context), precision_(precision), candidates_(std::move(candidates)),
         edge_stage_(std::move(edge_stage)),
         edge_facet_stage_(std::move(edge_facet_stage)),
         facet_stage_(std::move(facet_stage)),
-        overlay_stage_(std::move(overlay_stage)), capabilities_(capabilities) {}
+        overlay_stage_(std::move(overlay_stage)),
+        execution_authority_(std::move(execution_authority)),
+        capabilities_(capabilities) {}
 
   bool assemble(artifact_type &artifact, bounded_boolean_error &error) {
     try {
@@ -539,6 +542,7 @@ public:
           !publish_symbolics_and_crossings(error) ||
           !check_cancel(error, relation_checkpoint::event_seed_and_disposition_reconciliation) ||
           !publish_event_seeds(error) || !publish_candidate_dispositions(error) ||
+          !publish_triangle_local_reconciliation(error) ||
           !check_cancel(error, relation_checkpoint::producer_verification))
         return false;
 
@@ -549,6 +553,7 @@ public:
       artifact.source_facet_stage_ = facet_stage_;
       artifact.coplanar_overlay_stage_ = overlay_stage_;
       artifact.request_graph_ = std::move(graph_);
+      artifact.execution_authority_ = *execution_authority_;
       artifact.imported_geometry_ = std::move(imported_geometry_);
       artifact.bounded_primitives_ = std::move(bounded_primitives_);
       artifact.exact_relations_ = std::move(exact_relations_);
@@ -571,6 +576,8 @@ public:
       artifact.event_seed_candidate_incidence_ =
           std::move(seed_table_.candidate_incidence);
       artifact.candidate_dispositions_ = std::move(dispositions_);
+      artifact.triangle_local_reconciliation_ =
+          std::move(triangle_local_reconciliation_);
       artifact.candidate_relation_coverage_ =
           std::move(candidate_relation_coverage_);
       artifact.candidate_event_seed_coverage_ =
@@ -744,13 +751,21 @@ private:
   }
 
   bool validate_inputs(bounded_boolean_error &error) {
-    if (!candidates_ || !edge_stage_ || !edge_facet_stage_ || !facet_stage_ ||
+    if (!candidates_ || !execution_authority_ || !edge_stage_ ||
+        !edge_facet_stage_ || !facet_stage_ ||
         !overlay_stage_ || !capabilities_.owner.anchor ||
         !candidates_->owner().same_owner(capabilities_.owner) ||
         !edge_stage_->owner.same_owner(capabilities_.owner) ||
         !edge_facet_stage_->owner.same_owner(capabilities_.owner) ||
         !facet_stage_->owner.same_owner(capabilities_.owner) ||
         !overlay_stage_->owner.same_owner(capabilities_.owner) ||
+        !execution_authority_->owner.same_owner(capabilities_.owner) ||
+        !execution_authority_->closed_before_evaluation ||
+        !execution_authority_->independently_verified ||
+        !execution_authorizes(*execution_authority_, edge_stage_->request_graph) ||
+        !execution_authorizes(*execution_authority_,
+                              edge_facet_stage_->request_graph) ||
+        !execution_authorizes(*execution_authority_, facet_stage_->request_graph) ||
         edge_stage_->relations.size() != edge_stage_->request_graph.requests.size() ||
         edge_facet_stage_->relations.size() !=
             edge_facet_stage_->request_graph.requests.size() ||
@@ -3859,6 +3874,130 @@ private:
     return true;
   }
 
+  bool publish_triangle_local_reconciliation(
+      bounded_boolean_error &error) {
+    using namespace relation_artifact_assembly_detail;
+    triangle_local_reconciliation_.clear();
+    triangle_local_reconciliation_.reserve(candidates_->candidates().size());
+    const auto &authority = execution_authority_->graph;
+    for (const auto &candidate : candidates_->candidates()) {
+      const auto edge_operand =
+          candidate.role == directed_candidate_role::a_edge_b_triangle
+              ? operand_id::a
+              : operand_id::b;
+      const auto triangle_operand =
+          edge_operand == operand_id::a ? operand_id::b : operand_id::a;
+      const auto &edge_table = candidates_->primitive_table(edge_operand);
+      const auto &triangle_table = candidates_->primitive_table(triangle_operand);
+      if (candidate.edge.ordinal() >= edge_table.edges.size() ||
+          candidate.triangle.ordinal() >= triangle_table.triangles.size())
+        return fail(error, relation_subcode::source_facet_triangle_reconciliation,
+                    "Component 07 triangle-local primitive is unavailable",
+                    relation_checkpoint::event_seed_and_disposition_reconciliation);
+      const auto &edge = edge_table.edges[candidate.edge.ordinal()];
+      const auto &triangle = triangle_table.triangles[candidate.triangle.ordinal()];
+
+      relation_request_key bookkeeping_key;
+      bookkeeping_key.semantic_namespace = context_.context_digest;
+      bookkeeping_key.family = relation_request_family::source_edge_source_facet;
+      bookkeeping_key.scope = relation_record_scope::bookkeeping_only;
+      bookkeeping_key.first = candidate_edge_feature(candidate);
+      bookkeeping_key.second = candidate_triangle_feature(candidate);
+      bookkeeping_key.directed_use = candidate.id.ordinal();
+      bookkeeping_key.formula_version = contract_versions::exact_relation_formulas;
+      bookkeeping_key.policy_version = contract_versions::relation_request_key_schema;
+      const auto *bookkeeping = find_request(authority, bookkeeping_key);
+      if (!bookkeeping)
+        return fail(error, relation_subcode::source_facet_triangle_reconciliation,
+                    "Component 07 triangle-local bookkeeping authority is absent",
+                    relation_checkpoint::event_seed_and_disposition_reconciliation);
+
+      const canonical_relation_request *public_composite = nullptr;
+      for (const auto &request : authority.requests) {
+        if (request.key.family !=
+                relation_request_family::source_facet_source_facet ||
+            request.witness_begin > authority.candidate_witnesses.size() ||
+            request.witness_count >
+                authority.candidate_witnesses.size() - request.witness_begin)
+          continue;
+        bool witnessed = false;
+        for (std::uint64_t offset = 0; offset < request.witness_count; ++offset)
+          witnessed = witnessed ||
+                      authority.candidate_witnesses[request.witness_begin + offset] ==
+                          candidate.id;
+        if (!witnessed)
+          continue;
+        if (public_composite &&
+            edge.edge_class == canonical_edge_class::facet_internal_diagonal)
+          return fail(error,
+                      relation_subcode::source_facet_triangle_reconciliation,
+                      "Component 07 internal diagonal maps to multiple source-facet composites",
+                      relation_checkpoint::event_seed_and_disposition_reconciliation);
+        if (!public_composite)
+          public_composite = &request;
+      }
+
+      relation_triangle_local_reconciliation_record record;
+      record.id = relation_triangle_local_reconciliation_id(
+          triangle_local_reconciliation_.size());
+      record.candidate = candidate.id;
+      record.bookkeeping_request = bookkeeping->id;
+      record.discovery_edge = bookkeeping_key.first;
+      record.discovery_triangle = bookkeeping_key.second;
+      record.edge_halfedges = {edge.halfedges[0].ordinal(),
+                               edge.halfedges[1].ordinal()};
+      record.triangle_halfedges = {
+          triangle.halfedges[0].ordinal(), triangle.halfedges[1].ordinal(),
+          triangle.halfedges[2].ordinal()};
+      record.internal_diagonal =
+          edge.edge_class == canonical_edge_class::facet_internal_diagonal;
+      record.source_feature_owner = edge.source_feature_owner;
+      record.symbolic_contact_owner = edge.symbolic_contact_owner;
+      record.classification_barrier =
+          edge.classification_barrier_inside_source_facet;
+      record.retained_surface_feature = edge.retained_surface_feature;
+      if (record.internal_diagonal &&
+          (record.source_feature_owner || record.symbolic_contact_owner ||
+           record.classification_barrier || record.retained_surface_feature))
+        return fail(error, relation_subcode::source_facet_triangle_reconciliation,
+                    "Component 07 internal diagonal acquired public ownership",
+                    relation_checkpoint::event_seed_and_disposition_reconciliation);
+      if (public_composite) {
+        record.public_composite_request = public_composite->id;
+        record.owning_source_facet =
+            public_composite->key.first.operand == edge_operand
+                ? public_composite->key.first
+                : public_composite->key.second;
+        record.opposite_source_facet =
+            public_composite->key.first.operand == triangle_operand
+                ? public_composite->key.first
+                : public_composite->key.second;
+        const auto relation = relation_ids_.find(public_composite->key);
+        if (relation == relation_ids_.end())
+          return fail(error,
+                      relation_subcode::source_facet_triangle_reconciliation,
+                      "Component 07 source-facet composite has no public relation",
+                      relation_checkpoint::event_seed_and_disposition_reconciliation);
+        record.public_relation = relation->second;
+        record.disposition = triangle_local_reconciliation_disposition::
+            mapped_to_public_composite;
+      } else {
+        if (record.internal_diagonal)
+          return fail(error,
+                      relation_subcode::source_facet_triangle_reconciliation,
+                      "Component 07 internal diagonal lacks source-facet reconciliation",
+                      relation_checkpoint::event_seed_and_disposition_reconciliation);
+        record.disposition =
+            triangle_local_reconciliation_disposition::no_public_relation;
+        record.no_public_reason = triangle_local_no_public_reason::
+            complete_source_facet_classification_has_no_contact;
+      }
+      record.complete = true;
+      triangle_local_reconciliation_.push_back(std::move(record));
+    }
+    return true;
+  }
+
   void fill_statistics(artifact_type &artifact) const {
     artifact.statistics_.candidate_count = candidates_->candidates().size();
     artifact.statistics_.request_proposal_count =
@@ -3911,6 +4050,8 @@ private:
         artifact.candidate_event_seed_coverage_.size();
     artifact.statistics_.candidate_partition_count =
         artifact.candidate_partitions_.size();
+    artifact.statistics_.triangle_local_reconciliation_count =
+        artifact.triangle_local_reconciliation_.size();
     artifact.statistics_.sort_comparisons =
         artifact.request_graph_.sort_comparisons;
     artifact.statistics_.verifier_work_units =
@@ -3926,6 +4067,7 @@ private:
         artifact.coplanar_overlap_components_.size() +
         artifact.symbolic_decisions_.size() + artifact.crossings_.size() +
         artifact.event_seeds_.size() +
+        artifact.triangle_local_reconciliation_.size() +
         artifact.candidate_dispositions_.size();
   }
 
@@ -3936,6 +4078,7 @@ private:
   std::shared_ptr<const edge_facet_stage_type> edge_facet_stage_;
   std::shared_ptr<const facet_stage_type> facet_stage_;
   std::shared_ptr<const overlay_stage_type> overlay_stage_;
+  std::shared_ptr<const relation_execution_authority> execution_authority_;
   const relation_capabilities &capabilities_;
 
   std::vector<relation_request_proposal> proposals_;
@@ -3973,6 +4116,8 @@ private:
   std::vector<relation_crossing_record> crossings_;
   relation_event_seed_table seed_table_{};
   std::vector<relation_candidate_disposition_record> dispositions_;
+  std::vector<relation_triangle_local_reconciliation_record>
+      triangle_local_reconciliation_;
   std::vector<feature_relation_id> candidate_relation_coverage_;
   std::vector<relation_event_seed_id> candidate_event_seed_coverage_;
   std::vector<relation_candidate_partition_record> candidate_partitions_;

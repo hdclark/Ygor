@@ -32,6 +32,7 @@ template <class T> struct relation_artifact_envelope final {
   bounded_boolean_digest symbolic_policy_digest{};
   std::array<bool, 4> detailed_stage_present{};
   bounded_boolean_digest detailed_stage_digest{};
+  bounded_boolean_digest execution_authority_digest{};
   bounded_boolean_digest graph_section_digest{};
   std::uint64_t imported_geometry_count = 0;
   std::uint64_t bounded_primitive_count = 0;
@@ -60,6 +61,8 @@ template <class T> struct relation_artifact_envelope final {
   std::uint64_t incidence_count = 0;
   std::uint64_t event_seed_candidate_incidence_count = 0;
   std::uint64_t candidate_disposition_count = 0;
+  std::uint64_t triangle_local_reconciliation_count = 0;
+  bounded_boolean_digest triangle_local_reconciliation_digest{};
   std::uint64_t candidate_relation_coverage_count = 0;
   std::uint64_t candidate_seed_coverage_count = 0;
   std::uint64_t candidate_partition_count = 0;

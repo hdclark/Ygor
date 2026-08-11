@@ -2,6 +2,7 @@
 
 #include "CanonicalCandidateStream.h"
 #include "RelationRequestGraph.h"
+#include "RelationExecutionAuthorityTypes.h"
 #include "SourceFacetRegionKernel.h"
 #include "SymbolicPerturbation.h"
 
@@ -376,6 +377,33 @@ struct relation_candidate_disposition_record final {
   std::uint32_t reserved = 0;
 };
 
+struct relation_triangle_local_reconciliation_record final {
+  relation_triangle_local_reconciliation_id id{0};
+  candidate_id candidate{0};
+  relation_request_id bookkeeping_request{0};
+  relation_request_id public_composite_request{0};
+  feature_relation_id public_relation{0};
+  relation_feature_key discovery_edge{};
+  relation_feature_key discovery_triangle{};
+  relation_feature_key owning_source_facet{};
+  relation_feature_key opposite_source_facet{};
+  std::array<std::uint64_t, 2> edge_halfedges{};
+  std::array<std::uint64_t, 3> triangle_halfedges{};
+  triangle_local_reconciliation_disposition disposition =
+      triangle_local_reconciliation_disposition::no_public_relation;
+  triangle_local_no_public_reason no_public_reason =
+      triangle_local_no_public_reason::not_applicable;
+  bool internal_diagonal = false;
+  bool source_feature_owner = false;
+  bool symbolic_contact_owner = false;
+  bool classification_barrier = false;
+  bool retained_surface_feature = false;
+  bool complete = false;
+  std::uint16_t schema_version =
+      contract_versions::relation_triangle_local_publication_schema;
+  std::uint32_t reserved = 0;
+};
+
 struct relation_candidate_partition_record final {
   relation_candidate_partition_id id{0};
   candidate_partition_id source_partition{0};
@@ -499,6 +527,9 @@ public:
   const relation_request_graph &request_graph() const noexcept {
     return request_graph_;
   }
+  const relation_execution_authority &execution_authority() const noexcept {
+    return execution_authority_;
+  }
   const std::shared_ptr<const candidate_source_edge_relation_stage<T>> &
   source_edge_stage() const noexcept { return source_edge_stage_; }
   const std::shared_ptr<const candidate_source_edge_facet_relation_stage<T>> &
@@ -565,6 +596,10 @@ public:
   candidate_dispositions() const noexcept {
     return candidate_dispositions_;
   }
+  const std::vector<relation_triangle_local_reconciliation_record> &
+  triangle_local_reconciliation() const noexcept {
+    return triangle_local_reconciliation_;
+  }
   const std::vector<feature_relation_id> &candidate_relation_coverage()
       const noexcept { return candidate_relation_coverage_; }
   const std::vector<relation_event_seed_id> &candidate_event_seed_coverage()
@@ -628,6 +663,7 @@ private:
   context_owner_token owner_{};
   std::shared_ptr<const canonical_candidate_stream<T, I>> candidates_;
   relation_request_graph request_graph_{};
+  relation_execution_authority execution_authority_{};
   std::shared_ptr<const candidate_source_edge_relation_stage<T>> source_edge_stage_;
   std::shared_ptr<const candidate_source_edge_facet_relation_stage<T>> source_edge_facet_stage_;
   std::shared_ptr<const candidate_source_facet_relation_stage<T>> source_facet_stage_;
@@ -654,6 +690,8 @@ private:
   std::vector<relation_event_seed_candidate_incidence_record>
       event_seed_candidate_incidence_;
   std::vector<relation_candidate_disposition_record> candidate_dispositions_;
+  std::vector<relation_triangle_local_reconciliation_record>
+      triangle_local_reconciliation_;
   std::vector<feature_relation_id> candidate_relation_coverage_;
   std::vector<relation_event_seed_id> candidate_event_seed_coverage_;
   std::vector<relation_candidate_partition_record> candidate_partitions_;

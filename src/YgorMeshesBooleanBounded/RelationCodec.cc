@@ -113,6 +113,8 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   if (artifact.coplanar_overlay_stage_)
     writer.sized_bytes(encode_candidate_coplanar_overlay_semantics(
         *artifact.coplanar_overlay_stage_));
+  writer.sized_bytes(encode_relation_execution_authority_semantics(
+      artifact.execution_authority_));
   const auto graph_bytes =
       encode_relation_request_graph_semantics(artifact.request_graph_);
   writer.sized_bytes(graph_bytes);
@@ -452,6 +454,36 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u16(record.schema_version);
     writer.u32(record.reserved);
   }
+  canonical_writer reconciliation_writer;
+  reconciliation_writer.u16(
+      contract_versions::relation_triangle_local_publication_schema);
+  reconciliation_writer.u64(artifact.triangle_local_reconciliation_.size());
+  for (const auto &record : artifact.triangle_local_reconciliation_) {
+    reconciliation_writer.u64(record.id.ordinal());
+    reconciliation_writer.u64(record.candidate.ordinal());
+    reconciliation_writer.u64(record.bookkeeping_request.ordinal());
+    reconciliation_writer.u64(record.public_composite_request.ordinal());
+    reconciliation_writer.u64(record.public_relation.ordinal());
+    encode_relation_feature_key(reconciliation_writer, record.discovery_edge);
+    encode_relation_feature_key(reconciliation_writer, record.discovery_triangle);
+    encode_relation_feature_key(reconciliation_writer, record.owning_source_facet);
+    encode_relation_feature_key(reconciliation_writer, record.opposite_source_facet);
+    for (const auto value : record.edge_halfedges)
+      reconciliation_writer.u64(value);
+    for (const auto value : record.triangle_halfedges)
+      reconciliation_writer.u64(value);
+    reconciliation_writer.u8(static_cast<std::uint8_t>(record.disposition));
+    reconciliation_writer.u8(static_cast<std::uint8_t>(record.no_public_reason));
+    reconciliation_writer.boolean(record.internal_diagonal);
+    reconciliation_writer.boolean(record.source_feature_owner);
+    reconciliation_writer.boolean(record.symbolic_contact_owner);
+    reconciliation_writer.boolean(record.classification_barrier);
+    reconciliation_writer.boolean(record.retained_surface_feature);
+    reconciliation_writer.boolean(record.complete);
+    reconciliation_writer.u16(record.schema_version);
+    reconciliation_writer.u32(record.reserved);
+  }
+  writer.sized_bytes(reconciliation_writer.take());
   writer.u64(artifact.candidate_dispositions_.size());
   for (const auto &record : artifact.candidate_dispositions_) {
     writer.u64(record.id.ordinal());
@@ -517,6 +549,7 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
   writer.u64(artifact.statistics_.candidate_relation_coverage_count);
   writer.u64(artifact.statistics_.candidate_seed_coverage_count);
   writer.u64(artifact.statistics_.candidate_partition_count);
+  writer.u64(artifact.statistics_.triangle_local_reconciliation_count);
   writer.u64(artifact.statistics_.diagnostic_count);
   writer.u64(artifact.statistics_.replay_checkpoint_count);
   writer.u64(artifact.statistics_.sort_comparisons);
@@ -1232,6 +1265,15 @@ bool parse_relation_artifact_envelope(
   }
   envelope.detailed_stage_digest = sha256::digest(detailed_writer.take());
 
+  std::vector<std::uint8_t> execution_authority_section;
+  if (!reader.sized_bytes(execution_authority_section,
+                          capabilities.maximum_canonical_bytes))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 execution-authority section is malformed");
+  envelope.execution_authority_digest =
+      sha256::digest(execution_authority_section);
+
   std::vector<std::uint8_t> graph_section;
   if (!reader.sized_bytes(graph_section, capabilities.maximum_canonical_bytes))
     return codec_failure(relation_subcode::codec_error,
@@ -1499,6 +1541,30 @@ bool parse_relation_artifact_envelope(
                            bounded_boolean_error_category::input_contract_error,
                            "Component 07 event-seed candidate incidence table is truncated");
 
+  std::vector<std::uint8_t> reconciliation_section;
+  if (!reader.sized_bytes(reconciliation_section,
+                          capabilities.maximum_canonical_bytes))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 triangle-local reconciliation section is malformed");
+  envelope.triangle_local_reconciliation_digest =
+      sha256::digest(reconciliation_section);
+  {
+    canonical_reader reconciliation_reader(reconciliation_section);
+    std::uint16_t schema = 0;
+    if (!reconciliation_reader.u16(schema) ||
+        schema !=
+            contract_versions::relation_triangle_local_publication_schema ||
+        !reconciliation_reader.u64(
+            envelope.triangle_local_reconciliation_count) ||
+        envelope.triangle_local_reconciliation_count >
+            capabilities.maximum_relations)
+      return codec_failure(
+          relation_subcode::codec_error,
+          bounded_boolean_error_category::input_contract_error,
+          "Component 07 triangle-local reconciliation header is malformed");
+  }
+
   if (!reader.u64(envelope.candidate_disposition_count) ||
       !count_fits(reader, envelope.candidate_disposition_count,
                   capabilities.maximum_relations, 71))
@@ -1576,7 +1642,8 @@ bool parse_relation_artifact_envelope(
       !reader.u64(statistics.event_seed_candidate_incidence_count) ||
       !reader.u64(statistics.candidate_relation_coverage_count) ||
       !reader.u64(statistics.candidate_seed_coverage_count) ||
-      !reader.u64(statistics.candidate_partition_count) ||
+       !reader.u64(statistics.candidate_partition_count) ||
+       !reader.u64(statistics.triangle_local_reconciliation_count) ||
       !reader.u64(statistics.diagnostic_count) ||
       !reader.u64(statistics.replay_checkpoint_count) ||
       !reader.u64(statistics.sort_comparisons) ||
@@ -1662,6 +1729,8 @@ bool parse_relation_artifact_envelope(
           envelope.candidate_seed_coverage_count ||
       statistics.candidate_partition_count !=
           envelope.candidate_partition_count ||
+      statistics.triangle_local_reconciliation_count !=
+          envelope.triangle_local_reconciliation_count ||
       statistics.diagnostic_count != envelope.diagnostic_count ||
       statistics.replay_checkpoint_count !=
           envelope.replay_checkpoint_count ||

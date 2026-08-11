@@ -168,6 +168,7 @@ bool verify_relation_event_candidate_evidence(
   const auto &relation_coverage = artifact.candidate_relation_coverage();
   const auto &seed_coverage = artifact.candidate_event_seed_coverage();
   const auto &partitions = artifact.candidate_partitions();
+  const auto &reconciliation = artifact.triangle_local_reconciliation();
   const auto &candidates = artifact.candidates();
   if (!candidates)
     return fail(relation_subcode::candidate_disposition_missing,
@@ -525,6 +526,85 @@ bool verify_relation_event_candidate_evidence(
   if (dispositions.size() != expected_candidates)
     return fail(relation_subcode::candidate_disposition_missing,
                 "Component 07 does not contain exactly one disposition per candidate");
+  if (reconciliation.size() != expected_candidates)
+    return fail(relation_subcode::source_facet_triangle_reconciliation,
+                "Component 07 does not contain exactly one triangle-local reconciliation per candidate");
+  const auto &authority = artifact.execution_authority().graph;
+  for (std::size_t i = 0; i < reconciliation.size(); ++i) {
+    const auto &record = reconciliation[i];
+    const auto &candidate = candidates->candidates()[i];
+    const auto edge_operand =
+        candidate.role == directed_candidate_role::a_edge_b_triangle
+            ? operand_id::a
+            : operand_id::b;
+    const auto triangle_operand =
+        edge_operand == operand_id::a ? operand_id::b : operand_id::a;
+    const auto &edge = candidates->primitive_table(edge_operand)
+                           .edges[candidate.edge.ordinal()];
+    const auto &triangle = candidates->primitive_table(triangle_operand)
+                               .triangles[candidate.triangle.ordinal()];
+    if (record.id.ordinal() != i || record.candidate != candidate.id ||
+        record.bookkeeping_request.ordinal() >= authority.requests.size() ||
+        authority.requests[record.bookkeeping_request.ordinal()].key.scope !=
+            relation_record_scope::bookkeeping_only ||
+        authority.requests[record.bookkeeping_request.ordinal()].key.family !=
+            relation_request_family::source_edge_source_facet ||
+        record.discovery_edge != candidate_edge_feature(*candidates, candidate) ||
+        record.discovery_triangle !=
+            candidate_triangle_feature(*candidates, candidate) ||
+        record.edge_halfedges !=
+            std::array<std::uint64_t, 2>{edge.halfedges[0].ordinal(),
+                                         edge.halfedges[1].ordinal()} ||
+        record.triangle_halfedges !=
+            std::array<std::uint64_t, 3>{triangle.halfedges[0].ordinal(),
+                                         triangle.halfedges[1].ordinal(),
+                                         triangle.halfedges[2].ordinal()} ||
+        record.internal_diagonal !=
+            (candidate.edge_class ==
+             canonical_edge_class::facet_internal_diagonal) ||
+        record.source_feature_owner != edge.source_feature_owner ||
+        record.symbolic_contact_owner != edge.symbolic_contact_owner ||
+        record.classification_barrier !=
+            edge.classification_barrier_inside_source_facet ||
+        record.retained_surface_feature != edge.retained_surface_feature ||
+        !record.complete ||
+        record.schema_version !=
+            contract_versions::relation_triangle_local_publication_schema ||
+        record.reserved != 0)
+      return fail(relation_subcode::source_facet_triangle_reconciliation,
+                  "Component 07 triangle-local reconciliation does not reconstruct");
+    if (record.internal_diagonal &&
+        (record.source_feature_owner || record.symbolic_contact_owner ||
+         record.classification_barrier || record.retained_surface_feature))
+      return fail(relation_subcode::source_facet_triangle_reconciliation,
+                  "Component 07 internal diagonal owns public semantics");
+    if (record.disposition == triangle_local_reconciliation_disposition::
+                                  mapped_to_public_composite) {
+      if (record.public_composite_request.ordinal() >= authority.requests.size() ||
+          authority.requests[record.public_composite_request.ordinal()]
+                  .key.family !=
+              relation_request_family::source_facet_source_facet ||
+          record.public_relation.ordinal() >= relations.size() ||
+          record.owning_source_facet.kind !=
+              relation_feature_kind::source_facet ||
+          record.opposite_source_facet.kind !=
+              relation_feature_kind::source_facet ||
+          record.owning_source_facet.operand != edge_operand ||
+          record.opposite_source_facet.operand != triangle_operand ||
+          record.no_public_reason !=
+              triangle_local_no_public_reason::not_applicable)
+        return fail(relation_subcode::source_facet_triangle_reconciliation,
+                    "Component 07 triangle-local public mapping is malformed");
+    } else if (record.disposition !=
+                   triangle_local_reconciliation_disposition::no_public_relation ||
+               record.internal_diagonal ||
+               record.no_public_reason !=
+                   triangle_local_no_public_reason::
+                       complete_source_facet_classification_has_no_contact) {
+      return fail(relation_subcode::source_facet_triangle_reconciliation,
+                  "Component 07 triangle-local no-public disposition is invalid");
+    }
+  }
   std::size_t expected_relation_coverage_begin = 0;
   std::size_t expected_seed_coverage_begin = 0;
   for (std::size_t i = 0; i < dispositions.size(); ++i) {

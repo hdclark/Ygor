@@ -761,9 +761,15 @@ bool append_candidate_proposals(
     }
     const auto &edge = edge_table.edges[candidate.edge.ordinal()];
     const auto &triangle = triangle_table.triangles[candidate.triangle.ordinal()];
-    if (edge.edge_class == canonical_edge_class::facet_internal_diagonal)
-      continue;
-    if (!valid_original_edge_primitive(edge) ||
+    const bool internal_diagonal =
+        edge.edge_class == canonical_edge_class::facet_internal_diagonal;
+    if ((!internal_diagonal && !valid_original_edge_primitive(edge)) ||
+        (internal_diagonal &&
+         (edge.source_feature_owner || edge.symbolic_contact_owner ||
+          edge.classification_barrier_inside_source_facet ||
+          edge.retained_surface_feature ||
+          edge.source_facet == broad_phase_invalid_ordinal ||
+          edge.source_diagonal == broad_phase_invalid_ordinal)) ||
         triangle.source_facet == broad_phase_invalid_ordinal) {
       error = source_facet_relation_error(
           relation_subcode::source_facet_relation_malformed,
@@ -781,7 +787,11 @@ bool append_candidate_proposals(
           relation_checkpoint::candidate_scan);
       return false;
     }
-    std::array<std::uint64_t, 2> incident = edge.source_facets;
+    std::array<std::uint64_t, 2> incident =
+        internal_diagonal
+            ? std::array<std::uint64_t, 2>{edge.source_facet,
+                                           edge.source_facet}
+            : edge.source_facets;
     std::sort(incident.begin(), incident.end());
     for (std::size_t index = 0; index < incident.size(); ++index) {
       if (index != 0 && incident[index] == incident[index - 1])
