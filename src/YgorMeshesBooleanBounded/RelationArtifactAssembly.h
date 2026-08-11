@@ -605,9 +605,10 @@ public:
           !check_cancel(error, relation_checkpoint::symbolic_matrix_lookup) ||
           !publish_symbolics_and_crossings(error) ||
           !check_cancel(error, relation_checkpoint::event_seed_and_disposition_reconciliation) ||
-          !publish_event_seeds(error) ||
-          !publish_transverse_carrier_memberships(error) ||
-          !publish_candidate_dispositions(error) ||
+           !publish_event_seeds(error) ||
+           !publish_transverse_carrier_memberships(error) ||
+           !publish_downstream_handoff(error) ||
+           !publish_candidate_dispositions(error) ||
           !publish_triangle_local_reconciliation(error) ||
           !check_cancel(error, relation_checkpoint::producer_verification))
         return false;
@@ -646,6 +647,9 @@ public:
           std::move(triangle_local_reconciliation_);
       artifact.transverse_carrier_memberships_ =
           std::move(transverse_carrier_memberships_);
+      artifact.source_topology_ = std::move(source_topology_);
+      artifact.transverse_carrier_supports_ =
+          std::move(transverse_carrier_supports_);
       artifact.candidate_relation_coverage_ =
           std::move(candidate_relation_coverage_);
       artifact.candidate_event_seed_coverage_ =
@@ -4766,6 +4770,173 @@ private:
         artifact.candidate_dispositions_.size();
   }
 
+  bool publish_downstream_handoff(bounded_boolean_error &error) {
+    if (!candidates_->manifolds() || !candidates_->manifolds()->a() ||
+        !candidates_->manifolds()->b())
+      return fail(error, relation_subcode::predecessor_mismatch,
+                  "Component 07 downstream source topology is absent",
+                  relation_checkpoint::producer_verification);
+
+    const auto facet_feature = [](const auto &topology,
+                                  std::uint64_t source_facet,
+                                  relation_feature_key &feature) {
+      if (source_facet >= topology.source_facet_to_group().size())
+        return false;
+      const auto group_id = topology.source_facet_to_group()[source_facet];
+      if (group_id >= topology.facet_groups().size())
+        return false;
+      const auto &group = topology.facet_groups()[group_id];
+      if (group.canonical_id != group_id || group.source_facet != source_facet)
+        return false;
+      feature.operand = topology.operand();
+      feature.kind = relation_feature_kind::source_facet;
+      feature.primary = source_facet;
+      feature.secondary = group.ring;
+      return valid_relation_feature_key(feature, false);
+    };
+
+    for (const auto operand : {operand_id::a, operand_id::b}) {
+      const auto &table = candidates_->primitive_table(operand);
+      const auto &topology = operand == operand_id::a
+                                 ? *candidates_->manifolds()->a()
+                                 : *candidates_->manifolds()->b();
+      auto &published = source_topology_[static_cast<std::size_t>(operand)];
+      published.operand = operand;
+      published.source_triangle_count = table.triangles.size();
+      published.canonical_edge_count = topology.edges().size();
+      published.source_semantic_digest = table.source_semantic_digest;
+      published.exact_topology_digest = table.exact_topology_digest;
+
+      for (const auto &edge : table.edges) {
+        if (edge.edge_class != canonical_edge_class::source_edge ||
+            !edge.source_feature_owner)
+          continue;
+        relation_source_edge_domain_record domain;
+        domain.canonical_edge = edge.edge.ordinal();
+        domain.source_edge.operand = operand;
+        domain.source_edge.kind = relation_feature_kind::source_edge;
+        domain.source_edge.primary = edge.semantic_key.primary;
+        domain.source_edge.secondary = edge.semantic_key.secondary;
+        domain.start_vertex.operand = operand;
+        domain.start_vertex.kind = relation_feature_kind::source_vertex;
+        domain.start_vertex.primary = edge.semantic_key.primary;
+        domain.end_vertex.operand = operand;
+        domain.end_vertex.kind = relation_feature_kind::source_vertex;
+        domain.end_vertex.primary = edge.semantic_key.secondary;
+        published.source_edges.push_back(std::move(domain));
+      }
+
+      for (const auto &vertex : topology.vertices()) {
+        if (vertex.canonical_id >= topology.vertices().size() ||
+            vertex.fan >= topology.fans().size())
+          return fail(error, relation_subcode::predecessor_mismatch,
+                      "Component 07 downstream source fan is malformed",
+                      relation_checkpoint::producer_verification);
+        const auto &fan = topology.fans()[vertex.fan];
+        relation_source_vertex_fan_record record;
+        record.canonical_vertex = vertex.canonical_id;
+        record.source_vertex.operand = operand;
+        record.source_vertex.kind = relation_feature_kind::source_vertex;
+        record.source_vertex.primary = vertex.source_vertex;
+        for (const auto halfedge_id : fan.outgoing_halfedges) {
+          if (halfedge_id >= topology.halfedges().size())
+            return fail(error, relation_subcode::predecessor_mismatch,
+                        "Component 07 downstream source fan halfedge is malformed",
+                        relation_checkpoint::producer_verification);
+          relation_feature_key facet;
+          if (!facet_feature(topology,
+                             topology.halfedges()[halfedge_id].source_facet,
+                             facet))
+            return fail(error, relation_subcode::predecessor_mismatch,
+                        "Component 07 downstream source fan facet is malformed",
+                        relation_checkpoint::producer_verification);
+          if (record.ordered_facets.empty() ||
+              !(record.ordered_facets.back() == facet))
+            record.ordered_facets.push_back(facet);
+        }
+        if (record.ordered_facets.size() > 1 &&
+            record.ordered_facets.front() == record.ordered_facets.back())
+          record.ordered_facets.pop_back();
+        published.vertex_fans.push_back(std::move(record));
+      }
+
+      for (const auto &edge : topology.edges()) {
+        relation_source_edge_adjacency_record record;
+        record.canonical_edge = edge.canonical_id;
+        record.edge_class = edge.edge_class;
+        record.edge.operand = operand;
+        if (edge.edge_class == canonical_edge_class::source_edge) {
+          record.edge.kind = relation_feature_kind::source_edge;
+          record.edge.primary = edge.key.primary;
+          record.edge.secondary = edge.key.secondary;
+        } else {
+          record.edge.kind = relation_feature_kind::facet_internal_diagonal;
+          record.edge.primary = edge.source_facet;
+          record.edge.secondary = edge.source_diagonal;
+        }
+        if (!facet_feature(topology, edge.facets[0], record.first_facet) ||
+            !facet_feature(topology, edge.facets[1], record.second_facet))
+          return fail(error, relation_subcode::predecessor_mismatch,
+                      "Component 07 downstream source adjacency is malformed",
+                      relation_checkpoint::producer_verification);
+        record.source_feature_owner = edge.source_feature_owner;
+        record.bookkeeping_only =
+            !edge.source_feature_owner && !edge.symbolic_contact_owner &&
+            !edge.classification_barrier_inside_source_facet &&
+            !edge.retained_surface_feature;
+        published.edge_adjacencies.push_back(std::move(record));
+      }
+    }
+
+    for (const auto &relation : relations_) {
+      if (relation.family != feature_relation_family::source_facet_source_facet ||
+          relation.status != feature_relation_status::proper_crossing)
+        continue;
+      if (relation.producer.ordinal() >= graph_.requests.size())
+        return fail(error, relation_subcode::predecessor_mismatch,
+                    "Component 07 downstream transverse request is malformed",
+                    relation_checkpoint::producer_verification);
+      const auto &request = graph_.requests[relation.producer.ordinal()];
+      const auto stage = std::find_if(
+          facet_stage_->relations.begin(), facet_stage_->relations.end(),
+          [&](const auto &candidate) {
+            return candidate.first_feature == request.key.first &&
+                   candidate.second_feature == request.key.second;
+          });
+      const auto construction = std::find_if(
+          constructions_.begin(), constructions_.end(), [&](const auto &candidate) {
+            return candidate.source_relation == relation.id &&
+                   candidate.kind == relation_construction_kind::bounded_carrier;
+          });
+      if (stage == facet_stage_->relations.end() ||
+          construction == constructions_.end())
+        return fail(error, relation_subcode::predecessor_mismatch,
+                    "Component 07 downstream transverse support is incomplete",
+                    relation_checkpoint::producer_verification);
+      relation_transverse_carrier_support_record support;
+      support.relation = relation.id;
+      support.construction = construction->id;
+      support.first_facet = request.key.first;
+      support.second_facet = request.key.second;
+      for (const auto consumer : stage->edge_facet_consumers) {
+        if (consumer.ordinal() >= edge_facet_stage_->relations.size())
+          return fail(error, relation_subcode::predecessor_mismatch,
+                      "Component 07 downstream transverse consumer is absent",
+                      relation_checkpoint::producer_verification);
+        support.expected_membership_count +=
+            edge_facet_stage_->relations[consumer.ordinal()].events.size();
+      }
+      support.support_consistent = stage->has_transverse_carrier;
+      support.orientation_consistent = stage->has_transverse_carrier;
+      support.residuals_accepted = stage->has_transverse_carrier &&
+                                   stage->transverse_carrier.residuals_accepted;
+      support.precision_evidence_complete =
+          construction->precision_evidence_complete;
+      transverse_carrier_supports_.push_back(std::move(support));
+    }
+    return true;
+  }
+
   const boolean_context<T, I> &context_;
   const precision_context<T> &precision_;
   std::shared_ptr<const canonical_candidate_stream<T, I>> candidates_;
@@ -4818,6 +4989,9 @@ private:
       triangle_local_reconciliation_;
   std::vector<relation_transverse_carrier_membership_record>
       transverse_carrier_memberships_;
+  std::array<relation_source_topology_record, 2> source_topology_{};
+  std::vector<relation_transverse_carrier_support_record>
+      transverse_carrier_supports_;
   std::uint64_t transverse_evaluated_records_consumed_ = 0;
   std::vector<feature_relation_id> candidate_relation_coverage_;
   std::vector<relation_event_seed_id> candidate_event_seed_coverage_;

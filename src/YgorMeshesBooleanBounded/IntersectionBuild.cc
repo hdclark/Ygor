@@ -6,13 +6,13 @@
 #include "EventCoordinates.h"
 #include "EventIncidence.h"
 #include "EventInterning.h"
-#include "FacetFacetRelations.h"
 #include "IntersectionAggregation.h"
 #include "IntersectionCanonicalization.h"
 #include "IntersectionCodec.h"
 #include "IntersectionDescriptors.h"
 #include "IntersectionPreflight.h"
 #include "RelationSemanticProjection.h"
+#include "RelationQueries.h"
 #include "SourceEdgeArrangements.h"
 #include "Transaction.h"
 #include "TransverseCarrierArrangements.h"
@@ -61,25 +61,14 @@ inline void bind_intersection_error(
 
 template <class T, class I>
 std::vector<source_edge_domain_record> source_edge_domains(
-    const signed_feature_relations<T, I> &relations) {
+    const signed_feature_relations_view<T, I> &relations) {
   std::vector<source_edge_domain_record> domains;
-  for (const auto operand : {operand_id::a, operand_id::b}) {
-    const auto &table = relations.candidates()->primitive_table(operand);
-    for (const auto &edge : table.edges) {
-      if (edge.edge_class != canonical_edge_class::source_edge ||
-          !edge.source_feature_owner)
-        continue;
+  for (const auto &topology : relations.source_topology()) {
+    for (const auto &edge : topology.source_edges) {
       source_edge_domain_record domain;
-      domain.source_edge.operand = operand;
-      domain.source_edge.kind = relation_feature_kind::source_edge;
-      domain.source_edge.primary = edge.semantic_key.primary;
-      domain.source_edge.secondary = edge.semantic_key.secondary;
-      domain.start_vertex.operand = operand;
-      domain.start_vertex.kind = relation_feature_kind::source_vertex;
-      domain.start_vertex.primary = edge.semantic_key.primary;
-      domain.end_vertex.operand = operand;
-      domain.end_vertex.kind = relation_feature_kind::source_vertex;
-      domain.end_vertex.primary = edge.semantic_key.secondary;
+      domain.source_edge = edge.source_edge;
+      domain.start_vertex = edge.start_vertex;
+      domain.end_vertex = edge.end_vertex;
       domains.push_back(domain);
     }
   }
@@ -96,20 +85,19 @@ std::vector<source_edge_domain_record> source_edge_domains(
 }
 
 template <class T, class I>
-bool has_coplanar_lineage(const signed_feature_relations<T, I> &relations) {
+bool has_coplanar_lineage(
+    const signed_feature_relations_view<T, I> &relations) {
   if (!relations.coplanar_event_nodes().empty() ||
       !relations.coplanar_oriented_arcs().empty() ||
       !relations.coplanar_overlap_components().empty())
     return true;
-  if (relations.source_facet_stage()) {
-    for (const auto &record : relations.source_facet_stage()->relations) {
-      if (record.classification ==
-              source_facet_support_relation_class::coplanar_same_orientation ||
-          record.classification ==
-              source_facet_support_relation_class::coplanar_opposite_orientation)
-        return true;
-    }
-  }
+  for (const auto &record : relations.relations())
+    if (record.family == feature_relation_family::source_facet_source_facet &&
+        (record.status ==
+             feature_relation_status::coincidence_same_orientation ||
+         record.status ==
+             feature_relation_status::coincidence_opposite_orientation))
+      return true;
   return false;
 }
 
@@ -158,11 +146,11 @@ public:
   intersection_builder(
       const boolean_context<T, I> &context,
       const precision_context<T> &precision,
-      std::shared_ptr<const signed_feature_relations<T, I>> relations,
+      signed_feature_relations_view<T, I> relations,
       intersection_capabilities capabilities,
       intersection_codec_limits codec_limits,
       intersection_verifier_limits verifier_limits)
-      : context_(context), precision_(precision), relations_(std::move(relations)),
+      : context_(context), precision_(precision), relations_(relations),
         capabilities_(std::move(capabilities)), codec_limits_(codec_limits),
         verifier_limits_(verifier_limits) {}
 
@@ -239,16 +227,15 @@ private:
                   bounded_boolean_error_category::internal_invariant_error,
                   "Component 08 transaction did not open",
                   intersection_checkpoint::context_capability_validation);
-    if (!relations_ || !verify_context(context_) ||
+    if (!relations_.valid_owner() || !verify_context(context_) ||
         !context_.owner.same_owner(capabilities_.owner) ||
         !precision_.owner().same_owner(capabilities_.owner) ||
-        !relations_->owner().same_owner(capabilities_.owner) ||
-        context_.operation != relations_->operation() ||
-        context_.context_digest != relations_->context_digest() ||
+        !relations_.owner().same_owner(capabilities_.owner) ||
+        context_.operation != relations_.operation() ||
+        !relations_.context_digest() ||
+        context_.context_digest != *relations_.context_digest() ||
         relation_precision_semantic_digest(precision_) !=
-            relations_->precision_digest() ||
-        !relations_->candidates() ||
-        !relations_->candidates()->owner().same_owner(capabilities_.owner))
+            *relations_.precision_digest())
       return fail(intersection_subcode::wrong_owner,
                   bounded_boolean_error_category::internal_invariant_error,
                   "Component 08 predecessor handshake failed",
@@ -274,7 +261,7 @@ private:
                   bounded_boolean_error_category::input_contract_error,
                   "Component 08 capability or execution profile is unsupported",
                   intersection_checkpoint::context_capability_validation);
-    if (relations_->verification() !=
+    if (relations_.verification() !=
         relation_verification_disposition::independently_verified)
       return fail(intersection_subcode::predecessor_not_verified,
                   bounded_boolean_error_category::input_contract_error,
@@ -304,11 +291,11 @@ private:
 
   bool preflight_and_reserve() {
     if (!check_cancel(intersection_checkpoint::count_preflight) ||
-        !preflight_intersection_events(*relations_, capabilities_, preflight_,
+         !preflight_intersection_events(relations_, capabilities_, preflight_,
                                        error_))
       return false;
 
-    domains_ = intersection_build_detail::source_edge_domains(*relations_);
+    domains_ = intersection_build_detail::source_edge_domains(relations_);
     const auto membership_bound = preflight_.estimate.membership_count;
     const auto cluster_bound = preflight_.estimate.cluster_count;
     const auto interval_bound = preflight_.estimate.interval_count;
@@ -348,8 +335,8 @@ private:
 
   bool normalize_and_intern() {
     if (!check_cancel(intersection_checkpoint::seed_normalization) ||
-        !normalize_event_seed_records(relations_->event_seeds(),
-                                      relations_->constructions(), proposals_,
+        !normalize_event_seed_records(relations_.event_seeds(),
+                                      relations_.constructions(), proposals_,
                                       error_))
       return false;
     if (!check_cancel(intersection_checkpoint::event_grouping) ||
@@ -362,13 +349,13 @@ private:
     if (!check_cancel(intersection_checkpoint::authoritative_point_attachment))
       return false;
     return attach_event_coordinates(
-        proposals_, relations_->constructions(), relations_->construction_ledger(),
+        proposals_, relations_.constructions(), relations_.construction_ledger(),
         interning_, coordinates_, error_);
   }
 
   bool publish_incidence() {
     if (!check_cancel(intersection_checkpoint::incidence_proposals) ||
-        !build_event_incidence(*relations_, interning_, incidence_, error_))
+        !build_event_incidence(relations_, interning_, incidence_, error_))
       return false;
     return check_cancel(intersection_checkpoint::incidence_publication);
   }
@@ -377,8 +364,8 @@ private:
     if (!check_cancel(
             intersection_checkpoint::source_edge_membership_proposals) ||
         !collect_source_edge_membership_proposals(
-            relations_->event_seeds(), relations_->constructions(),
-            relations_->interval_evidence(), interning_, incidence_, source_memberships_, error_))
+            relations_.event_seeds(), relations_.constructions(),
+            relations_.interval_evidence(), interning_, incidence_, source_memberships_, error_))
       return false;
     if (!check_cancel(intersection_checkpoint::source_edge_ordering) ||
         !build_source_edge_arrangements<T>(domains_, source_memberships_,
@@ -395,15 +382,15 @@ private:
 
     std::vector<transverse_carrier_proposal> carrier_proposals;
     if (!collect_component07_transverse_carrier_proposals(
-            *relations_, carrier_proposals, error_) ||
+            relations_, carrier_proposals, error_) ||
         !verify_component07_transverse_carrier_proposals(
-            *relations_, carrier_proposals, error_))
+            relations_, carrier_proposals, error_))
       return false;
 
     std::vector<carrier_membership_proposal> membership_proposals;
     std::vector<transverse_relation_interval_proposal> interval_proposals;
     if (!collect_component07_transverse_membership_proposals(
-            *relations_, interning_, membership_proposals, interval_proposals,
+            relations_, interning_, membership_proposals, interval_proposals,
             error_))
       return false;
     if ((!carrier_proposals.empty() && membership_proposals.empty()) ||
@@ -424,7 +411,7 @@ private:
   bool build_coplanar() {
     if (!check_cancel(intersection_checkpoint::coplanar_carriers))
       return false;
-    if (intersection_build_detail::has_coplanar_lineage(*relations_))
+    if (intersection_build_detail::has_coplanar_lineage(relations_))
       return fail(
           intersection_subcode::membership_incomplete,
           bounded_boolean_error_category::internal_invariant_error,
@@ -439,18 +426,18 @@ private:
   bool build_aggregates_and_descriptors() {
     if (!check_cancel(intersection_checkpoint::aggregate_reconstruction) ||
         !build_intersection_aggregates(
-            relations_->event_seeds(), interning_, incidence_, source_edges_,
+            relations_.event_seeds(), interning_, incidence_, source_edges_,
             transverse_, coplanar_, aggregates_, error_))
       return false;
     if (!check_cancel(intersection_checkpoint::descriptor_derivation) ||
         !build_intersection_descriptors(
-            relations_->event_seeds(), interning_, incidence_, source_edges_,
+            relations_.event_seeds(), interning_, incidence_, source_edges_,
             transverse_, coplanar_, aggregates_, base_descriptors_, error_))
       return false;
     if (!check_cancel(intersection_checkpoint::source_facet_reconciliation) ||
         !extend_intersection_descriptors_with_source_topology(
-            *relations_->candidates()->manifolds(), relations_->crossings(),
-            relations_->event_seeds(), interning_, incidence_,
+            relations_.source_topology(), relations_.crossings(),
+            relations_.event_seeds(), interning_, incidence_,
             base_descriptors_, descriptors_, error_))
       return false;
     return true;
@@ -458,27 +445,16 @@ private:
 
   intersection_canonicalization_header header() const {
     intersection_canonicalization_header value;
-    value.owner = relations_->owner();
-    value.operation = relations_->operation();
-    value.context_digest = relations_->context_digest();
-    value.precision_digest = relations_->precision_digest();
-    value.relation_digest = relations_->digest();
-    value.source_semantic_digests[0] =
-        relations_->candidates()
-            ->primitive_table(operand_id::a)
-            .source_semantic_digest;
-    value.source_semantic_digests[1] =
-        relations_->candidates()
-            ->primitive_table(operand_id::b)
-            .source_semantic_digest;
-    value.exact_triangulation_digests[0] =
-        relations_->candidates()
-            ->primitive_table(operand_id::a)
-            .exact_topology_digest;
-    value.exact_triangulation_digests[1] =
-        relations_->candidates()
-            ->primitive_table(operand_id::b)
-            .exact_topology_digest;
+    value.owner = relations_.owner();
+    value.operation = relations_.operation();
+    value.context_digest = *relations_.context_digest();
+    value.precision_digest = *relations_.precision_digest();
+    value.relation_digest = relations_.digest();
+    for (const auto &topology : relations_.source_topology()) {
+      const auto index = static_cast<std::size_t>(topology.operand);
+      value.source_semantic_digests[index] = topology.source_semantic_digest;
+      value.exact_triangulation_digests[index] = topology.exact_topology_digest;
+    }
     return value;
   }
 
@@ -549,7 +525,7 @@ private:
       return false;
     if (!check_cancel(intersection_checkpoint::independent_verification) ||
         !finalize_intersection_complex_verification(
-            *relations_, *artifact_, codec_limits_, verifier_limits_, error_))
+            relations_, *artifact_, codec_limits_, verifier_limits_, error_))
       return false;
     return true;
   }
@@ -665,7 +641,7 @@ private:
 
   const boolean_context<T, I> &context_;
   const precision_context<T> &precision_;
-  std::shared_ptr<const signed_feature_relations<T, I>> relations_;
+  signed_feature_relations_view<T, I> relations_;
   intersection_capabilities capabilities_;
   intersection_codec_limits codec_limits_;
   intersection_verifier_limits verifier_limits_;
@@ -697,8 +673,12 @@ build_canonical_intersection_complex(
     intersection_capabilities capabilities,
     intersection_codec_limits codec_limits,
     intersection_verifier_limits verifier_limits) {
+  const auto view = relations
+                        ? signed_feature_relations_view<T, I>(
+                              *relations, capabilities.owner)
+                        : signed_feature_relations_view<T, I>{};
   return intersection_builder<T, I>(
-             context, precision, std::move(relations), std::move(capabilities),
+             context, precision, view, std::move(capabilities),
              codec_limits, verifier_limits)
       .run();
 }

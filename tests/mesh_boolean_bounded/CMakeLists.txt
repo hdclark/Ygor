@@ -212,6 +212,26 @@ ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_coplanar_overlay_tests)
 add_test(NAME mesh_boolean_bounded_component07_coplanar_overlay
     COMMAND ygor_mesh_boolean_coplanar_overlay_tests)
 
+add_test(NAME mesh_boolean_bounded_component07_verifier_layering
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckRelationVerifierIndependence.cmake)
+
+add_executable(ygor_mesh_boolean_relation_verifier_independence_tests
+    TestRelationVerifierIndependence.cc
+    BroadPhaseFixtures.cc)
+target_include_directories(
+    ygor_mesh_boolean_relation_verifier_independence_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(
+    ygor_mesh_boolean_relation_verifier_independence_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(
+    ygor_mesh_boolean_relation_verifier_independence_tests)
+add_test(NAME mesh_boolean_bounded_component07_verifier_independence
+    COMMAND ygor_mesh_boolean_relation_verifier_independence_tests)
+
 add_executable(ygor_mesh_boolean_intersection_key_tests
     TestIntersectionKeys.cc
     "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
@@ -399,6 +419,11 @@ ygor_apply_mesh_boolean_strict_fp(
     ygor_mesh_boolean_intersection_verifier_tests)
 add_test(NAME mesh_boolean_bounded_component08_verifier
     COMMAND ygor_mesh_boolean_intersection_verifier_tests)
+
+add_test(NAME mesh_boolean_bounded_component08_relation_boundary
+    COMMAND ${CMAKE_COMMAND}
+        -DSOURCE_ROOT=${CMAKE_SOURCE_DIR}
+        -P ${CMAKE_CURRENT_SOURCE_DIR}/CheckIntersectionRelationBoundary.cmake)
 
 add_executable(ygor_mesh_boolean_intersection_qualification_tests
     TestIntersectionQualification.cc

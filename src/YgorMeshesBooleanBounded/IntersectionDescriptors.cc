@@ -1529,35 +1529,29 @@ bool verify_intersection_descriptors(
 
 namespace {
 
-template <class T, class I>
-const canonical_halfedge_operand<T, I> *topology_operand(
-    const canonical_source_manifolds<T, I> &manifolds,
+const relation_source_topology_record *topology_operand(
+    const std::array<relation_source_topology_record, 2> &source_topology,
     operand_id operand) noexcept {
-  if (operand == operand_id::a)
-    return manifolds.a().get();
-  if (operand == operand_id::b)
-    return manifolds.b().get();
-  return nullptr;
+  const auto ordinal = static_cast<std::size_t>(operand);
+  return ordinal < source_topology.size() &&
+                 source_topology[ordinal].operand == operand
+             ? &source_topology[ordinal]
+             : nullptr;
 }
 
-template <class T, class I>
 bool validate_source_topology_predecessors(
-    const canonical_source_manifolds<T, I> &manifolds,
+    const std::array<relation_source_topology_record, 2> &source_topology,
     bounded_boolean_error &error) {
-  if (manifolds.schema_version() !=
-          contract_versions::canonical_source_manifolds_schema ||
-      !manifolds.a() || !manifolds.b() ||
-      manifolds.a()->operand() != operand_id::a ||
-      manifolds.b()->operand() != operand_id::b ||
-      !manifolds.owner().same_owner(manifolds.a()->owner()) ||
-      !manifolds.owner().same_owner(manifolds.b()->owner()) ||
-      manifolds.a()->verification() !=
-          canonical_halfedge_verification_disposition::independently_verified ||
-      manifolds.b()->verification() !=
-          canonical_halfedge_verification_disposition::independently_verified) {
-    error = descriptor_error(
-        "Component 08 source-topology predecessor is malformed");
-    return false;
+  for (const auto operand : {operand_id::a, operand_id::b}) {
+    const auto *topology = topology_operand(source_topology, operand);
+    if (!topology || topology->schema_version !=
+                         contract_versions::relation_downstream_topology_schema ||
+        topology->reserved16 != 0 || topology->reserved32 != 0 ||
+        topology->canonical_edge_count != topology->edge_adjacencies.size()) {
+      error = descriptor_error(
+          "Component 08 source-topology predecessor is malformed");
+      return false;
+    }
   }
   return true;
 }
@@ -1600,55 +1594,6 @@ bool copy_descriptor_table_to_proposals(
     proposals.push_back(std::move(proposal));
   }
   return true;
-}
-
-relation_feature_key source_facet_feature(
-    operand_id operand, std::uint64_t source_facet,
-    std::uint64_t ring) noexcept {
-  relation_feature_key feature;
-  feature.operand = operand;
-  feature.kind = relation_feature_kind::source_facet;
-  feature.primary = source_facet;
-  feature.secondary = ring;
-  return feature;
-}
-
-template <class T, class I>
-bool topology_facet_feature(
-    const canonical_halfedge_operand<T, I> &topology,
-    std::uint64_t source_facet,
-    relation_feature_key &feature) noexcept {
-  if (source_facet >= topology.source_facet_to_group().size())
-    return false;
-  const auto group_id = topology.source_facet_to_group()[source_facet];
-  if (group_id >= topology.facet_groups().size())
-    return false;
-  const auto &group = topology.facet_groups()[group_id];
-  if (group.canonical_id != group_id || group.source_facet != source_facet)
-    return false;
-  feature = source_facet_feature(topology.operand(), source_facet, group.ring);
-  return valid_relation_feature_key(feature, false);
-}
-
-template <class T>
-bool topology_edge_feature(const canonical_manifold_edge_record<T> &edge,
-                           operand_id operand,
-                           relation_feature_key &feature) noexcept {
-  feature = relation_feature_key{};
-  feature.operand = operand;
-  if (edge.edge_class == canonical_edge_class::source_edge) {
-    feature.kind = relation_feature_kind::source_edge;
-    feature.primary = edge.key.primary;
-    feature.secondary = edge.key.secondary;
-  } else if (edge.edge_class ==
-             canonical_edge_class::facet_internal_diagonal) {
-    feature.kind = relation_feature_kind::facet_internal_diagonal;
-    feature.primary = edge.source_facet;
-    feature.secondary = edge.source_diagonal;
-  } else {
-    return false;
-  }
-  return valid_relation_feature_key(feature, false);
 }
 
 bool valid_crossing_shape(const relation_crossing_record &crossing) noexcept {
@@ -1894,68 +1839,36 @@ bool resolve_crossing_binding_producer(
                                         incidence, member, error);
 }
 
-template <class T, class I>
 bool ordered_vertex_fan_facets(
-    const canonical_source_manifolds<T, I> &manifolds,
+    const std::array<relation_source_topology_record, 2> &source_topology,
     const relation_feature_key &source_vertex,
     std::vector<relation_feature_key> &facets,
     bounded_boolean_error &error) {
   facets.clear();
-  const auto *topology = topology_operand(manifolds, source_vertex.operand);
+  const auto *topology = topology_operand(source_topology, source_vertex.operand);
   if (topology == nullptr ||
-      source_vertex.kind != relation_feature_kind::source_vertex ||
-      source_vertex.primary >= topology->source_vertex_to_vertex().size()) {
+      source_vertex.kind != relation_feature_kind::source_vertex) {
     error = descriptor_error(
         "Component 08 source-fan topology owner is invalid");
     return false;
   }
-  const auto vertex_id = topology->source_vertex_to_vertex()[source_vertex.primary];
-  if (vertex_id >= topology->vertices().size()) {
+  const auto found = std::find_if(
+      topology->vertex_fans.begin(), topology->vertex_fans.end(),
+      [&](const auto &record) { return record.source_vertex == source_vertex; });
+  if (found == topology->vertex_fans.end()) {
     error = descriptor_error(
         "Component 08 source-fan canonical vertex is invalid");
     return false;
   }
-  const auto &vertex = topology->vertices()[vertex_id];
-  if (vertex.canonical_id != vertex_id ||
-      vertex.source_vertex != source_vertex.primary ||
-      vertex.fan >= topology->fans().size()) {
-    error = descriptor_error(
-        "Component 08 source-fan vertex record is malformed");
-    return false;
-  }
-  const auto &fan = topology->fans()[vertex.fan];
-  if (fan.canonical_id != vertex.fan || fan.vertex != vertex_id ||
-      fan.outgoing_halfedges.size() < 2) {
+  if (found->schema_version !=
+          contract_versions::relation_downstream_topology_schema ||
+      found->reserved16 != 0 || found->reserved32 != 0 ||
+      found->ordered_facets.size() < 2) {
     error = descriptor_error(
         "Component 08 source-fan record is malformed");
     return false;
   }
-  std::set<std::uint64_t> seen_halfedges;
-  for (const auto halfedge_id : fan.outgoing_halfedges) {
-    if (halfedge_id >= topology->halfedges().size() ||
-        !seen_halfedges.insert(halfedge_id).second) {
-      error = descriptor_error(
-          "Component 08 source-fan halfedge is invalid");
-      return false;
-    }
-    const auto &halfedge = topology->halfedges()[halfedge_id];
-    if (halfedge.canonical_id != halfedge_id ||
-        halfedge.origin != vertex_id || halfedge.edge >= topology->edges().size()) {
-      error = descriptor_error(
-          "Component 08 source-fan halfedge ownership is malformed");
-      return false;
-    }
-    relation_feature_key facet;
-    if (!topology_facet_feature(*topology, halfedge.source_facet, facet)) {
-      error = descriptor_error(
-          "Component 08 source-fan source facet is malformed");
-      return false;
-    }
-    if (facets.empty() || !(facets.back() == facet))
-      facets.push_back(facet);
-  }
-  if (facets.size() > 1 && facets.front() == facets.back())
-    facets.pop_back();
+  facets = found->ordered_facets;
   const std::set<relation_feature_key> unique(facets.begin(), facets.end());
   if (facets.size() < 2 || unique.size() != facets.size()) {
     error = descriptor_error(
@@ -2105,9 +2018,8 @@ bool append_fan_member_descriptor_producer(
   return true;
 }
 
-template <class T, class I>
 bool collect_source_vertex_sector_proposals_producer(
-    const canonical_source_manifolds<T, I> &manifolds,
+    const std::array<relation_source_topology_record, 2> &source_topology,
     const std::vector<relation_crossing_record> &crossings,
     const std::vector<relation_event_seed_record> &seeds,
     const event_interning_tables &interning,
@@ -2146,7 +2058,7 @@ bool collect_source_vertex_sector_proposals_producer(
       }
     }
     std::vector<relation_feature_key> ordered_facets;
-    if (!ordered_vertex_fan_facets(manifolds, vertex, ordered_facets, error))
+    if (!ordered_vertex_fan_facets(source_topology, vertex, ordered_facets, error))
       return false;
     if (members.size() != ordered_facets.size()) {
       error = descriptor_error(
@@ -2175,40 +2087,34 @@ bool collect_source_vertex_sector_proposals_producer(
   return true;
 }
 
-template <class T, class I>
 bool append_source_facet_adjacency_proposals_producer(
-    const canonical_source_manifolds<T, I> &manifolds,
+    const std::array<relation_source_topology_record, 2> &source_topology,
     const intersection_descriptor_tables &base,
     std::vector<descriptor_proposal> &proposals,
     bounded_boolean_error &error) {
   for (const operand_id operand : {operand_id::a, operand_id::b}) {
-    const auto *topology = topology_operand(manifolds, operand);
+    const auto *topology = topology_operand(source_topology, operand);
     if (topology == nullptr) {
       error = descriptor_error(
           "Component 08 source-facet topology is absent");
       return false;
     }
-    for (std::size_t i = 0; i < topology->edges().size(); ++i) {
-      const auto &edge = topology->edges()[i];
-      relation_feature_key edge_feature;
-      if (edge.canonical_id != i || edge.key.operand != operand ||
-          !topology_edge_feature(edge, operand, edge_feature)) {
+    for (std::size_t i = 0; i < topology->edge_adjacencies.size(); ++i) {
+      const auto &edge = topology->edge_adjacencies[i];
+      const auto &edge_feature = edge.edge;
+      if (edge.canonical_edge != i || edge.edge.operand != operand ||
+          edge.schema_version !=
+              contract_versions::relation_downstream_topology_schema) {
         error = descriptor_error(
             "Component 08 source-facet edge record is malformed");
         return false;
       }
-      relation_feature_key first_facet;
-      relation_feature_key second_facet;
-      if (!topology_facet_feature(*topology, edge.facets[0], first_facet) ||
-          !topology_facet_feature(*topology, edge.facets[1], second_facet)) {
-        error = descriptor_error(
-            "Component 08 source-facet edge names an invalid facet");
-        return false;
-      }
+      const auto &first_facet = edge.first_facet;
+      const auto &second_facet = edge.second_facet;
       if (edge.edge_class ==
           canonical_edge_class::facet_internal_diagonal) {
         if (!(first_facet == second_facet) ||
-            !canonical_edge_is_bookkeeping_only(edge)) {
+            !edge.bookkeeping_only) {
           error = descriptor_error(
               "Component 08 internal diagonal has semantic contamination");
           return false;
@@ -2217,13 +2123,13 @@ bool append_source_facet_adjacency_proposals_producer(
             intersection_descriptor_locus::
                 transparent_internal_diagonal_adjacency,
             intersection_descriptor_category::bookkeeping_only,
-            edge_feature, edge.canonical_id, 0, 0, operand, proposals);
+            edge_feature, edge.canonical_edge, 0, 0, operand, proposals);
         proposals.back().record.continuation_allowed = true;
         proposals.back().record.topology_consumable = true;
         continue;
       }
       if (first_facet == second_facet ||
-          !canonical_edge_is_source_feature(edge)) {
+          !edge.source_feature_owner) {
         error = descriptor_error(
             "Component 08 source edge lacks two semantic facet owners");
         return false;
@@ -2250,7 +2156,7 @@ bool append_source_facet_adjacency_proposals_producer(
         proposal.record.key.locus =
             intersection_descriptor_locus::
                 source_facet_original_edge_adjacency;
-        proposal.record.key.parent_lineage = edge.canonical_id;
+        proposal.record.key.parent_lineage = edge.canonical_edge;
         proposal.record.key.boundary_ordinal = base_record.id.ordinal() + 1;
         proposal.record.topology_consumable = true;
         if (!checked_range(base_record.provenance, base.provenance.size())) {
@@ -2270,7 +2176,7 @@ bool append_source_facet_adjacency_proposals_producer(
             intersection_descriptor_locus::
                 source_facet_original_edge_adjacency,
             intersection_descriptor_category::no_influence,
-            edge_feature, edge.canonical_id, 0, 1, operand, proposals);
+            edge_feature, edge.canonical_edge, 0, 1, operand, proposals);
         proposals.back().record.continuation_allowed = true;
         proposals.back().record.topology_consumable = true;
       }
@@ -2279,9 +2185,8 @@ bool append_source_facet_adjacency_proposals_producer(
   return true;
 }
 
-template <class T, class I>
 bool collect_topology_proposals_producer(
-    const canonical_source_manifolds<T, I> &manifolds,
+    const std::array<relation_source_topology_record, 2> &source_topology,
     const std::vector<relation_crossing_record> &crossings,
     const std::vector<relation_event_seed_record> &seeds,
     const event_interning_tables &interning,
@@ -2289,12 +2194,12 @@ bool collect_topology_proposals_producer(
     const intersection_descriptor_tables &base,
     std::vector<descriptor_proposal> &proposals,
     bounded_boolean_error &error) {
-  return validate_source_topology_predecessors(manifolds, error) &&
+  return validate_source_topology_predecessors(source_topology, error) &&
          collect_source_vertex_sector_proposals_producer(
-             manifolds, crossings, seeds, interning, incidence, proposals,
+             source_topology, crossings, seeds, interning, incidence, proposals,
              error) &&
          append_source_facet_adjacency_proposals_producer(
-             manifolds, base, proposals, error);
+             source_topology, base, proposals, error);
 }
 
 bool equal_descriptor_tables(const intersection_descriptor_tables &a,
@@ -2360,38 +2265,10 @@ bool resolve_crossings_verifier(
   return consumed.size() == lookup.size();
 }
 
-template <class T, class I>
 bool verifier_vertex_fan_facets(
-    const canonical_halfedge_operand<T, I> &topology,
-    const canonical_manifold_vertex_record<T> &vertex,
+    const relation_source_vertex_fan_record &vertex,
     std::vector<relation_feature_key> &facets) {
-  facets.clear();
-  if (vertex.fan >= topology.fans().size())
-    return false;
-  const auto &fan = topology.fans()[vertex.fan];
-  if (fan.canonical_id != vertex.fan || fan.vertex != vertex.canonical_id ||
-      fan.outgoing_halfedges.size() < 2)
-    return false;
-  std::vector<relation_feature_key> raw_reverse;
-  std::set<std::uint64_t> seen;
-  for (auto it = fan.outgoing_halfedges.rbegin();
-       it != fan.outgoing_halfedges.rend(); ++it) {
-    if (*it >= topology.halfedges().size() || !seen.insert(*it).second)
-      return false;
-    const auto &halfedge = topology.halfedges()[*it];
-    if (halfedge.canonical_id != *it || halfedge.origin != vertex.canonical_id)
-      return false;
-    relation_feature_key facet;
-    if (!topology_facet_feature(topology, halfedge.source_facet, facet))
-      return false;
-    raw_reverse.push_back(facet);
-  }
-  std::reverse(raw_reverse.begin(), raw_reverse.end());
-  for (const auto &facet : raw_reverse)
-    if (facets.empty() || !(facets.back() == facet))
-      facets.push_back(facet);
-  if (facets.size() > 1 && facets.front() == facets.back())
-    facets.pop_back();
+  facets = vertex.ordered_facets;
   return facets.size() >= 2 &&
          std::set<relation_feature_key>(facets.begin(), facets.end()).size() ==
              facets.size();
@@ -2561,9 +2438,8 @@ bool append_fan_descriptor_verifier(
   return true;
 }
 
-template <class T, class I>
 bool collect_source_vertex_sectors_verifier(
-    const canonical_source_manifolds<T, I> &manifolds,
+    const std::array<relation_source_topology_record, 2> &source_topology,
     const std::vector<relation_crossing_record> &crossings,
     const std::vector<relation_event_seed_record> &seeds,
     const event_interning_tables &interning,
@@ -2576,18 +2452,15 @@ bool collect_source_vertex_sectors_verifier(
     return false;
   std::set<std::pair<operand_id, std::uint64_t>> consumed_groups;
   for (const operand_id operand : {operand_id::b, operand_id::a}) {
-    const auto *topology = topology_operand(manifolds, operand);
+    const auto *topology = topology_operand(source_topology, operand);
     if (!topology)
       return false;
-    for (std::size_t reverse = topology->vertices().size(); reverse != 0;
+    for (std::size_t reverse = topology->vertex_fans.size(); reverse != 0;
          --reverse) {
-      const auto &vertex_record = topology->vertices()[reverse - 1];
-      if (vertex_record.canonical_id != reverse - 1)
+      const auto &vertex_record = topology->vertex_fans[reverse - 1];
+      if (vertex_record.canonical_vertex != reverse - 1)
         return false;
-      relation_feature_key vertex;
-      vertex.operand = operand;
-      vertex.kind = relation_feature_kind::source_vertex;
-      vertex.primary = vertex_record.source_vertex;
+      const auto &vertex = vertex_record.source_vertex;
       if (!valid_relation_feature_key(vertex, false))
         return false;
       std::map<std::uint64_t, std::vector<const resolved_fan_member *>> groups;
@@ -2597,8 +2470,7 @@ bool collect_source_vertex_sectors_verifier(
       if (groups.empty())
         continue;
       std::vector<relation_feature_key> ordered_facets;
-      if (!verifier_vertex_fan_facets(*topology, vertex_record,
-                                      ordered_facets))
+      if (!verifier_vertex_fan_facets(vertex_record, ordered_facets))
         return false;
       for (auto group_it = groups.rbegin(); group_it != groups.rend();
            ++group_it) {
@@ -2637,30 +2509,26 @@ bool collect_source_vertex_sectors_verifier(
   return true;
 }
 
-template <class T, class I>
 bool append_source_adjacency_verifier(
-    const canonical_source_manifolds<T, I> &manifolds,
+    const std::array<relation_source_topology_record, 2> &source_topology,
     const intersection_descriptor_tables &base,
     std::vector<descriptor_proposal> &expected) {
   for (const operand_id operand : {operand_id::b, operand_id::a}) {
-    const auto *topology = topology_operand(manifolds, operand);
+    const auto *topology = topology_operand(source_topology, operand);
     if (!topology)
       return false;
-    for (std::size_t reverse = topology->edges().size(); reverse != 0;
+    for (std::size_t reverse = topology->edge_adjacencies.size(); reverse != 0;
          --reverse) {
-      const auto &edge = topology->edges()[reverse - 1];
-      relation_feature_key feature;
-      relation_feature_key first_facet;
-      relation_feature_key second_facet;
-      if (edge.canonical_id != reverse - 1 || edge.key.operand != operand ||
-          !topology_edge_feature(edge, operand, feature) ||
-          !topology_facet_feature(*topology, edge.facets[0], first_facet) ||
-          !topology_facet_feature(*topology, edge.facets[1], second_facet))
+      const auto &edge = topology->edge_adjacencies[reverse - 1];
+      const auto &feature = edge.edge;
+      const auto &first_facet = edge.first_facet;
+      const auto &second_facet = edge.second_facet;
+      if (edge.canonical_edge != reverse - 1 || edge.edge.operand != operand)
         return false;
       if (edge.edge_class ==
           canonical_edge_class::facet_internal_diagonal) {
         if (!(first_facet == second_facet) ||
-            !canonical_edge_is_bookkeeping_only(edge))
+            !edge.bookkeeping_only)
           return false;
         descriptor_proposal proposal;
         proposal.record.key.locus =
@@ -2669,14 +2537,14 @@ bool append_source_adjacency_verifier(
         proposal.record.key.category =
             intersection_descriptor_category::bookkeeping_only;
         proposal.record.key.source_feature = feature;
-        proposal.record.key.parent_lineage = edge.canonical_id;
+        proposal.record.key.parent_lineage = edge.canonical_edge;
         proposal.record.symbolic_owner = operand;
         verifier_set_flags(proposal.record);
         expected.push_back(std::move(proposal));
         continue;
       }
       if (first_facet == second_facet ||
-          !canonical_edge_is_source_feature(edge))
+          !edge.source_feature_owner)
         return false;
       std::size_t emitted = 0;
       for (auto it = base.records.rbegin(); it != base.records.rend(); ++it) {
@@ -2702,7 +2570,7 @@ bool append_source_adjacency_verifier(
         proposal.record.key.locus =
             intersection_descriptor_locus::
                 source_facet_original_edge_adjacency;
-        proposal.record.key.parent_lineage = edge.canonical_id;
+        proposal.record.key.parent_lineage = edge.canonical_edge;
         proposal.record.key.boundary_ordinal = record.id.ordinal() + 1;
         proposal.record.topology_consumable = true;
         proposal.provenance.assign(
@@ -2720,7 +2588,7 @@ bool append_source_adjacency_verifier(
         proposal.record.key.category =
             intersection_descriptor_category::no_influence;
         proposal.record.key.source_feature = feature;
-        proposal.record.key.parent_lineage = edge.canonical_id;
+        proposal.record.key.parent_lineage = edge.canonical_edge;
         proposal.record.key.orientation = 1;
         proposal.record.symbolic_owner = operand;
         verifier_set_flags(proposal.record);
@@ -2733,9 +2601,8 @@ bool append_source_adjacency_verifier(
 
 } // namespace
 
-template <class T, class I>
 bool extend_intersection_descriptors_with_source_topology(
-    const canonical_source_manifolds<T, I> &manifolds,
+    const std::array<relation_source_topology_record, 2> &source_topology,
     const std::vector<relation_crossing_record> &crossings,
     const std::vector<relation_event_seed_record> &seeds,
     const event_interning_tables &interning,
@@ -2745,19 +2612,19 @@ bool extend_intersection_descriptors_with_source_topology(
     bounded_boolean_error &error) {
   std::vector<descriptor_proposal> proposals;
   if (!copy_descriptor_table_to_proposals(base, proposals, error) ||
-      !collect_topology_proposals_producer(manifolds, crossings, seeds,
+      !collect_topology_proposals_producer(source_topology, crossings, seeds,
                                            interning, incidence, base,
                                            proposals, error) ||
       !canonicalize_proposals(proposals, error) ||
       !publish_proposals(proposals, tables, error))
     return false;
   return verify_intersection_source_topology_descriptors(
-      manifolds, crossings, seeds, interning, incidence, base, tables, error);
+      source_topology, crossings, seeds, interning, incidence, base, tables,
+      error);
 }
 
-template <class T, class I>
 bool verify_intersection_source_topology_descriptors(
-    const canonical_source_manifolds<T, I> &manifolds,
+    const std::array<relation_source_topology_record, 2> &source_topology,
     const std::vector<relation_crossing_record> &crossings,
     const std::vector<relation_event_seed_record> &seeds,
     const event_interning_tables &interning,
@@ -2766,7 +2633,7 @@ bool verify_intersection_source_topology_descriptors(
     const intersection_descriptor_tables &tables,
     bounded_boolean_error &error) {
   bounded_boolean_error ignored;
-  if (!validate_source_topology_predecessors(manifolds, ignored)) {
+  if (!validate_source_topology_predecessors(source_topology, ignored)) {
     error = descriptor_verifier_error(
         "Component 08 source-topology verifier rejected predecessors");
     return false;
@@ -2774,9 +2641,9 @@ bool verify_intersection_source_topology_descriptors(
   std::vector<descriptor_proposal> expected;
   if (!copy_descriptor_table_to_proposals(base, expected, ignored) ||
       !collect_source_vertex_sectors_verifier(
-          manifolds, crossings, seeds, interning, incidence, expected,
+          source_topology, crossings, seeds, interning, incidence, expected,
           ignored) ||
-      !append_source_adjacency_verifier(manifolds, base, expected) ||
+      !append_source_adjacency_verifier(source_topology, base, expected) ||
       !canonicalize_proposals(expected, ignored)) {
     error = descriptor_verifier_error(
         "Component 08 source-topology descriptor reconstruction failed");
@@ -2791,28 +2658,5 @@ bool verify_intersection_source_topology_descriptors(
   }
   return true;
 }
-
-#define YGOR_INSTANTIATE_SOURCE_TOPOLOGY(T, I)                                \
-  template bool extend_intersection_descriptors_with_source_topology<T, I>(   \
-      const canonical_source_manifolds<T, I> &,                               \
-      const std::vector<relation_crossing_record> &,                          \
-      const std::vector<relation_event_seed_record> &,                        \
-      const event_interning_tables &, const event_incidence_tables &,          \
-      const intersection_descriptor_tables &, intersection_descriptor_tables &,\
-      bounded_boolean_error &);                                                \
-  template bool verify_intersection_source_topology_descriptors<T, I>(        \
-      const canonical_source_manifolds<T, I> &,                               \
-      const std::vector<relation_crossing_record> &,                          \
-      const std::vector<relation_event_seed_record> &,                        \
-      const event_interning_tables &, const event_incidence_tables &,          \
-      const intersection_descriptor_tables &,                                \
-      const intersection_descriptor_tables &, bounded_boolean_error &)
-
-YGOR_INSTANTIATE_SOURCE_TOPOLOGY(float, std::uint32_t);
-YGOR_INSTANTIATE_SOURCE_TOPOLOGY(float, std::uint64_t);
-YGOR_INSTANTIATE_SOURCE_TOPOLOGY(double, std::uint32_t);
-YGOR_INSTANTIATE_SOURCE_TOPOLOGY(double, std::uint64_t);
-
-#undef YGOR_INSTANTIATE_SOURCE_TOPOLOGY
 
 } // namespace ygor::mesh_boolean::bounded

@@ -1,7 +1,7 @@
 #pragma once
 
-#include "FacetFacetRelations.h"
 #include "EventInterning.h"
+#include "RelationQueries.h"
 #include "TransverseCarrierArrangements.h"
 
 #include <algorithm>
@@ -26,22 +26,6 @@ inline bool checked_range(std::uint64_t begin, std::uint64_t count,
   return begin <= size && count <= size - static_cast<std::size_t>(begin);
 }
 
-template <class T>
-const source_facet_source_facet_relation_record<T> *find_stage_relation(
-    const candidate_source_facet_relation_stage<T> &stage,
-    const relation_feature_key &first,
-    const relation_feature_key &second) noexcept {
-  const source_facet_source_facet_relation_record<T> *found = nullptr;
-  for (const auto &record : stage.relations) {
-    if (record.first_feature != first || record.second_feature != second)
-      continue;
-    if (found != nullptr)
-      return nullptr;
-    found = &record;
-  }
-  return found;
-}
-
 inline bool valid_facet_pair(const relation_feature_key &first,
                              const relation_feature_key &second) noexcept {
   return first.kind == relation_feature_kind::source_facet &&
@@ -53,34 +37,69 @@ inline bool valid_facet_pair(const relation_feature_key &first,
 
 template <class T, class I>
 bool collect_component07_transverse_carrier_proposals(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     std::vector<transverse_carrier_proposal> &proposals,
     bounded_boolean_error &error) {
   proposals.clear();
 
-  if (relations.verification() !=
-          relation_verification_disposition::independently_verified ||
-      !relations.source_facet_stage() || !relations.source_edge_facet_stage()) {
+  if (!relations.valid_owner()) {
     error = transverse_relation_adapter_detail::adapter_error(
         intersection_subcode::predecessor_not_verified,
-        "Component 08 transverse adapter requires the verified Component 07 facet/facet stage");
+        "Component 08 transverse adapter requires a checked Component 07 view");
     return false;
   }
 
   const auto &graph = relations.request_graph();
-  const auto &stage = *relations.source_facet_stage();
   const auto &constructions = relations.constructions();
   const auto &feature_relations = relations.relations();
 
+  for (const auto &construction : constructions) {
+    if (construction.kind != relation_construction_kind::bounded_carrier)
+      continue;
+    const auto support_count = std::count_if(
+        relations.transverse_carrier_supports().begin(),
+        relations.transverse_carrier_supports().end(), [&](const auto &support) {
+          return support.construction == construction.id &&
+                 support.relation == construction.source_relation;
+        });
+    if (support_count != 1) {
+      error = transverse_relation_adapter_detail::adapter_error(
+          intersection_subcode::transverse_carrier_invalid,
+          "Component 08 transverse carrier lacks one public support record");
+      return false;
+    }
+  }
   for (const auto &relation : feature_relations) {
     if (relation.family != feature_relation_family::source_facet_source_facet ||
         relation.status != feature_relation_status::proper_crossing)
       continue;
-    if (relation.id.ordinal() >= feature_relations.size() ||
-        relation.producer.ordinal() >= graph.requests.size()) {
+    const auto support_count = std::count_if(
+        relations.transverse_carrier_supports().begin(),
+        relations.transverse_carrier_supports().end(),
+        [&](const auto &support) { return support.relation == relation.id; });
+    if (support_count != 1) {
+      error = transverse_relation_adapter_detail::adapter_error(
+          intersection_subcode::transverse_carrier_invalid,
+          "Component 08 public transverse relation lacks one support record");
+      return false;
+    }
+  }
+
+  for (const auto &support : relations.transverse_carrier_supports()) {
+    if (support.relation.ordinal() >= feature_relations.size()) {
       error = transverse_relation_adapter_detail::adapter_error(
           intersection_subcode::transverse_carrier_invalid,
           "Component 08 transverse adapter found malformed Component 07 relation identity");
+      return false;
+    }
+    const auto &relation = feature_relations[support.relation.ordinal()];
+    if (relation.id != support.relation ||
+        relation.family != feature_relation_family::source_facet_source_facet ||
+        relation.status != feature_relation_status::proper_crossing ||
+        relation.producer.ordinal() >= graph.requests.size()) {
+      error = transverse_relation_adapter_detail::adapter_error(
+          intersection_subcode::transverse_carrier_invalid,
+          "Component 08 transverse support does not name a public crossing");
       return false;
     }
 
@@ -99,49 +118,22 @@ bool collect_component07_transverse_carrier_proposals(
       return false;
     }
 
-    const auto *stage_relation =
-        transverse_relation_adapter_detail::find_stage_relation(
-            stage, request.key.first, request.key.second);
-    if (stage_relation == nullptr ||
-        stage_relation->classification !=
-            source_facet_support_relation_class::transverse ||
-        !stage_relation->has_transverse_carrier ||
-        !stage_relation->transverse_carrier.residuals_accepted) {
+    if (support.first_facet != request.key.first ||
+        support.second_facet != request.key.second ||
+        !support.support_consistent || !support.orientation_consistent ||
+        !support.residuals_accepted || !support.precision_evidence_complete ||
+        support.schema_version !=
+            contract_versions::relation_transverse_support_schema ||
+        support.reserved16 != 0 || support.reserved32 != 0) {
       error = transverse_relation_adapter_detail::adapter_error(
           intersection_subcode::transverse_carrier_invalid,
           "Component 08 transverse adapter could not reconcile detailed carrier support");
       return false;
     }
-    std::uint64_t expected_memberships = 0;
-    const auto &edge_facet_stage = *relations.source_edge_facet_stage();
-    for (const auto consumer : stage_relation->edge_facet_consumers) {
-      if (consumer.ordinal() >= edge_facet_stage.relations.size()) {
-        error = transverse_relation_adapter_detail::adapter_error(
-            intersection_subcode::membership_incomplete,
-            "Component 08 transverse carrier consumer is absent");
-        return false;
-      }
-      expected_memberships +=
-          edge_facet_stage.relations[consumer.ordinal()].events.size();
-    }
-    const auto actual_memberships = static_cast<std::uint64_t>(std::count_if(
-        relations.transverse_carrier_memberships().begin(),
-        relations.transverse_carrier_memberships().end(),
-        [&](const auto &membership) {
-          return membership.carrier_relation == relation.id;
-        }));
-    if (actual_memberships != expected_memberships) {
-      error = transverse_relation_adapter_detail::adapter_error(
-          intersection_subcode::membership_incomplete,
-          "Component 08 transverse carrier membership population is incomplete");
-      return false;
-    }
-    if (expected_memberships == 0)
-      continue;
-
     const relation_construction_record *construction = nullptr;
     for (const auto &candidate : constructions) {
-      if (candidate.source_relation != relation.id ||
+      if (candidate.id != support.construction ||
+          candidate.source_relation != relation.id ||
           candidate.kind != relation_construction_kind::bounded_carrier)
         continue;
       if (construction != nullptr) {
@@ -172,6 +164,20 @@ bool collect_component07_transverse_carrier_proposals(
           "Component 07 transverse carrier construction lacks the nonzero geometric lineage required by the Component 08 carrier key");
       return false;
     }
+    const auto actual_memberships = static_cast<std::uint64_t>(std::count_if(
+        relations.transverse_carrier_memberships().begin(),
+        relations.transverse_carrier_memberships().end(),
+        [&](const auto &membership) {
+          return membership.carrier_relation == support.relation;
+        }));
+    if (actual_memberships != support.expected_membership_count) {
+      error = transverse_relation_adapter_detail::adapter_error(
+          intersection_subcode::transverse_carrier_invalid,
+          "Component 08 transverse carrier membership population is incomplete");
+      return false;
+    }
+    if (support.expected_membership_count == 0)
+      continue;
 
     transverse_carrier_key key;
     key.first_facet = request.key.first;
@@ -219,7 +225,7 @@ bool collect_component07_transverse_carrier_proposals(
 
 template <class T, class I>
 bool verify_component07_transverse_carrier_proposals(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     const std::vector<transverse_carrier_proposal> &proposals,
     bounded_boolean_error &error) {
   std::vector<transverse_carrier_proposal> reconstructed;
@@ -256,7 +262,7 @@ bool verify_component07_transverse_carrier_proposals(
 
 template <class T, class I>
 bool collect_component07_transverse_membership_proposals(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     const event_interning_tables &interning,
     std::vector<carrier_membership_proposal> &memberships,
     std::vector<transverse_relation_interval_proposal> &intervals,

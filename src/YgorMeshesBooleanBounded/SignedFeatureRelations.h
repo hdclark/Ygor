@@ -21,6 +21,7 @@ template <class T> struct candidate_source_facet_relation_stage;
 template <class T> struct candidate_coplanar_overlay_stage;
 template <class T, class I> class relation_artifact_assembler;
 struct relation_artifact_test_access;
+struct relation_artifact_internal_access;
 
 struct relation_imported_geometry_record final {
   relation_imported_geometry_id id{0};
@@ -512,6 +513,72 @@ struct relation_transverse_carrier_membership_record final {
   std::uint32_t reserved32 = 0;
 };
 
+struct relation_source_edge_domain_record final {
+  relation_feature_key source_edge{};
+  relation_feature_key start_vertex{};
+  relation_feature_key end_vertex{};
+  std::uint64_t canonical_edge = 0;
+  std::uint16_t schema_version =
+      contract_versions::relation_downstream_topology_schema;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_source_vertex_fan_record final {
+  relation_feature_key source_vertex{};
+  std::vector<relation_feature_key> ordered_facets;
+  std::uint64_t canonical_vertex = 0;
+  std::uint16_t schema_version =
+      contract_versions::relation_downstream_topology_schema;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_source_edge_adjacency_record final {
+  relation_feature_key edge{};
+  relation_feature_key first_facet{};
+  relation_feature_key second_facet{};
+  std::uint64_t canonical_edge = 0;
+  canonical_edge_class edge_class = canonical_edge_class::source_edge;
+  bool source_feature_owner = false;
+  bool bookkeeping_only = false;
+  std::uint8_t reserved8 = 0;
+  std::uint16_t schema_version =
+      contract_versions::relation_downstream_topology_schema;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_source_topology_record final {
+  operand_id operand = operand_id::a;
+  std::uint64_t source_triangle_count = 0;
+  std::uint64_t canonical_edge_count = 0;
+  bounded_boolean_digest source_semantic_digest{};
+  bounded_boolean_digest exact_topology_digest{};
+  std::vector<relation_source_edge_domain_record> source_edges;
+  std::vector<relation_source_vertex_fan_record> vertex_fans;
+  std::vector<relation_source_edge_adjacency_record> edge_adjacencies;
+  std::uint16_t schema_version =
+      contract_versions::relation_downstream_topology_schema;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_transverse_carrier_support_record final {
+  feature_relation_id relation{0};
+  relation_construction_id construction{0};
+  relation_feature_key first_facet{};
+  relation_feature_key second_facet{};
+  std::uint64_t expected_membership_count = 0;
+  bool support_consistent = false;
+  bool orientation_consistent = false;
+  bool residuals_accepted = false;
+  bool precision_evidence_complete = false;
+  std::uint16_t schema_version =
+      contract_versions::relation_transverse_support_schema;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
 struct relation_candidate_partition_record final {
   relation_candidate_partition_id id{0};
   candidate_partition_id source_partition{0};
@@ -628,24 +695,12 @@ public:
     return verification_;
   }
   const context_owner_token &owner() const noexcept { return owner_; }
-  const std::shared_ptr<const canonical_candidate_stream<T, I>> &candidates()
-      const noexcept {
-    return candidates_;
-  }
   const relation_request_graph &request_graph() const noexcept {
     return request_graph_;
   }
   const relation_execution_authority &execution_authority() const noexcept {
     return execution_authority_;
   }
-  const std::shared_ptr<const candidate_source_edge_relation_stage<T>> &
-  source_edge_stage() const noexcept { return source_edge_stage_; }
-  const std::shared_ptr<const candidate_source_edge_facet_relation_stage<T>> &
-  source_edge_facet_stage() const noexcept { return source_edge_facet_stage_; }
-  const std::shared_ptr<const candidate_source_facet_relation_stage<T>> &
-  source_facet_stage() const noexcept { return source_facet_stage_; }
-  const std::shared_ptr<const candidate_coplanar_overlay_stage<T>> &
-  coplanar_overlay_stage() const noexcept { return coplanar_overlay_stage_; }
   const std::vector<relation_imported_geometry_record> &
   imported_geometry() const noexcept { return imported_geometry_; }
   const std::vector<relation_bounded_primitive_record> &
@@ -712,6 +767,12 @@ public:
   const std::vector<relation_transverse_carrier_membership_record> &
   transverse_carrier_memberships() const noexcept {
     return transverse_carrier_memberships_;
+  }
+  const std::array<relation_source_topology_record, 2> &
+  source_topology() const noexcept { return source_topology_; }
+  const std::vector<relation_transverse_carrier_support_record> &
+  transverse_carrier_supports() const noexcept {
+    return transverse_carrier_supports_;
   }
   const std::vector<feature_relation_id> &candidate_relation_coverage()
       const noexcept { return candidate_relation_coverage_; }
@@ -807,6 +868,9 @@ private:
       triangle_local_reconciliation_;
   std::vector<relation_transverse_carrier_membership_record>
       transverse_carrier_memberships_;
+  std::array<relation_source_topology_record, 2> source_topology_{};
+  std::vector<relation_transverse_carrier_support_record>
+      transverse_carrier_supports_;
   std::vector<feature_relation_id> candidate_relation_coverage_;
   std::vector<relation_event_seed_id> candidate_event_seed_coverage_;
   std::vector<relation_candidate_partition_record> candidate_partitions_;
@@ -828,6 +892,7 @@ private:
   template <class U, class J> friend class relation_builder;
   template <class U, class J> friend class relation_artifact_assembler;
   friend struct relation_artifact_test_access;
+  friend struct relation_artifact_internal_access;
   template <class U, class J>
   friend std::vector<std::uint8_t>
   encode_signed_feature_relations(const signed_feature_relations<U, J> &);

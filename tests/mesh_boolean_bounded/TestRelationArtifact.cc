@@ -23,6 +23,36 @@ namespace ygor::mesh_boolean::bounded {
 
 struct relation_artifact_test_access final {
   template <class T, class I>
+  static const auto &predecessor_candidates(
+      const signed_feature_relations<T, I> &artifact) {
+    return artifact.candidates_;
+  }
+
+  template <class T, class I>
+  static const auto &source_edge_stage(
+      const signed_feature_relations<T, I> &artifact) {
+    return artifact.source_edge_stage_;
+  }
+
+  template <class T, class I>
+  static const auto &source_edge_facet_stage(
+      const signed_feature_relations<T, I> &artifact) {
+    return artifact.source_edge_facet_stage_;
+  }
+
+  template <class T, class I>
+  static const auto &source_facet_stage(
+      const signed_feature_relations<T, I> &artifact) {
+    return artifact.source_facet_stage_;
+  }
+
+  template <class T, class I>
+  static const auto &coplanar_overlay_stage(
+      const signed_feature_relations<T, I> &artifact) {
+    return artifact.coplanar_overlay_stage_;
+  }
+
+  template <class T, class I>
   static signed_feature_relations<T, I>
   copy(const signed_feature_relations<T, I> &artifact) {
     return artifact;
@@ -152,6 +182,17 @@ struct relation_artifact_test_access final {
   static auto &transverse_memberships(
       signed_feature_relations<T, I> &artifact) {
     return artifact.transverse_carrier_memberships_;
+  }
+
+  template <class T, class I>
+  static auto &source_topology(signed_feature_relations<T, I> &artifact) {
+    return artifact.source_topology_;
+  }
+
+  template <class T, class I>
+  static auto &transverse_supports(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.transverse_carrier_supports_;
   }
 
   template <class T, class I>
@@ -380,8 +421,10 @@ void test_empty_artifact_and_decode() {
               artifact->relations().empty() && artifact->constructions().empty() &&
               artifact->candidate_dispositions().empty(),
           "empty candidates publish a canonical empty relation artifact");
-  require(artifact->source_edge_stage() && artifact->source_edge_facet_stage() &&
-              artifact->source_facet_stage() && artifact->coplanar_overlay_stage(),
+  require(bounded::relation_artifact_test_access::source_edge_stage(*artifact) &&
+              bounded::relation_artifact_test_access::source_edge_facet_stage(*artifact) &&
+              bounded::relation_artifact_test_access::source_facet_stage(*artifact) &&
+              bounded::relation_artifact_test_access::coplanar_overlay_stage(*artifact),
           "empty artifact retains all verified detailed stages");
   bounded_boolean_error verify_error;
   require(bounded::verify_signed_feature_relations(*artifact, verify_error),
@@ -474,7 +517,8 @@ void test_nonempty_determinism_and_decode() {
   bounded::relation_capabilities vertex_facet_capabilities;
   vertex_facet_capabilities.owner = first->owner();
   auto evaluated_vertex_facets = bounded::build_source_vertex_facet_evaluated_stage(
-      *first->candidates(), first->execution_authority(),
+      *bounded::relation_artifact_test_access::predecessor_candidates(*first),
+      first->execution_authority(),
       first_fixture.predecessor.context.context_digest,
       vertex_facet_capabilities, first->residual_boundary());
   require(evaluated_vertex_facets.has_value() &&
@@ -534,8 +578,10 @@ void test_nonempty_determinism_and_decode() {
                   }),
           "Component 08 consumes immutable Component 07 transverse memberships end to end");
   const auto support_carriers = static_cast<std::size_t>(std::count_if(
-      first->source_facet_stage()->relations.begin(),
-      first->source_facet_stage()->relations.end(), [](const auto &relation) {
+      bounded::relation_artifact_test_access::source_facet_stage(*first)
+          ->relations.begin(),
+      bounded::relation_artifact_test_access::source_facet_stage(*first)
+          ->relations.end(), [](const auto &relation) {
         return relation.classification == bounded::
                    source_facet_support_relation_class::transverse;
       }));
@@ -758,6 +804,59 @@ void test_matched_mutation_rejection() {
                                                     error),
           "matched triangle-local reconciliation mutation is rejected");
 
+  auto topology_header_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  auto &topology_header = bounded::relation_artifact_test_access::source_topology(
+      topology_header_mutation)[0];
+  topology_header.source_semantic_digest.bytes[0] ^= std::uint8_t{1};
+  ++topology_header.source_triangle_count;
+  bounded::relation_artifact_test_access::repair_codec(topology_header_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(topology_header_mutation,
+                                                     error),
+          "repaired downstream topology header mutation is rejected");
+
+  auto topology_domain_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  auto &topology_domain = bounded::relation_artifact_test_access::source_topology(
+      topology_domain_mutation)[0].source_edges.front();
+  topology_domain.end_vertex.operand = bounded::operand_id::b;
+  topology_domain.end_vertex.kind = bounded::relation_feature_kind::source_edge;
+  ++topology_domain.canonical_edge;
+  bounded::relation_artifact_test_access::repair_codec(topology_domain_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(topology_domain_mutation,
+                                                     error),
+          "repaired downstream source-edge domain mutation is rejected");
+
+  auto topology_fan_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  auto &topology_fans = bounded::relation_artifact_test_access::source_topology(
+      topology_fan_mutation)[0].vertex_fans;
+  require(!topology_fans.empty() && !topology_fans.front().ordered_facets.empty(),
+          "mutation fixture requires downstream source fan evidence");
+  ++topology_fans.front().ordered_facets.front().primary;
+  bounded::relation_artifact_test_access::repair_codec(topology_fan_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(topology_fan_mutation,
+                                                     error),
+          "repaired downstream vertex-fan order mutation is rejected");
+
+  auto topology_adjacency_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  auto &topology_adjacency =
+      bounded::relation_artifact_test_access::source_topology(
+          topology_adjacency_mutation)[0].edge_adjacencies.front();
+  ++topology_adjacency.edge.primary;
+  ++topology_adjacency.first_facet.primary;
+  topology_adjacency.bookkeeping_only = !topology_adjacency.bookkeeping_only;
+  bounded::relation_artifact_test_access::repair_codec(
+      topology_adjacency_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(
+              topology_adjacency_mutation, error),
+          "repaired downstream edge-adjacency mutation is rejected");
+
   auto import_mutation =
       bounded::relation_artifact_test_access::copy(*artifact);
   require(!import_mutation.imported_geometry().empty(),
@@ -864,8 +963,10 @@ void test_matched_mutation_rejection() {
             "removed transverse membership is rejected from the complete expected key set");
     std::vector<bounded::transverse_carrier_proposal> carrier_proposals;
     error = bounded_boolean_error{};
-    require(!bounded::collect_component07_transverse_carrier_proposals(
-                removed_membership, carrier_proposals, error),
+        require(!bounded::collect_component07_transverse_carrier_proposals(
+                bounded::signed_feature_relations_view<double, std::uint32_t>(
+                    removed_membership, removed_membership.owner()),
+                carrier_proposals, error),
             "Component 08 fails closed on a transverse carrier with a removed membership");
 
     auto parameter_lineage_mutation =
@@ -883,6 +984,62 @@ void test_matched_mutation_rejection() {
     require(!bounded::verify_signed_feature_relations(
                 parameter_lineage_mutation, error),
             "transverse bounded-divide issued lineage mutation is rejected");
+
+    require(!artifact->transverse_carrier_supports().empty(),
+            "mutation fixture requires downstream transverse supports");
+    auto missing_support =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    bounded::relation_artifact_test_access::transverse_supports(missing_support)
+        .erase(bounded::relation_artifact_test_access::transverse_supports(
+                   missing_support)
+                   .begin());
+    bounded::relation_artifact_test_access::repair_codec(missing_support);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(missing_support, error),
+            "repaired missing transverse support is rejected");
+
+    auto wrong_support_relation =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    auto &mutated_relation =
+        bounded::relation_artifact_test_access::transverse_supports(
+            wrong_support_relation)
+            .front()
+            .relation;
+    mutated_relation = bounded::feature_relation_id(mutated_relation.ordinal() + 1);
+    bounded::relation_artifact_test_access::repair_codec(
+        wrong_support_relation);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(wrong_support_relation,
+                                                       error),
+            "repaired transverse support relation mutation is rejected");
+
+    auto wrong_support_construction =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    auto &mutated_construction =
+        bounded::relation_artifact_test_access::transverse_supports(
+            wrong_support_construction)
+            .front()
+            .construction;
+    mutated_construction = bounded::relation_construction_id(
+        mutated_construction.ordinal() + 1);
+    bounded::relation_artifact_test_access::repair_codec(
+        wrong_support_construction);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(
+                wrong_support_construction, error),
+            "repaired transverse support construction mutation is rejected");
+
+    auto wrong_support_facet =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    ++bounded::relation_artifact_test_access::transverse_supports(
+          wrong_support_facet)
+          .front()
+          .first_facet.primary;
+    bounded::relation_artifact_test_access::repair_codec(wrong_support_facet);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(wrong_support_facet,
+                                                       error),
+            "repaired transverse support facet mutation is rejected");
   }
 
   auto construction_mutation =
@@ -1170,7 +1327,8 @@ void test_matched_mutation_rejection() {
   std::size_t expected_arcs = 0;
   std::size_t expected_components = 0;
   for (const auto &overlay :
-       symbolic_artifact->coplanar_overlay_stage()->overlays) {
+       bounded::relation_artifact_test_access::coplanar_overlay_stage(
+           *symbolic_artifact)->overlays) {
     expected_nodes += overlay.event_nodes.size();
     expected_arcs += overlay.oriented_arcs.size();
     expected_components += overlay.overlap_components.size();

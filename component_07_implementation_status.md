@@ -141,6 +141,32 @@ each transverse support and fails closed if memberships are missing. The full
 fourteen-test Component 07 matrix plus the focused Component 08 transverse
 carrier test passes, including repaired-codec removal of one membership.
 
+## Completed downstream view boundary and independent verifier remediation
+
+Component 7c now enforces the Component 07/08 capability boundary and removes
+producer-kernel authority from final verification:
+
+- production Component 08 consumes only the owner-checked immutable
+  `signed_feature_relations_view`; the public relation artifact no longer
+  exposes predecessor candidates, source manifolds, or detailed producer
+  stages;
+- Component 07 publishes the owner-free source-topology, source-digest,
+  transverse-support, carrier-membership, and coplanar evidence needed by
+  downstream consumers, with canonical codec and verifier coverage;
+- layering tests reject Component 08 access to predecessor/private-stage APIs
+  and reject verifier calls or includes that restore producer proposal,
+  classification, construction-authority, transverse, or coplanar control flow;
+- the final verifier independently reconstructs candidate witnesses, request
+  coverage, construction authority, and edge/edge, edge/facet, facet/facet, and
+  coplanar classifications from lower-level truth, region, event, support, and
+  topology evidence; and
+- matched mutations that change producer and public classifications together
+  are rejected for every relation family.
+
+The complete Component 07 matrix and the affected Component 08 topology,
+verifier, boundary, exact, fuzz, resource, cancellation, concurrency, and
+structural qualification tests pass under the strict C++17 profile.
+
 ## Implemented relation-graph foundation
 
 The foundation establishes the fail-closed first implementation slice required by

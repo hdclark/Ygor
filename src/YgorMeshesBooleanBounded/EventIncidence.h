@@ -1,7 +1,7 @@
 #pragma once
 
 #include "EventInterning.h"
-#include "SignedFeatureRelations.h"
+#include "RelationQueries.h"
 
 #include <vector>
 
@@ -47,7 +47,7 @@ bool verify_event_incidence_records(
 
 template <class T, class I>
 bool build_event_incidence(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     event_interning_tables &interning, event_incidence_tables &tables,
     bounded_boolean_error &error) {
   return build_event_incidence_records(

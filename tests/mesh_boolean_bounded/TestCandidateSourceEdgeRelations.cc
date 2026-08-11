@@ -130,9 +130,9 @@ void test_empty_stage_and_nonempty_publication() {
   require(artifact.verification() ==
               bounded::relation_verification_disposition::independently_verified,
           "non-empty Component 07 publishes only an independently verified artifact");
-  require(artifact.source_edge_stage() && artifact.source_edge_facet_stage() &&
-              artifact.source_facet_stage() && artifact.coplanar_overlay_stage(),
-          "final artifact retains every verified predecessor relation stage");
+  require(artifact.source_topology()[0].operand == bounded::operand_id::a &&
+              artifact.source_topology()[1].operand == bounded::operand_id::b,
+          "final artifact publishes checked downstream source topology");
   require(!artifact.request_graph().requests.empty() &&
               !artifact.relations().empty() &&
               artifact.candidate_dispositions().size() ==

@@ -2,6 +2,7 @@
 
 #include "EventNormalization.h"
 #include "CheckedArithmetic.h"
+#include "RelationQueries.h"
 
 #include <algorithm>
 #include <cstdint>
@@ -34,11 +35,12 @@ bool preflight_intersection_event_records(
 
 template <class T, class I>
 bool preflight_intersection_events(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     const intersection_capabilities &capabilities,
     intersection_preflight_plan &plan,
     bounded_boolean_error &error) {
-  if (!capabilities.owner.same_owner(relations.owner())) {
+  if (!relations.valid_owner() ||
+      !capabilities.owner.same_owner(relations.owner())) {
     error = intersection_error(intersection_subcode::wrong_owner,
                                bounded_boolean_error_category::input_contract_error,
                                "Component 08 preflight owner mismatch",
@@ -63,23 +65,6 @@ bool preflight_intersection_events(
     error = intersection_error(intersection_subcode::predecessor_mismatch,
                                bounded_boolean_error_category::input_contract_error,
                                "Component 08 rejected Component 07 version mismatch",
-                               intersection_checkpoint::predecessor_validation);
-    return false;
-  }
-  if (relations.verification() !=
-      relation_verification_disposition::independently_verified) {
-    error = intersection_error(
-        intersection_subcode::predecessor_not_verified,
-        bounded_boolean_error_category::input_contract_error,
-        "Component 08 requires independently verified Component 07 input",
-        intersection_checkpoint::predecessor_validation);
-    return false;
-  }
-  if (!relations.candidates() ||
-      !relations.candidates()->owner().same_owner(capabilities.owner)) {
-    error = intersection_error(intersection_subcode::predecessor_mismatch,
-                               bounded_boolean_error_category::input_contract_error,
-                               "Component 08 candidate predecessor handshake failed",
                                intersection_checkpoint::predecessor_validation);
     return false;
   }
@@ -123,18 +108,13 @@ bool preflight_intersection_events(
            add(bytes, target, summary);
   };
 
-  for (const auto operand : {operand_id::a, operand_id::b}) {
-    const auto &table = relations.candidates()->primitive_table(operand);
-    for (const auto &edge : table.edges) {
-      if (edge.edge_class == canonical_edge_class::source_edge &&
-          edge.source_feature_owner &&
-          !add(1, plan.source_edge_domain_count,
-               "Component 08 source-edge domain count overflowed"))
-        return false;
-    }
-    if (!add(static_cast<std::uint64_t>(table.triangles.size()),
-             plan.source_triangle_count,
-             "Component 08 source-triangle count overflowed"))
+  for (const auto &topology : relations.source_topology()) {
+    if (!add(static_cast<std::uint64_t>(topology.source_edges.size()),
+             plan.source_edge_domain_count,
+             "Component 08 source-edge domain count overflowed") ||
+        !add(topology.source_triangle_count,
+              plan.source_triangle_count,
+              "Component 08 source-triangle count overflowed"))
       return false;
   }
 
@@ -192,10 +172,9 @@ bool preflight_intersection_events(
       !add(triangle_adjacencies, plan.estimate.descriptor_count,
            "Component 08 descriptor count overflowed"))
     return false;
-  for (const auto operand : {operand_id::a, operand_id::b}) {
-    const auto &table = relations.candidates()->primitive_table(operand);
-    if (!add(static_cast<std::uint64_t>(table.edges.size()),
-             plan.estimate.descriptor_count,
+  for (const auto &topology : relations.source_topology()) {
+    if (!add(topology.canonical_edge_count,
+              plan.estimate.descriptor_count,
              "Component 08 descriptor count overflowed"))
       return false;
   }

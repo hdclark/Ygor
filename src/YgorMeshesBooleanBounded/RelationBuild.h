@@ -53,9 +53,12 @@ inline bool relation_graph_storage_bytes(const relation_request_graph &graph,
          add(graph.reverse_consumers) && add(graph.candidate_witnesses);
 }
 
-template <class T, class I>
+template <class T, class I, class EdgeStage, class EdgeFacetStage,
+          class FacetStage, class OverlayStage>
 bool estimate_relation_persistent_bytes(
     const signed_feature_relations<T, I> &artifact,
+    const EdgeStage &edge_stage, const EdgeFacetStage &edge_facet_stage,
+    const FacetStage &facet_stage, const OverlayStage &overlay_stage,
     std::uint64_t &bytes) {
   bytes = sizeof(signed_feature_relations<T, I>);
   const auto add_vector = [&](const auto &values) {
@@ -130,6 +133,16 @@ bool estimate_relation_persistent_bytes(
   for (const auto &component : artifact.coplanar_overlap_components())
     if (!add_vector(component.node_ids) || !add_vector(component.arc_ids))
       return false;
+  for (const auto &topology : artifact.source_topology()) {
+    if (!add_vector(topology.source_edges) || !add_vector(topology.vertex_fans) ||
+        !add_vector(topology.edge_adjacencies))
+      return false;
+    for (const auto &fan : topology.vertex_fans)
+      if (!add_vector(fan.ordered_facets))
+        return false;
+  }
+  if (!add_vector(artifact.transverse_carrier_supports()))
+    return false;
 
   // Detailed relation stages contain nested variable-length records. Their
   // owner-free semantic encodings are a deterministic, architecture-independent
@@ -144,19 +157,19 @@ bool estimate_relation_persistent_bytes(
            checked_accumulate_relation_bytes(
                static_cast<std::uint64_t>(semantic.size()), bytes);
   };
-  return add_stage(artifact.source_edge_stage(),
+  return add_stage(edge_stage,
                    [](const auto &stage) {
                      return encode_candidate_source_edge_relation_semantics(stage);
                    }) &&
-         add_stage(artifact.source_edge_facet_stage(),
+         add_stage(edge_facet_stage,
                    [](const auto &stage) {
                      return encode_candidate_source_edge_facet_relation_semantics(stage);
                    }) &&
-         add_stage(artifact.source_facet_stage(),
+         add_stage(facet_stage,
                    [](const auto &stage) {
                      return encode_candidate_source_facet_relation_semantics(stage);
                    }) &&
-         add_stage(artifact.coplanar_overlay_stage(),
+         add_stage(overlay_stage,
                    [](const auto &stage) {
                      return encode_candidate_coplanar_overlay_semantics(stage);
                    });
@@ -512,8 +525,9 @@ private:
                   relation_checkpoint::canonical_encoding);
 
     std::uint64_t persistent = 0;
-    if (!relation_build_detail::estimate_relation_persistent_bytes(*artifact_,
-                                                                   persistent))
+    if (!relation_build_detail::estimate_relation_persistent_bytes(
+            *artifact_, edge_stage_, edge_facet_stage_, facet_stage_,
+            overlay_stage_, persistent))
       return fail(relation_subcode::byte_count_overflow,
                   bounded_boolean_error_category::index_overflow,
                   "Component 07 persistent byte count overflow",
@@ -525,7 +539,8 @@ private:
       return false;
     std::uint64_t reconciled_persistent = 0;
     if (!relation_build_detail::estimate_relation_persistent_bytes(
-            *artifact_, reconciled_persistent) ||
+            *artifact_, edge_stage_, edge_facet_stage_, facet_stage_,
+            overlay_stage_, reconciled_persistent) ||
         reconciled_persistent != persistent)
       return fail(relation_subcode::internal_invariant,
                   bounded_boolean_error_category::internal_invariant_error,

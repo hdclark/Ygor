@@ -1,16 +1,15 @@
 #include "StrictFloatingBuild.h"
 #include "RelationVerifier.h"
-#include "CoplanarRelationOverlay.h"
-#include "RelationConstructionPolicy.h"
 #include "RelationCandidateEvidenceVerifier.h"
 #include "RelationReplay.h"
-#include "TransverseRelationEvaluation.h"
+#include "RelationVerificationRecords.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstddef>
 #include <cstdint>
 #include <map>
+#include <set>
 #include <tuple>
 #include <vector>
 
@@ -133,6 +132,365 @@ feature_relation_status overlay_status(
     return feature_relation_status::coincidence_opposite_orientation;
   }
   return feature_relation_status::not_evaluated;
+}
+
+bool verifier_truth_is_zero(const relation_truth_record &truth) noexcept {
+  return truth.bounded_sign == bounded_sign_status::overlaps_boundary &&
+         truth.exact_relation == exact_relation_status::exact_zero &&
+         truth.disposition ==
+             predicate_disposition::retain_tie_for_consumer_eligibility;
+}
+
+bool verifier_truth_is_nonzero(const relation_truth_record &truth) noexcept {
+  return (truth.bounded_sign == bounded_sign_status::definitely_negative ||
+          truth.bounded_sign == bounded_sign_status::definitely_positive) &&
+         truth.disposition == predicate_disposition::accept_numeric_sign &&
+         truth.exact_relation != exact_relation_status::exact_zero &&
+         truth.exact_relation != exact_relation_status::invalid;
+}
+
+template <class T>
+bool verifier_parameter_before(const source_edge_parameter_evidence<T> &a,
+                               const source_edge_parameter_evidence<T> &b) noexcept {
+  return finite_numeric_less(a.enclosure.upper(), b.enclosure.lower());
+}
+
+template <class T>
+bool verifier_parameter_at(const source_edge_parameter_evidence<T> &parameter,
+                           T endpoint) noexcept {
+  return endpoint == T(0)
+             ? parameter.exact_zero == exact_relation_status::exact_zero
+             : parameter.exact_one == exact_relation_status::exact_zero;
+}
+
+template <class T>
+bool verifier_derive_edge_classification(
+    const source_edge_relation_record<T> &source,
+    source_edge_support_class &support, source_edge_contact_class &contact,
+    source_edge_orientation_relation &orientation) noexcept {
+  orientation = source_edge_orientation_relation::not_applicable;
+  if (verifier_truth_is_nonzero(source.parallel_truth)) {
+    if (!source.has_coplanarity_truth)
+      return false;
+    if (verifier_truth_is_nonzero(source.coplanarity_truth)) {
+      support = source_edge_support_class::skew_separated;
+      contact = source_edge_contact_class::none;
+      return source.parameter_count == 0 && source.point_count == 0;
+    }
+    if (!verifier_truth_is_zero(source.coplanarity_truth) ||
+        source.parameter_count != 1)
+      return false;
+    support = source_edge_support_class::nonparallel_coplanar;
+    const auto &first = source.first_parameters[0];
+    const auto &second = source.second_parameters[0];
+    if (first.domain == parameter_domain_status::outside ||
+        second.domain == parameter_domain_status::outside) {
+      contact = source_edge_contact_class::none;
+      return source.point_count == 0;
+    }
+    if (source.point_count != 1)
+      return false;
+    contact = first.domain == parameter_domain_status::stable_interior &&
+                      second.domain == parameter_domain_status::stable_interior
+                  ? source_edge_contact_class::proper_crossing
+                  : source_edge_contact_class::endpoint_contact;
+    return true;
+  }
+
+  if (!verifier_truth_is_zero(source.parallel_truth) ||
+      !source.has_collinearity_truth)
+    return false;
+  if (verifier_truth_is_nonzero(source.collinearity_truth)) {
+    support = source_edge_support_class::parallel_separated;
+    contact = source_edge_contact_class::none;
+    return source.parameter_count == 0 && source.point_count == 0;
+  }
+  if (!verifier_truth_is_zero(source.collinearity_truth) ||
+      source.parameter_count == 0)
+    return false;
+  support = source_edge_support_class::collinear;
+  const auto &q0 = source.first_parameters[0];
+  const auto &q1 = source.parameter_count > 1
+                       ? source.first_parameters[1]
+                       : source.first_parameters[0];
+  bool geometry_orientation = false;
+  for (std::size_t axis = 0; axis < 3 && !geometry_orientation; ++axis) {
+    const auto first_start = source.first_start.rounded_nominal[axis];
+    const auto first_end = source.first_end.rounded_nominal[axis];
+    const auto second_start = source.second_start.rounded_nominal[axis];
+    const auto second_end = source.second_end.rounded_nominal[axis];
+    if (first_start == first_end || second_start == second_end)
+      continue;
+    orientation = ((first_end > first_start) == (second_end > second_start))
+                      ? source_edge_orientation_relation::same
+                      : source_edge_orientation_relation::opposite;
+    geometry_orientation = true;
+  }
+  if (!geometry_orientation ||
+      (source.parameter_count > 1 &&
+       ((orientation == source_edge_orientation_relation::same &&
+         !verifier_parameter_before(q0, q1)) ||
+        (orientation == source_edge_orientation_relation::opposite &&
+         !verifier_parameter_before(q1, q0)))))
+    return false;
+  if (source.point_count == 0) {
+    contact = source_edge_contact_class::none;
+    return source.parameter_count == 2;
+  }
+  if (source.point_count == 1) {
+    contact = source.parameter_count == 1
+                  ? source_edge_contact_class::point_contact
+                  : source_edge_contact_class::partial_overlap;
+    return source.parameter_count == 1;
+  }
+  if (source.point_count != 2 || source.parameter_count != 2)
+    return false;
+  const auto &minimum = orientation == source_edge_orientation_relation::same
+                            ? q0
+                            : q1;
+  const auto &maximum = orientation == source_edge_orientation_relation::same
+                            ? q1
+                            : q0;
+  if (verifier_parameter_at(minimum, T(0)) &&
+      verifier_parameter_at(maximum, T(1)))
+    contact = source_edge_contact_class::equal;
+  else if (minimum.enclosure.lower() > T(0) &&
+           maximum.enclosure.upper() < T(1))
+    contact = source_edge_contact_class::first_contains_second;
+  else if (minimum.enclosure.upper() < T(0) &&
+           maximum.enclosure.lower() > T(1))
+    contact = source_edge_contact_class::second_contains_first;
+  else
+    contact = source_edge_contact_class::partial_overlap;
+  return true;
+}
+
+template <class T>
+bool verifier_derive_edge_facet_classification(
+    const source_edge_facet_relation_record<T> &source,
+    source_edge_facet_support_class &support,
+    source_edge_facet_contact_class &contact) noexcept {
+  const bool first_nonzero =
+      verifier_truth_is_nonzero(source.endpoint_support_truth[0]);
+  const bool second_nonzero =
+      verifier_truth_is_nonzero(source.endpoint_support_truth[1]);
+  const bool first_zero =
+      verifier_truth_is_zero(source.endpoint_support_truth[0]);
+  const bool second_zero =
+      verifier_truth_is_zero(source.endpoint_support_truth[1]);
+  if (first_nonzero && second_nonzero &&
+      source.endpoint_support_truth[0].bounded_sign ==
+          source.endpoint_support_truth[1].bounded_sign) {
+    support = source_edge_facet_support_class::definitely_separated_same_side;
+    contact = source_edge_facet_contact_class::none;
+    return source.events.empty() && !source.has_coplanar_partition;
+  }
+  if (first_nonzero && second_nonzero &&
+      source.endpoint_support_truth[0].bounded_sign !=
+          source.endpoint_support_truth[1].bounded_sign) {
+    support = source_edge_facet_support_class::transverse_support_crossing;
+    if (source.events.empty()) {
+      contact = source_edge_facet_contact_class::none;
+      return !source.has_coplanar_partition;
+    }
+    if (source.events.size() != 1 || source.has_coplanar_partition)
+      return false;
+    const auto &event = source.events.front();
+    if (event.region.classification == source_facet_point_region_class::outside)
+      return false;
+    const bool interior = event.region.classification ==
+                          source_facet_point_region_class::interior;
+    contact = interior ? source_edge_facet_contact_class::proper_face_crossing
+                       : source_edge_facet_contact_class::boundary_crossing;
+    return event.kind ==
+           (interior ? source_edge_facet_event_kind::proper_face_crossing
+                     : source_edge_facet_event_kind::boundary_crossing);
+  }
+  if (first_zero != second_zero) {
+    support = source_edge_facet_support_class::endpoint_support_tie;
+    const auto endpoint = first_zero ? std::size_t{0} : std::size_t{1};
+    if (!source.has_endpoint_region[endpoint] ||
+        source.has_coplanar_partition)
+      return false;
+    const auto region = source.endpoint_regions[endpoint].classification;
+    if (region == source_facet_point_region_class::outside) {
+      contact = source_edge_facet_contact_class::none;
+      return source.events.empty();
+    }
+    if (source.events.size() != 1)
+      return false;
+    const bool boundary = region == source_facet_point_region_class::original_edge ||
+                          region == source_facet_point_region_class::original_vertex;
+    contact = boundary ? source_edge_facet_contact_class::tangent_contact
+                       : source_edge_facet_contact_class::endpoint_contact;
+    return source.events.front().kind ==
+           (boundary ? source_edge_facet_event_kind::tangent_contact
+                     : source_edge_facet_event_kind::endpoint_contact);
+  }
+  if (!first_zero || !second_zero || !source.has_coplanar_partition ||
+      !source.events.empty())
+    return false;
+  support = source_edge_facet_support_class::coplanar_support;
+  bool overlap = false;
+  bool interior = false;
+  for (const auto &interval : source.coplanar_partition.intervals) {
+    overlap = overlap || interval.classification ==
+                             source_facet_segment_interval_class::original_edge_overlap;
+    interior = interior || interval.classification ==
+                               source_facet_segment_interval_class::interior;
+  }
+  contact = overlap
+                ? source_edge_facet_contact_class::coplanar_boundary_overlap
+            : interior
+                ? source_edge_facet_contact_class::coplanar_containment
+            : !source.coplanar_partition.contacts.empty()
+                ? source_edge_facet_contact_class::coplanar_point_contact
+                : source_edge_facet_contact_class::none;
+  return true;
+}
+
+template <class T>
+bool verifier_derive_facet_classification(
+    const source_facet_source_facet_relation_record<T> &source,
+    source_facet_support_relation_class &classification) noexcept {
+  if (source.parallelism_truth.exact_relation ==
+      exact_relation_status::exact_positive) {
+    classification = source_facet_support_relation_class::transverse;
+    if (!source.has_transverse_carrier || source.has_coplanarity_truth ||
+        source.has_orientation_truth ||
+        source.transverse_carrier.direction_squared.lower() <= T(0) ||
+        !source.transverse_carrier.residuals_accepted)
+      return false;
+    return true;
+  }
+  if (source.parallelism_truth.exact_relation !=
+          exact_relation_status::exact_zero ||
+      !source.has_coplanarity_truth || source.has_transverse_carrier)
+    return false;
+  if (source.coplanarity_truth.exact_relation ==
+      exact_relation_status::exact_zero) {
+    if (!source.has_orientation_truth)
+      return false;
+    if (source.orientation_truth.exact_relation ==
+        exact_relation_status::exact_positive)
+      classification =
+          source_facet_support_relation_class::coplanar_same_orientation;
+    else if (source.orientation_truth.exact_relation ==
+             exact_relation_status::exact_negative)
+      classification =
+          source_facet_support_relation_class::coplanar_opposite_orientation;
+    else
+      return false;
+    return true;
+  }
+  if ((source.coplanarity_truth.exact_relation ==
+           exact_relation_status::exact_positive ||
+       source.coplanarity_truth.exact_relation ==
+           exact_relation_status::exact_negative) &&
+      verifier_truth_is_nonzero(source.coplanarity_truth) &&
+      !source.has_orientation_truth) {
+    classification = source_facet_support_relation_class::parallel_separated;
+    return true;
+  }
+  return false;
+}
+
+template <class T>
+bool verifier_derive_overlay_classification(
+    const source_facet_coplanar_overlay_record<T> &source,
+    coplanar_facet_overlay_class &classification) noexcept {
+  source_facet_support_relation_class support;
+  if (!verifier_derive_facet_classification(source.support_relation, support) ||
+      (support != source_facet_support_relation_class::
+                      coplanar_same_orientation &&
+       support != source_facet_support_relation_class::
+                      coplanar_opposite_orientation))
+    return false;
+  bool has_point = false;
+  bool has_segment = false;
+  std::uint64_t proper_crossings = 0;
+  for (const auto &boundary : source.boundary_relations) {
+    source_edge_support_class edge_support;
+    source_edge_contact_class edge_contact;
+    source_edge_orientation_relation edge_orientation;
+    if (!verifier_derive_edge_classification(
+            boundary.relation, edge_support, edge_contact, edge_orientation))
+      return false;
+    proper_crossings +=
+        edge_contact == source_edge_contact_class::proper_crossing ? 1U : 0U;
+    has_segment = has_segment ||
+                  edge_contact == source_edge_contact_class::partial_overlap ||
+                  edge_contact ==
+                      source_edge_contact_class::first_contains_second ||
+                  edge_contact ==
+                      source_edge_contact_class::second_contains_first ||
+                  edge_contact == source_edge_contact_class::equal;
+    has_point = has_point ||
+                edge_contact == source_edge_contact_class::endpoint_contact ||
+                edge_contact == source_edge_contact_class::point_contact;
+  }
+  std::array<std::uint64_t, 2> interior{};
+  std::array<std::uint64_t, 2> outside{};
+  std::array<std::uint64_t, 2> boundary{};
+  for (const auto &witness : source.vertex_regions) {
+    if (witness.polygon > 1)
+      return false;
+    switch (witness.region.classification) {
+    case source_facet_point_region_class::interior:
+      ++interior[witness.polygon];
+      break;
+    case source_facet_point_region_class::outside:
+      ++outside[witness.polygon];
+      break;
+    case source_facet_point_region_class::original_edge:
+    case source_facet_point_region_class::original_vertex:
+      ++boundary[witness.polygon];
+      break;
+    }
+  }
+  bool coincident_component = false;
+  bool segment_component = false;
+  bool point_component = false;
+  for (const auto &component : source.overlap_components) {
+    coincident_component = coincident_component ||
+        (component.kind ==
+             coplanar_overlap_component_kind::coincident_sheet_boundary &&
+         component.closed && component.sheet_mask == 3);
+    segment_component = segment_component ||
+        component.kind == coplanar_overlap_component_kind::boundary_segment;
+    point_component = point_component ||
+        component.kind == coplanar_overlap_component_kind::isolated_point;
+  }
+  const bool all_first_boundary =
+      boundary[0] == source.facets[0].polygon.size();
+  const bool all_second_boundary =
+      boundary[1] == source.facets[1].polygon.size();
+  if (all_first_boundary && all_second_boundary && coincident_component) {
+    classification =
+        support ==
+                source_facet_support_relation_class::coplanar_same_orientation
+            ? coplanar_facet_overlay_class::equal_same_orientation
+            : coplanar_facet_overlay_class::equal_opposite_orientation;
+  } else if (proper_crossings != 0 ||
+             (interior[0] != 0 && interior[1] != 0)) {
+    classification = coplanar_facet_overlay_class::area_overlap;
+  } else {
+    const bool first_in_second = outside[0] == 0 && interior[0] != 0;
+    const bool second_in_first = outside[1] == 0 && interior[1] != 0;
+    if (first_in_second && !second_in_first)
+      classification = coplanar_facet_overlay_class::second_contains_first;
+    else if (second_in_first && !first_in_second)
+      classification = coplanar_facet_overlay_class::first_contains_second;
+    else if (interior[0] != 0 || interior[1] != 0)
+      return false;
+    else if (has_segment || segment_component)
+      classification = coplanar_facet_overlay_class::segment_contact;
+    else if (has_point || point_component)
+      classification = coplanar_facet_overlay_class::point_contact;
+    else
+      classification = coplanar_facet_overlay_class::disjoint;
+  }
+  return true;
 }
 
 relation_coplanar_arc_kind verifier_coplanar_arc_kind(
@@ -596,6 +954,546 @@ bool verifier_expected_source_fan_facets(
   return facets.size() >= 2;
 }
 
+template <class T> struct verifier_geometry_snapshot final {
+  relation_construction_kind kind = relation_construction_kind::bounded_point;
+  relation_construction_coordinate_space coordinate_space =
+      relation_construction_coordinate_space::world_3d;
+  std::uint8_t component_count = 0;
+  std::uint8_t projection_axis = 3;
+  std::array<T, 6> nominal{};
+  std::array<T, 6> lower{};
+  std::array<T, 6> upper{};
+  std::uint64_t provenance = 0;
+  std::uint64_t lineage = 0;
+  bool accepted_source_vertex = false;
+  bool finite = false;
+  bool tolerance_compatible = false;
+};
+
+template <class T> struct verifier_construction_authority final {
+  relation_request_key key{};
+  relation_request_key source_relation{};
+  relation_construction_precedence precedence =
+      relation_construction_precedence::verification_witness;
+  relation_feature_key source_feature{};
+  verifier_geometry_snapshot<T> geometry{};
+  construction_operation_certificate<T> certificate{};
+  std::uint32_t source_occurrence = 0;
+};
+
+std::uint64_t verifier_construction_use_tag(std::uint8_t category) noexcept {
+  return (std::uint64_t{10} << 56U) |
+         (static_cast<std::uint64_t>(category) << 48U);
+}
+
+relation_request_key verifier_construction_key(
+    const relation_request_key &source, std::uint8_t category,
+    std::uint32_t occurrence, const relation_feature_key *first = nullptr,
+    const relation_feature_key *second = nullptr) noexcept {
+  auto out = source;
+  out.family = relation_request_family::authoritative_construction;
+  out.directed_use = verifier_construction_use_tag(category);
+  out.occurrence_discriminator = occurrence;
+  out.formula_version = contract_versions::exact_relation_formulas;
+  out.policy_version = contract_versions::relation_construction_registry_policy;
+  out.reserved = 0;
+  if (first)
+    out.first = *first;
+  if (second)
+    out.second = *second;
+  return out;
+}
+
+template <class T>
+bool verifier_valid_geometry(
+    const verifier_geometry_snapshot<T> &geometry) noexcept {
+  const bool valid_count =
+      (geometry.kind == relation_construction_kind::bounded_point &&
+       (geometry.component_count == 2 || geometry.component_count == 3)) ||
+      (geometry.kind == relation_construction_kind::bounded_carrier &&
+       geometry.component_count == 6);
+  if (!valid_count || !geometry.finite || !geometry.tolerance_compatible)
+    return false;
+  if (geometry.coordinate_space ==
+      relation_construction_coordinate_space::source_facet_projection) {
+    if (geometry.component_count != 2 || geometry.projection_axis > 2)
+      return false;
+  } else if (geometry.coordinate_space ==
+             relation_construction_coordinate_space::world_3d) {
+    if ((geometry.component_count != 3 && geometry.component_count != 6) ||
+        geometry.projection_axis != 3)
+      return false;
+  } else {
+    return false;
+  }
+  for (std::size_t i = 0; i < geometry.component_count; ++i)
+    if (!finite_bits(geometry.nominal[i]) || !finite_bits(geometry.lower[i]) ||
+        !finite_bits(geometry.upper[i]) ||
+        finite_numeric_less(geometry.upper[i], geometry.lower[i]) ||
+        finite_numeric_less(geometry.nominal[i], geometry.lower[i]) ||
+        finite_numeric_less(geometry.upper[i], geometry.nominal[i]))
+      return false;
+  return true;
+}
+
+template <class T>
+verifier_geometry_snapshot<T> verifier_geometry_from_point(
+    const source_edge_geometry_snapshot<T> &point, bool accepted_source_vertex,
+    bool tolerance_compatible) noexcept {
+  verifier_geometry_snapshot<T> out;
+  out.component_count = 3;
+  out.provenance = point.provenance;
+  out.lineage = point.lineage;
+  out.accepted_source_vertex = accepted_source_vertex;
+  out.finite = true;
+  out.tolerance_compatible = tolerance_compatible;
+  for (std::size_t axis = 0; axis < 3; ++axis) {
+    out.nominal[axis] = point.rounded_nominal[axis];
+    out.lower[axis] = point.enclosure[axis].lower();
+    out.upper[axis] = point.enclosure[axis].upper();
+  }
+  return out;
+}
+
+template <class T>
+verifier_geometry_snapshot<T> verifier_geometry_from_carrier(
+    const source_facet_transverse_carrier<T> &carrier) noexcept {
+  verifier_geometry_snapshot<T> out;
+  out.kind = relation_construction_kind::bounded_carrier;
+  out.component_count = 6;
+  out.finite = true;
+  out.tolerance_compatible = carrier.residuals_accepted;
+  for (std::size_t axis = 0; axis < 3; ++axis) {
+    out.nominal[axis] = carrier.point.rounded[axis];
+    out.lower[axis] = carrier.point.lower[axis];
+    out.upper[axis] = carrier.point.upper[axis];
+    out.nominal[axis + 3] = carrier.direction.rounded[axis];
+    out.lower[axis + 3] = carrier.direction.lower[axis];
+    out.upper[axis + 3] = carrier.direction.upper[axis];
+  }
+  return out;
+}
+
+template <class T>
+verifier_geometry_snapshot<T> verifier_geometry_from_projected(
+    const projected_source_point<T> &point, std::uint8_t dropped_axis,
+    bool accepted_source_vertex = false) noexcept {
+  verifier_geometry_snapshot<T> out;
+  out.coordinate_space =
+      relation_construction_coordinate_space::source_facet_projection;
+  out.component_count = 2;
+  out.projection_axis = dropped_axis;
+  out.accepted_source_vertex = accepted_source_vertex;
+  out.finite = true;
+  out.tolerance_compatible = true;
+  for (std::size_t axis = 0; axis < 2; ++axis) {
+    out.nominal[axis] = point.nominal[axis];
+    out.lower[axis] = point.enclosure[axis].lower();
+    out.upper[axis] = point.enclosure[axis].upper();
+  }
+  return out;
+}
+
+template <class T>
+bool verifier_same_geometry(const verifier_geometry_snapshot<T> &a,
+                            const verifier_geometry_snapshot<T> &b) noexcept {
+  if (a.kind != b.kind || a.coordinate_space != b.coordinate_space ||
+      a.component_count != b.component_count ||
+      a.projection_axis != b.projection_axis || a.provenance != b.provenance ||
+      a.lineage != b.lineage ||
+      a.accepted_source_vertex != b.accepted_source_vertex ||
+      a.finite != b.finite ||
+      a.tolerance_compatible != b.tolerance_compatible)
+    return false;
+  for (std::size_t i = 0; i < a.component_count; ++i)
+    if (to_bits(a.nominal[i]) != to_bits(b.nominal[i]) ||
+        to_bits(a.lower[i]) != to_bits(b.lower[i]) ||
+        to_bits(a.upper[i]) != to_bits(b.upper[i]))
+      return false;
+  return true;
+}
+
+template <class T>
+bool verifier_compatible_geometry(
+    const verifier_geometry_snapshot<T> &authority,
+    const verifier_geometry_snapshot<T> &witness) noexcept {
+  if (!verifier_valid_geometry(authority) ||
+      !verifier_valid_geometry(witness) || authority.kind != witness.kind)
+    return false;
+  const auto contained = [](T nominal, T lower, T upper) {
+    return !finite_numeric_less(nominal, lower) &&
+           !finite_numeric_less(upper, nominal);
+  };
+  if (authority.coordinate_space == witness.coordinate_space) {
+    if (authority.component_count != witness.component_count ||
+        authority.projection_axis != witness.projection_axis)
+      return false;
+    for (std::size_t i = 0; i < authority.component_count; ++i)
+      if (!contained(authority.nominal[i], witness.lower[i], witness.upper[i]))
+        return false;
+    return true;
+  }
+  if (authority.coordinate_space !=
+          relation_construction_coordinate_space::world_3d ||
+      witness.coordinate_space !=
+          relation_construction_coordinate_space::source_facet_projection ||
+      authority.component_count != 3 || witness.component_count != 2 ||
+      witness.projection_axis > 2)
+    return false;
+  std::size_t projected = 0;
+  for (std::size_t axis = 0; axis < 3; ++axis) {
+    if (axis == witness.projection_axis)
+      continue;
+    if (!contained(authority.nominal[axis], witness.lower[projected],
+                   witness.upper[projected]))
+      return false;
+    ++projected;
+  }
+  return true;
+}
+
+relation_feature_key verifier_source_vertex_feature(
+    operand_id operand, std::uint64_t source_vertex) noexcept {
+  relation_feature_key out;
+  out.operand = operand;
+  out.kind = relation_feature_kind::source_vertex;
+  out.primary = source_vertex;
+  return out;
+}
+
+template <class T, class I>
+bool verifier_source_vertex_geometry(
+    const canonical_candidate_stream<T, I> &candidates, operand_id operand,
+    std::uint64_t source_vertex,
+    verifier_geometry_snapshot<T> &geometry) noexcept {
+  if (!candidates.manifolds())
+    return false;
+  const auto topology = operand == operand_id::a ? candidates.manifolds()->a()
+                                                 : candidates.manifolds()->b();
+  if (!topology || source_vertex >= topology->source_vertex_to_vertex().size())
+    return false;
+  const auto dense = topology->source_vertex_to_vertex()[source_vertex];
+  if (dense >= topology->vertices().size())
+    return false;
+  const auto &vertex = topology->vertices()[dense];
+  if (vertex.source_vertex != source_vertex)
+    return false;
+  geometry = {};
+  geometry.component_count = 3;
+  geometry.provenance = source_vertex + 1;
+  geometry.lineage = (static_cast<std::uint64_t>(operand) << 63U) |
+                     (source_vertex + 1);
+  geometry.accepted_source_vertex = true;
+  geometry.finite = true;
+  geometry.tolerance_compatible = true;
+  for (std::size_t axis = 0; axis < 3; ++axis) {
+    geometry.nominal[axis] = vertex.committed_point[axis];
+    geometry.lower[axis] = vertex.lower[axis];
+    geometry.upper[axis] = vertex.upper[axis];
+  }
+  return verifier_valid_geometry(geometry);
+}
+
+template <class T, class I>
+bool verifier_endpoint_vertex(
+    const canonical_candidate_stream<T, I> &candidates,
+    const relation_feature_key &edge, std::uint8_t mask, operand_id &operand,
+    std::uint64_t &source_vertex) noexcept {
+  if (!valid_relation_feature_key(edge) ||
+      edge.kind != relation_feature_kind::source_edge || mask == 0 || mask > 2 ||
+      !candidates.manifolds())
+    return false;
+  const auto topology = edge.operand == operand_id::a
+                            ? candidates.manifolds()->a()
+                            : candidates.manifolds()->b();
+  if (!topology || !topology->owner().same_owner(candidates.owner()))
+    return false;
+  const auto &table = candidates.primitive_table(edge.operand);
+  const broad_phase_edge_primitive<T> *primitive = nullptr;
+  for (const auto &candidate : table.edges) {
+    if (candidate.edge_class != canonical_edge_class::source_edge ||
+        !candidate.source_feature_owner)
+      continue;
+    relation_feature_key feature;
+    feature.operand = edge.operand;
+    feature.kind = relation_feature_kind::source_edge;
+    feature.primary = candidate.semantic_key.primary;
+    feature.secondary = candidate.semantic_key.secondary;
+    if (feature != edge)
+      continue;
+    if (primitive)
+      return false;
+    primitive = &candidate;
+  }
+  if (!primitive)
+    return false;
+  const auto endpoint = primitive->endpoints[mask - 1];
+  if (endpoint.ordinal() >= topology->vertices().size())
+    return false;
+  const auto &vertex = topology->vertices()[endpoint.ordinal()];
+  operand = edge.operand;
+  source_vertex = vertex.source_vertex;
+  return true;
+}
+
+template <class T, class I>
+bool verifier_edge_point_authority(
+    const canonical_candidate_stream<T, I> &candidates,
+    const relation_request_key &source_key,
+    const source_edge_relation_record<T> &source, std::uint32_t point_ordinal,
+    verifier_construction_authority<T> &out) noexcept {
+  if (point_ordinal >= source.points.size())
+    return false;
+  const auto &point = source.points[point_ordinal];
+  out = {};
+  out.source_relation = source_key;
+  out.source_occurrence = point_ordinal;
+  out.certificate = point.certificate;
+  operand_id vertex_operand = operand_id::a;
+  std::uint64_t vertex = 0;
+  bool has_vertex = false;
+  if (point.first_endpoint_owner_mask != 0) {
+    has_vertex = verifier_endpoint_vertex(
+        candidates, source_key.first, point.first_endpoint_owner_mask,
+        vertex_operand, vertex);
+  } else if (point.second_endpoint_owner_mask != 0) {
+    has_vertex = verifier_endpoint_vertex(
+        candidates, source_key.second, point.second_endpoint_owner_mask,
+        vertex_operand, vertex);
+  }
+  if (point.accepted_source_vertex) {
+    if (!has_vertex ||
+        !verifier_source_vertex_geometry(
+            candidates, vertex_operand, vertex, out.geometry))
+      return false;
+    out.precedence = relation_construction_precedence::accepted_source_vertex;
+    out.source_feature = verifier_source_vertex_feature(
+        vertex_operand, vertex);
+    out.key = verifier_construction_key(
+        source_key, 1, 0, &out.source_feature);
+    out.key.second = {};
+    out.key.second.operand = vertex_operand;
+    out.key.scope = relation_record_scope::public_source_feature;
+    return valid_relation_request_key(out.key);
+  }
+  out.precedence =
+      relation_construction_precedence::source_edge_source_edge_point;
+  out.source_feature = source_key.first;
+  out.geometry = verifier_geometry_from_point(
+      point.point, false, point.tolerance_compatible);
+  out.key = verifier_construction_key(
+      source_key, 2, point_ordinal);
+  return valid_relation_request_key(out.key) &&
+         verifier_valid_geometry(out.geometry);
+}
+
+template <class T, class I>
+bool verifier_edge_relation_point_authority(
+    const canonical_candidate_stream<T, I> &candidates,
+    const candidate_source_edge_relation_stage<T> &edge_stage,
+    relation_request_id request, const source_edge_geometry_snapshot<T> &witness,
+    verifier_construction_authority<T> &out) noexcept {
+  if (request.ordinal() >= edge_stage.relations.size() ||
+      request.ordinal() >= edge_stage.request_graph.requests.size())
+    return false;
+  const auto &relation = edge_stage.relations[request.ordinal()];
+  std::uint32_t match = std::numeric_limits<std::uint32_t>::max();
+  for (std::uint32_t point = 0; point < relation.points.size(); ++point) {
+    const auto &candidate = relation.points[point].point;
+    if (candidate.provenance != 0 && candidate.lineage != 0 &&
+        candidate.provenance == witness.provenance &&
+        candidate.lineage == witness.lineage) {
+      if (match != std::numeric_limits<std::uint32_t>::max())
+        return false;
+      match = point;
+    }
+  }
+  return match != std::numeric_limits<std::uint32_t>::max() &&
+         verifier_edge_point_authority(
+             candidates, edge_stage.request_graph.requests[request.ordinal()].key,
+             relation, match, out);
+}
+
+template <class T, class I>
+bool verifier_edge_facet_authority(
+    const canonical_candidate_stream<T, I> &candidates,
+    const candidate_source_edge_relation_stage<T> &edge_stage,
+    const relation_request_key &source_key,
+    const source_edge_facet_relation_record<T> &source,
+    const source_edge_facet_event_record<T> &event, std::uint32_t occurrence,
+    verifier_construction_authority<T> &out) noexcept {
+  out = {};
+  out.certificate = event.construction.certificate;
+  operand_id vertex_operand = source_key.first.operand;
+  std::uint64_t vertex = 0;
+  bool has_vertex = false;
+  if (event.construction.edge_endpoint_owner_mask != 0)
+    has_vertex = verifier_endpoint_vertex(
+        candidates, source_key.first,
+        event.construction.edge_endpoint_owner_mask, vertex_operand, vertex);
+  if (!has_vertex && event.region.classification ==
+                         source_facet_point_region_class::original_vertex) {
+    if (event.region.source_vertex_owners.size() != 1)
+      return false;
+    vertex = event.region.source_vertex_owners.front();
+    vertex_operand = source_key.second.operand;
+    has_vertex = true;
+  }
+  if (event.construction.accepted_source_vertex || has_vertex) {
+    if (!has_vertex ||
+        !verifier_source_vertex_geometry(
+            candidates, vertex_operand, vertex, out.geometry))
+      return false;
+    out.source_feature = verifier_source_vertex_feature(
+        vertex_operand, vertex);
+    out.key = verifier_construction_key(
+        source_key, 1, 0, &out.source_feature);
+    out.key.second = {};
+    out.key.second.operand = vertex_operand;
+    out.key.scope = relation_record_scope::public_source_feature;
+    out.source_relation = source_key;
+    out.precedence = relation_construction_precedence::accepted_source_vertex;
+    return valid_relation_request_key(out.key);
+  }
+  if (event.region.classification ==
+      source_facet_point_region_class::original_edge) {
+    for (const auto request : source.boundary_relation_requests)
+      if (verifier_edge_relation_point_authority(
+              candidates, edge_stage, request, event.construction.point, out))
+        return true;
+    return false;
+  }
+  out.key = verifier_construction_key(
+      source_key, 3, occurrence);
+  out.source_relation = source_key;
+  out.precedence =
+      relation_construction_precedence::source_edge_source_facet_point;
+  out.source_feature = source_key.first;
+  out.geometry = verifier_geometry_from_point(
+      event.construction.point, false,
+      event.construction.tolerance_compatible);
+  out.source_occurrence = occurrence;
+  return valid_relation_request_key(out.key) &&
+         verifier_valid_geometry(out.geometry);
+}
+
+template <class T>
+bool verifier_carrier_authority(
+    const relation_request_key &source_key,
+    const source_facet_transverse_carrier<T> &carrier,
+    verifier_construction_authority<T> &out) noexcept {
+  out = {};
+  out.key = verifier_construction_key(source_key, 5, 0);
+  out.source_relation = source_key;
+  out.precedence =
+      relation_construction_precedence::source_facet_source_facet_carrier;
+  out.source_feature = source_key.first;
+  out.geometry =
+      verifier_geometry_from_carrier(carrier);
+  out.certificate = carrier.certificate;
+  return valid_relation_request_key(out.key) &&
+         verifier_valid_geometry(out.geometry);
+}
+
+template <class T, class I>
+bool verifier_overlay_node_authority(
+    const canonical_candidate_stream<T, I> &candidates,
+    const candidate_source_edge_relation_stage<T> &edge_stage,
+    const relation_request_key &source_key,
+    const source_facet_coplanar_overlay_record<T> &source,
+    const coplanar_overlap_event_node<T> &node,
+    verifier_construction_authority<T> &out) noexcept {
+  bool has_vertex = false;
+  bool ambiguous_vertex = false;
+  operand_id vertex_operand = operand_id::a;
+  std::uint64_t vertex = 0;
+  for (const auto &occurrence : node.occurrences) {
+    if (!occurrence.query_source_vertex_valid)
+      continue;
+    if (occurrence.polygon > 1)
+      return false;
+    const auto operand = source.facets[occurrence.polygon].feature.operand;
+    if (has_vertex && (operand != vertex_operand ||
+                       occurrence.query_source_vertex != vertex)) {
+      ambiguous_vertex = true;
+      continue;
+    }
+    has_vertex = true;
+    vertex_operand = operand;
+    vertex = occurrence.query_source_vertex;
+  }
+  if (has_vertex && !ambiguous_vertex) {
+    out = {};
+    out.certificate = node.certificate;
+    out.source_feature = verifier_source_vertex_feature(
+        vertex_operand, vertex);
+    out.key = verifier_construction_key(
+        source_key, 1, 0, &out.source_feature);
+    out.key.second = {};
+    out.key.second.operand = vertex_operand;
+    out.key.scope = relation_record_scope::public_source_feature;
+    out.source_relation = source_key;
+    out.precedence = relation_construction_precedence::accepted_source_vertex;
+    return verifier_source_vertex_geometry(
+               candidates, vertex_operand, vertex, out.geometry) &&
+           valid_relation_request_key(out.key);
+  }
+  relation_request_id lineage_request{0};
+  std::uint8_t endpoint_role = 0;
+  bool has_lineage = false;
+  bool ambiguous_lineage = false;
+  for (const auto &occurrence : node.occurrences)
+    for (const auto &lineage : occurrence.event_lineages) {
+      relation_request_id request{0};
+      if (lineage.contact_lineage == 0 ||
+          ((lineage.contact_lineage - 1) & 1U) != 0)
+        return false;
+      request = relation_request_id((lineage.contact_lineage - 1) / 2);
+      if (!has_lineage) {
+        lineage_request = request;
+        endpoint_role = lineage.endpoint_role;
+        has_lineage = true;
+      } else if (request != lineage_request ||
+                 endpoint_role != lineage.endpoint_role) {
+        ambiguous_lineage = true;
+      }
+    }
+  if (has_lineage && !ambiguous_lineage &&
+      lineage_request.ordinal() < edge_stage.relations.size() &&
+      endpoint_role < edge_stage.relations[lineage_request.ordinal()].points.size()) {
+    const auto &key =
+        edge_stage.request_graph.requests[lineage_request.ordinal()].key;
+    const auto &point =
+        edge_stage.relations[lineage_request.ordinal()].points[endpoint_role];
+    out = {};
+    out.key = verifier_construction_key(
+        key, 2, endpoint_role);
+    out.source_relation = key;
+    out.precedence =
+        relation_construction_precedence::source_edge_source_edge_point;
+    out.source_feature = key.first;
+    out.geometry = verifier_geometry_from_point(
+        point.point, point.accepted_source_vertex, point.tolerance_compatible);
+    out.certificate = point.certificate;
+    out.source_occurrence = endpoint_role;
+    if (valid_relation_request_key(out.key) &&
+        verifier_valid_geometry(out.geometry))
+      return true;
+  }
+  out = {};
+  out.key = verifier_construction_key(
+      source_key, 4, static_cast<std::uint32_t>(node.id));
+  out.source_relation = source_key;
+  out.precedence = relation_construction_precedence::coplanar_overlap_endpoint;
+  out.source_feature = source_key.first;
+  out.geometry = verifier_geometry_from_projected(
+      node.representative, source.facets[0].dropped_axis);
+  out.certificate = node.certificate;
+  out.source_occurrence = static_cast<std::uint32_t>(node.id);
+  return valid_relation_request_key(out.key) &&
+         verifier_valid_geometry(out.geometry);
+}
+
 } // namespace
 
 template <class T, class I>
@@ -683,54 +1581,6 @@ bool verify_signed_feature_relations(
           broad_phase_verification_disposition::independently_verified)
     return fail(relation_subcode::predecessor_mismatch,
                 "Component 07 candidate predecessor handshake failed");
-
-  relation_capabilities capabilities;
-  capabilities.owner = artifact.owner_;
-  capabilities.maximum_requests =
-      std::max<std::uint64_t>(capabilities.maximum_requests,
-                              artifact.request_graph_.requests.size());
-  capabilities.maximum_dependencies =
-      std::max<std::uint64_t>(capabilities.maximum_dependencies,
-                              artifact.request_graph_.dependencies.size());
-  capabilities.maximum_consumers =
-      std::max<std::uint64_t>(capabilities.maximum_consumers,
-                              artifact.request_graph_.reverse_consumers.size() +
-                                  artifact.request_graph_.candidate_witnesses.size());
-  auto vertex_facet_stage = build_source_vertex_facet_evaluated_stage(
-      *artifact.candidates_, artifact.execution_authority_,
-      artifact.context_digest_, capabilities, artifact.residual_boundary_);
-  if (!vertex_facet_stage.has_value()) {
-    error = *vertex_facet_stage.error();
-    return false;
-  }
-  if (!verify_candidate_source_edge_relation_stage(
-          *artifact.candidates_, artifact.context_digest_,
-          artifact.residual_boundary_, capabilities,
-          *artifact.source_edge_stage_, error) ||
-      !verify_candidate_source_edge_facet_relation_stage(
-          *artifact.candidates_, *artifact.source_edge_stage_,
-           artifact.context_digest_, artifact.residual_boundary_, capabilities,
-           *artifact.source_edge_facet_stage_, error,
-           vertex_facet_stage.value()) ||
-      !verify_candidate_source_facet_relation_stage(
-          *artifact.candidates_, *artifact.source_edge_facet_stage_,
-          artifact.context_digest_, artifact.residual_boundary_, capabilities,
-          *artifact.source_facet_stage_, error) ||
-      !verify_candidate_coplanar_overlay_stage(
-           *artifact.candidates_, *artifact.source_edge_stage_,
-           *artifact.source_facet_stage_, *artifact.coplanar_overlay_stage_,
-           error, vertex_facet_stage.value(),
-           &artifact.context_digest_))
-    return false;
-
-  auto transverse_stage = build_transverse_relation_evaluated_stage(
-      *artifact.candidates_, artifact.execution_authority_,
-      *artifact.source_edge_facet_stage_, *artifact.source_facet_stage_,
-      capabilities, artifact.residual_boundary_);
-  if (!transverse_stage.has_value()) {
-    error = *transverse_stage.error();
-    return false;
-  }
 
   std::map<std::pair<relation_request_id, std::uint32_t>, std::uint32_t>
       canonical_edge_facet_occurrences;
@@ -869,7 +1719,16 @@ bool verify_signed_feature_relations(
                     "Component 07 edge relation does not map to its detailed producer");
       const auto &source =
           artifact.source_edge_stage_->relations[request->id.ordinal()];
-      expected = edge_status(source.contact, source.orientation);
+      source_edge_support_class derived_support;
+      source_edge_contact_class derived_contact;
+      source_edge_orientation_relation derived_orientation;
+      if (!verifier_derive_edge_classification(
+              source, derived_support, derived_contact, derived_orientation) ||
+          source.support != derived_support || source.contact != derived_contact ||
+          source.orientation != derived_orientation)
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 edge category does not reconstruct from truth and parameter evidence");
+      expected = edge_status(derived_contact, derived_orientation);
       if (record.family != feature_relation_family::source_edge_source_edge)
         return fail(relation_subcode::verifier_rejection,
                     "Component 07 edge relation family mismatch");
@@ -884,7 +1743,14 @@ bool verify_signed_feature_relations(
                     "Component 07 edge/facet relation does not map to its detailed producer");
       const auto &source = artifact.source_edge_facet_stage_->relations[
           request->id.ordinal()];
-      expected = edge_facet_status(source.contact);
+      source_edge_facet_support_class derived_support;
+      source_edge_facet_contact_class derived_contact;
+      if (!verifier_derive_edge_facet_classification(
+              source, derived_support, derived_contact) ||
+          source.support != derived_support || source.contact != derived_contact)
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 edge/facet category does not reconstruct from truth, region, event, and partition evidence");
+      expected = edge_facet_status(derived_contact);
       if (record.family != feature_relation_family::source_edge_source_facet)
         return fail(relation_subcode::verifier_rejection,
                     "Component 07 edge/facet relation family mismatch");
@@ -897,9 +1763,15 @@ bool verify_signed_feature_relations(
                           artifact.source_facet_stage_->relations.size())
         return fail(relation_subcode::missing_dependency,
                     "Component 07 facet relation does not map to its detailed producer");
-      expected = facet_status(artifact.source_facet_stage_->relations[
-                                  request->id.ordinal()]
-                                  .classification);
+      const auto &source =
+          artifact.source_facet_stage_->relations[request->id.ordinal()];
+      source_facet_support_relation_class derived_classification;
+      if (!verifier_derive_facet_classification(source,
+                                                derived_classification) ||
+          source.classification != derived_classification)
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 facet category does not reconstruct from exact support and carrier evidence");
+      expected = facet_status(derived_classification);
       if (record.family != feature_relation_family::source_facet_source_facet)
         return fail(relation_subcode::verifier_rejection,
                     "Component 07 facet relation family mismatch");
@@ -916,7 +1788,13 @@ bool verify_signed_feature_relations(
                     "Component 07 overlay relation does not map to its exact support lineage");
       const auto &source =
           artifact.coplanar_overlay_stage_->overlays[descriptor->ordinal];
-      expected = overlay_status(source.classification);
+      coplanar_facet_overlay_class derived_classification;
+      if (!verifier_derive_overlay_classification(source,
+                                                  derived_classification) ||
+          source.classification != derived_classification)
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 overlay category does not reconstruct from boundary, region, and component topology");
+      expected = overlay_status(derived_classification);
       if (record.family != feature_relation_family::source_facet_source_facet)
         return fail(relation_subcode::verifier_rejection,
                     "Component 07 overlay relation family mismatch");
@@ -1580,129 +2458,51 @@ bool verify_signed_feature_relations(
               interval_counters, region_counters))
         return fail(relation_subcode::verifier_rejection,
                     "Component 07 family-04 edge/facet partition does not reconstruct");
-      for (const auto &event : source.events) {
-        for (const auto &evaluated : transverse_stage.value()->records) {
-          if (evaluated.key.member_relation != base ||
-              evaluated.key.event_occurrence != event.occurrence)
-            continue;
-          std::uint32_t parameter_occurrence = 0;
-          std::uint32_t residual_occurrence = 0;
-          std::uint32_t first_region_occurrence = 0;
-          std::uint32_t second_region_occurrence = 0;
-          if (!next_interval(
-                  relation_interval_evidence_kind::transverse_carrier_parameter,
-                  interval_counters, parameter_occurrence) ||
-              !next_interval(relation_interval_evidence_kind::
-                                 transverse_carrier_point_residual,
-                             interval_counters, residual_occurrence) ||
-              !next_region(relation_source_facet_region_kind::
-                               transverse_carrier_first_facet,
-                           region_counters, first_region_occurrence) ||
-              !next_region(relation_source_facet_region_kind::
-                               transverse_carrier_second_facet,
-                           region_counters, second_region_occurrence))
-            return fail(relation_subcode::verifier_rejection,
-                        "Component 07 transverse evidence occurrence overflowed");
-
-          expected_interval_evidence parameter;
-          parameter.key = verifier_derived_key(
-              base, relation_request_family::authoritative_construction,
-              verifier_tagged_use(
-                  0x30U, static_cast<std::uint8_t>(
-                             relation_interval_evidence_kind::
-                                 transverse_carrier_parameter)),
-              parameter_occurrence);
-          parameter.source_relation = relation.id;
-          parameter.value.kind = relation_interval_evidence_kind::
-              transverse_carrier_parameter;
-          parameter.value.occurrence = parameter_occurrence;
-          parameter.value.has_rounded_nominal = true;
-          parameter.value.rounded_nominal_bits =
-              static_cast<std::uint64_t>(to_bits(evaluated.parameter_nominal));
-          parameter.value.lower_bits = static_cast<std::uint64_t>(
-              to_bits(evaluated.parameter.lower()));
-          parameter.value.upper_bits = static_cast<std::uint64_t>(
-              to_bits(evaluated.parameter.upper()));
-          set_contributors(parameter.value, evaluated.parameter_contributors);
-          parameter.value.trace_root = evaluated.parameter_trace_root;
-          const auto &issued_parameter =
-              evaluated.parameter_certificate.issued_outputs[0].identity;
-          parameter.value.issued_operation = issued_parameter.operation;
-          parameter.value.issued_value = issued_parameter.value.ordinal();
-          parameter.value.issued_ledger_entry =
-              issued_parameter.ledger_entry.ordinal();
-          for (const auto parent : issued_parameter.ordered_parent_values)
-            parameter.value.issued_parent_values.push_back(parent.ordinal());
-          parameter.value.issued_parent_trace_roots =
-              issued_parameter.ordered_parent_trace_roots;
-          for (const auto parent :
-               issued_parameter.ordered_parent_ledger_entries)
-            parameter.value.issued_parent_ledger_entries.push_back(
-                parent.ordinal());
-          canonical_writer parameter_certificate_writer;
-          encode_construction_operation_certificate(
-              parameter_certificate_writer,
-              evaluated.parameter_certificate);
-          parameter.value.issued_operation_evidence =
-              parameter_certificate_writer.take();
-          parameter.value.within_authorized_boundary = true;
-          expected_intervals.push_back(std::move(parameter));
-
-          for (std::uint8_t axis = 0; axis < 3; ++axis) {
-            expected_interval_evidence residual;
-            residual.key = verifier_derived_key(
-                base, relation_request_family::authoritative_construction,
-                verifier_tagged_use(0x31U, axis), residual_occurrence);
-            residual.source_relation = relation.id;
-            residual.value.kind = relation_interval_evidence_kind::
-                transverse_carrier_point_residual;
-            residual.value.occurrence = residual_occurrence;
-            residual.value.component = axis;
-            residual.value.lower_bits = static_cast<std::uint64_t>(
-                to_bits(evaluated.point_carrier_residuals[axis].lower()));
-            residual.value.upper_bits = static_cast<std::uint64_t>(
-                to_bits(evaluated.point_carrier_residuals[axis].upper()));
-            residual.value.comparison_boundary_bits =
-                static_cast<std::uint64_t>(to_bits(artifact.residual_boundary_));
-            residual.value.within_authorized_boundary = true;
-            expected_intervals.push_back(std::move(residual));
-          }
-
-          const auto append_transverse_region = [&](auto kind,
-                                                     std::uint32_t occurrence,
-                                                     const auto &region) {
-            expected_region_evidence expected;
-            expected.key = verifier_derived_key(
-                base, relation_request_family::composite_contact,
-                verifier_tagged_use(0x32U, static_cast<std::uint8_t>(kind)),
-                occurrence);
-            expected.source_relation = relation.id;
-            expected.value.kind = kind;
-            expected.value.occurrence = occurrence;
-            expected.value.query_component_count = 3;
-            for (std::size_t axis = 0; axis < 3; ++axis) {
-              expected.value.query_nominal_bits[axis] =
-                  static_cast<std::uint64_t>(
-                      to_bits(event.construction.point.rounded_nominal[axis]));
-              expected.value.query_lower_bits[axis] =
-                  static_cast<std::uint64_t>(to_bits(
-                      event.construction.point.enclosure[axis].lower()));
-              expected.value.query_upper_bits[axis] =
-                  static_cast<std::uint64_t>(to_bits(
-                      event.construction.point.enclosure[axis].upper()));
-            }
-            expected.value.region = region;
-            expected_regions.push_back(std::move(expected));
-          };
-          append_transverse_region(
-              relation_source_facet_region_kind::
-                  transverse_carrier_first_facet,
-              first_region_occurrence, evaluated.first_region);
-          append_transverse_region(
-              relation_source_facet_region_kind::
-                  transverse_carrier_second_facet,
-              second_region_occurrence, evaluated.second_region);
-        }
+      // Transverse records are verified later from their construction, carrier,
+      // region, crossing, and Component 03 operation lineage.  Register their
+      // independently keyed slots here without invoking the producer builder.
+      for (const auto &published : artifact.interval_evidence_) {
+        if (published.source_relation != relation.id ||
+            (published.kind != relation_interval_evidence_kind::
+                                   transverse_carrier_parameter &&
+             published.kind != relation_interval_evidence_kind::
+                                   transverse_carrier_point_residual))
+          continue;
+        expected_interval_evidence expected;
+        expected.source_relation = relation.id;
+        expected.value = published;
+        expected.value.id = relation_interval_evidence_id{0};
+        expected.value.producer = relation_request_id{0};
+        expected.value.source_relation = feature_relation_id{0};
+        expected.key = verifier_derived_key(
+            base, relation_request_family::authoritative_construction,
+            published.kind == relation_interval_evidence_kind::
+                                  transverse_carrier_parameter
+                ? verifier_tagged_use(
+                      0x30U, static_cast<std::uint8_t>(published.kind))
+                : verifier_tagged_use(0x31U, published.component),
+            published.occurrence);
+        expected_intervals.push_back(std::move(expected));
+      }
+      for (const auto &published : artifact.source_facet_regions_) {
+        if (published.source_relation != relation.id ||
+            (published.kind != relation_source_facet_region_kind::
+                                   transverse_carrier_first_facet &&
+             published.kind != relation_source_facet_region_kind::
+                                   transverse_carrier_second_facet))
+          continue;
+        expected_region_evidence expected;
+        expected.source_relation = relation.id;
+        expected.value = published;
+        expected.value.id = relation_source_facet_region_id{0};
+        expected.value.producer = relation_request_id{0};
+        expected.value.source_relation = feature_relation_id{0};
+        expected.key = verifier_derived_key(
+            base, relation_request_family::composite_contact,
+            verifier_tagged_use(0x32U,
+                                static_cast<std::uint8_t>(published.kind)),
+            published.occurrence);
+        expected_regions.push_back(std::move(expected));
       }
       break;
     }
@@ -1946,30 +2746,30 @@ bool verify_signed_feature_relations(
     relation_construction_precedence authority_precedence =
         relation_construction_precedence::verification_witness;
     relation_feature_key authoritative_source_feature{};
-    relation_construction_policy_detail::geometry_snapshot<T> authority_geometry{};
+    verifier_geometry_snapshot<T> authority_geometry{};
     construction_operation_certificate<T> authority_certificate{};
     relation_construction_precedence witness_precedence =
         relation_construction_precedence::verification_witness;
-    relation_construction_policy_detail::geometry_snapshot<T> witness_geometry{};
+    verifier_geometry_snapshot<T> witness_geometry{};
     construction_operation_certificate<T> witness_certificate{};
     std::uint32_t occurrence = 0;
   };
   std::vector<expected_construction_use> expected_uses;
   const auto append_expected_use =
       [&](const relation_request_key &source_relation,
-          const relation_construction_policy_detail::authority<T> &authority,
+          const verifier_construction_authority<T> &authority,
            relation_construction_precedence witness_precedence,
-           const relation_construction_policy_detail::geometry_snapshot<T> &witness,
+           const verifier_geometry_snapshot<T> &witness,
            const construction_operation_certificate<T> &witness_certificate,
            std::uint32_t occurrence) {
         if (!valid_relation_request_key(authority.key) ||
             !valid_relation_request_key(authority.source_relation) ||
-            !relation_construction_policy_detail::valid_geometry(
+            !verifier_valid_geometry(
                 authority.geometry) ||
-             !relation_construction_policy_detail::valid_geometry(witness) ||
+             !verifier_valid_geometry(witness) ||
              !valid_construction_operation_certificate(authority.certificate) ||
              !valid_construction_operation_certificate(witness_certificate) ||
-            !relation_construction_policy_detail::compatible_geometry(
+            !verifier_compatible_geometry(
                 authority.geometry, witness))
           return false;
         expected_construction_use use;
@@ -2000,8 +2800,8 @@ bool verify_signed_feature_relations(
     const auto &key =
         artifact.source_edge_stage_->request_graph.requests[relation_index].key;
     for (std::uint32_t point = 0; point < source.point_count; ++point) {
-      relation_construction_policy_detail::authority<T> authority;
-      if (!relation_construction_policy_detail::edge_point_authority(
+      verifier_construction_authority<T> authority;
+      if (!verifier_edge_point_authority(
               *artifact.candidates_, key, source, point, authority) ||
           !append_expected_use(
               key, authority,
@@ -2009,7 +2809,7 @@ bool verify_signed_feature_relations(
                   ? relation_construction_precedence::accepted_source_vertex
                   : relation_construction_precedence::
                         source_edge_source_edge_point,
-              relation_construction_policy_detail::geometry_from_point(
+              verifier_geometry_from_point(
                   source.points[point].point,
                   source.points[point].accepted_source_vertex,
                    source.points[point].tolerance_compatible),
@@ -2041,8 +2841,8 @@ bool verify_signed_feature_relations(
         return fail(relation_subcode::missing_dependency,
                     "Component 07 edge/facet canonical occurrence is absent");
       const auto &event = source.events[local];
-      relation_construction_policy_detail::authority<T> authority;
-      if (!relation_construction_policy_detail::edge_facet_event_authority(
+      verifier_construction_authority<T> authority;
+      if (!verifier_edge_facet_authority(
               *artifact.candidates_, *artifact.source_edge_stage_, request.key,
               source, event, occurrence, authority) ||
           !append_expected_use(
@@ -2053,7 +2853,7 @@ bool verify_signed_feature_relations(
                   ? relation_construction_precedence::accepted_source_vertex
                   : relation_construction_precedence::
                         source_edge_source_facet_point,
-              relation_construction_policy_detail::geometry_from_point(
+              verifier_geometry_from_point(
                   event.construction.point,
                   event.construction.accepted_source_vertex,
                    event.construction.tolerance_compatible),
@@ -2077,12 +2877,12 @@ bool verify_signed_feature_relations(
       continue;
     const auto &key =
         artifact.source_facet_stage_->request_graph.requests[relation_index].key;
-    relation_construction_policy_detail::authority<T> authority;
-    if (!relation_construction_policy_detail::carrier_authority(
+    verifier_construction_authority<T> authority;
+    if (!verifier_carrier_authority(
             key, source.transverse_carrier, authority))
       return fail(relation_subcode::verifier_rejection,
                   "Component 07 carrier construction authority does not reconstruct");
-    auto witness = relation_construction_policy_detail::geometry_from_carrier(
+    auto witness = verifier_geometry_from_carrier(
         source.transverse_carrier);
     if (authority.geometry.lineage == 0) {
       authority.geometry.lineage =
@@ -2111,14 +2911,14 @@ bool verify_signed_feature_relations(
       if (node.id > std::numeric_limits<std::uint32_t>::max())
         return fail(relation_subcode::count_overflow,
                     "Component 07 overlay construction occurrence overflows");
-      relation_construction_policy_detail::authority<T> authority;
-      if (!relation_construction_policy_detail::overlay_node_authority(
+      verifier_construction_authority<T> authority;
+      if (!verifier_overlay_node_authority(
               *artifact.candidates_, *artifact.source_edge_stage_,
               descriptor.key, source, node, authority) ||
           !append_expected_use(
               descriptor.key, authority,
               relation_construction_precedence::coplanar_overlap_endpoint,
-              relation_construction_policy_detail::geometry_from_projected(
+              verifier_geometry_from_projected(
                   node.representative, source.facets[0].dropped_axis,
                    authority.precedence ==
                        relation_construction_precedence::accepted_source_vertex),
@@ -2173,7 +2973,7 @@ bool verify_signed_feature_relations(
                   "Component 07 construction region evidence is not contiguous");
 
   const auto geometry_matches_record =
-      [](const relation_construction_policy_detail::geometry_snapshot<T> &geometry,
+      [](const verifier_geometry_snapshot<T> &geometry,
          const relation_construction_record &record) {
         if (record.kind != geometry.kind ||
             record.coordinate_space != geometry.coordinate_space ||
@@ -2203,7 +3003,7 @@ bool verify_signed_feature_relations(
         return true;
       };
   const auto geometry_matches_ledger =
-      [](const relation_construction_policy_detail::geometry_snapshot<T> &geometry,
+      [](const verifier_geometry_snapshot<T> &geometry,
          const relation_construction_ledger_record &record) {
         if (record.coordinate_space != geometry.coordinate_space ||
             record.component_count != geometry.component_count ||
@@ -2326,10 +3126,10 @@ bool verify_signed_feature_relations(
               expected.authority_precedence ||
           expected_uses[index].authoritative_source_feature !=
               expected.authoritative_source_feature ||
-          !relation_construction_policy_detail::same_geometry(
+          !verifier_same_geometry(
               expected.authority_geometry,
               expected_uses[index].authority_geometry) ||
-           !relation_construction_policy_detail::compatible_geometry(
+           !verifier_compatible_geometry(
                expected.authority_geometry,
                expected_uses[index].witness_geometry) ||
           candidate_certificate_writer.take() !=
@@ -2527,8 +3327,8 @@ bool verify_signed_feature_relations(
                     "Component 07 final coplanar event-node table is incomplete");
       const auto &expected = source.event_nodes[local];
       const auto &record = artifact.coplanar_event_nodes_[expected_node];
-      relation_construction_policy_detail::authority<T> node_authority;
-      if (!relation_construction_policy_detail::overlay_node_authority(
+      verifier_construction_authority<T> node_authority;
+      if (!verifier_overlay_node_authority(
               *artifact.candidates_, *artifact.source_edge_stage_,
               descriptor.key, source, expected, node_authority))
         return fail(relation_subcode::coplanar_overlay_invariant,
@@ -2774,6 +3574,14 @@ bool verify_signed_feature_relations(
                     "Component 07 symbolic edge source is absent");
       const auto &source = artifact.source_edge_stage_->relations[
           source_request->id.ordinal()];
+      source_edge_support_class derived_support;
+      source_edge_contact_class derived_contact;
+      source_edge_orientation_relation derived_orientation;
+      if (!verifier_derive_edge_classification(
+              source, derived_support, derived_contact, derived_orientation))
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 symbolic edge category is unresolved");
+      (void)derived_support;
       const source_edge_point_construction<T> *point = nullptr;
       if (construction_request) {
         if (occurrence >= source.point_count)
@@ -2781,21 +3589,21 @@ bool verify_signed_feature_relations(
                       "Component 07 symbolic edge occurrence is out of range");
         point = &source.points[occurrence];
       }
-      if (source.contact == source_edge_contact_class::partial_overlap ||
-          source.contact == source_edge_contact_class::first_contains_second ||
-          source.contact == source_edge_contact_class::second_contains_first ||
-          source.contact == source_edge_contact_class::equal) {
+      if (derived_contact == source_edge_contact_class::partial_overlap ||
+          derived_contact == source_edge_contact_class::first_contains_second ||
+          derived_contact == source_edge_contact_class::second_contains_first ||
+          derived_contact == source_edge_contact_class::equal) {
         reconstructed_evidence =
             source.has_collinearity_truth &&
             verifier_set_truth_symbolic_evidence<T>(
                 source.collinearity_truth,
-                source.contact == source_edge_contact_class::equal
+                derived_contact == source_edge_contact_class::equal
                     ? symbolic_eligibility_reason::equal_source_feature_lineage
                     : symbolic_eligibility_reason::collinear_source_edge_lineage,
                 expected_eligibility);
-      } else if (source.contact ==
-                     source_edge_contact_class::endpoint_contact ||
-                 source.contact == source_edge_contact_class::point_contact) {
+      } else if (derived_contact ==
+                      source_edge_contact_class::endpoint_contact ||
+                 derived_contact == source_edge_contact_class::point_contact) {
         const auto reason =
             point && point->first_endpoint_owner_mask != 0 &&
                     point->second_endpoint_owner_mask != 0
@@ -2815,8 +3623,8 @@ bool verify_signed_feature_relations(
         const bool second_endpoint = point->second_endpoint_owner_mask != 0;
         expected_rule_key = verifier_symbolic_rule_key(
             artifact.operation_, source_key->first.operand,
-            verifier_symbolic_family_for_edge(source.contact, point),
-            verifier_orientation_from_edge(source.orientation),
+            verifier_symbolic_family_for_edge(derived_contact, point),
+            verifier_orientation_from_edge(derived_orientation),
             first_endpoint && second_endpoint
                 ? symbolic_ownership_role::shared_source_feature
             : second_endpoint
@@ -2835,12 +3643,12 @@ bool verify_signed_feature_relations(
       } else {
         expected_rule_key = verifier_symbolic_rule_key(
             artifact.operation_, source_key->first.operand,
-            verifier_symbolic_family_for_edge<T>(source.contact, nullptr),
-            verifier_orientation_from_edge(source.orientation),
+            verifier_symbolic_family_for_edge<T>(derived_contact, nullptr),
+            verifier_orientation_from_edge(derived_orientation),
             symbolic_ownership_role::shared_source_feature,
             symbolic_half_open_role::source_edge,
             symbolic_transition_orientation::none,
-            source.contact == source_edge_contact_class::equal
+            derived_contact == source_edge_contact_class::equal
                 ? symbolic_occurrence_class::shared_source_feature
                 : symbolic_occurrence_class::lower_dimensional_contact);
       }
@@ -2857,6 +3665,13 @@ bool verify_signed_feature_relations(
                     "Component 07 symbolic edge/facet source is absent");
       const auto &source = artifact.source_edge_facet_stage_->relations[
           source_request->id.ordinal()];
+      source_edge_facet_support_class derived_support;
+      source_edge_facet_contact_class derived_contact;
+      if (!verifier_derive_edge_facet_classification(
+              source, derived_support, derived_contact))
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 symbolic edge/facet category is unresolved");
+      (void)derived_support;
       const source_edge_facet_event_record<T> *event = nullptr;
       for (std::size_t local_event = 0; local_event < source.events.size();
            ++local_event) {
@@ -2922,7 +3737,7 @@ bool verify_signed_feature_relations(
               : symbolic_ownership_role::acting_source_feature;
       expected_rule_key = verifier_symbolic_rule_key(
           artifact.operation_, source_key->first.operand,
-          verifier_symbolic_family_for_edge_facet(*event, source.contact),
+          verifier_symbolic_family_for_edge_facet(*event, derived_contact),
           orientation_relation::indeterminate, ownership,
           query_endpoint || opposite_vertex
               ? symbolic_half_open_role::source_endpoint
@@ -2948,6 +3763,11 @@ bool verify_signed_feature_relations(
                     "Component 07 symbolic facet source is absent");
       const auto &source = artifact.source_facet_stage_->relations[
           source_request->id.ordinal()];
+      source_facet_support_relation_class derived_classification;
+      if (!verifier_derive_facet_classification(source,
+                                                derived_classification))
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 symbolic facet category is unresolved");
       reconstructed_evidence =
           source.has_coplanarity_truth &&
           verifier_set_truth_symbolic_evidence<T>(
@@ -2961,7 +3781,7 @@ bool verify_signed_feature_relations(
       expected_rule_key = verifier_symbolic_rule_key(
           artifact.operation_, decision.acting_operand,
           relation_family::coplanar,
-          verifier_orientation_from_status(facet_status(source.classification)),
+          verifier_orientation_from_status(facet_status(derived_classification)),
           symbolic_ownership_role::coincident_sheet_pair,
           symbolic_half_open_role::none,
           symbolic_transition_orientation::none,
@@ -2980,6 +3800,11 @@ bool verify_signed_feature_relations(
                     "Component 07 symbolic overlay source lineage is absent");
       const auto &source =
           artifact.coplanar_overlay_stage_->overlays[descriptor->ordinal];
+      coplanar_facet_overlay_class derived_classification;
+      if (!verifier_derive_overlay_classification(source,
+                                                  derived_classification))
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 symbolic overlay category is unresolved");
       reconstructed_evidence =
           source.support_relation.has_coplanarity_truth &&
           verifier_set_truth_symbolic_evidence<T>(
@@ -3005,8 +3830,8 @@ bool verify_signed_feature_relations(
               relation_coplanar_component_kind::coincident_sheet_boundary;
       expected_rule_key = verifier_symbolic_rule_key(
           artifact.operation_, decision.acting_operand,
-          verifier_symbolic_family_for_overlay(source.classification),
-          verifier_orientation_from_status(overlay_status(source.classification)),
+          verifier_symbolic_family_for_overlay(derived_classification),
+          verifier_orientation_from_status(overlay_status(derived_classification)),
           coincident ? symbolic_ownership_role::coincident_sheet_pair
                      : symbolic_ownership_role::shared_source_feature,
           component_kind == relation_coplanar_component_kind::isolated_point
@@ -3116,8 +3941,17 @@ bool verify_signed_feature_relations(
       return fail(relation_subcode::missing_dependency,
                   "Component 07 symbolic edge relation table is incomplete");
     const auto &source = artifact.source_edge_stage_->relations[i];
-    if (source.contact == source_edge_contact_class::none ||
-        source.contact == source_edge_contact_class::proper_crossing)
+    source_edge_support_class support;
+    source_edge_contact_class contact;
+    source_edge_orientation_relation orientation;
+    if (!verifier_derive_edge_classification(source, support, contact,
+                                             orientation))
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 symbolic edge population is unresolved");
+    (void)support;
+    (void)orientation;
+    if (contact == source_edge_contact_class::none ||
+        contact == source_edge_contact_class::proper_crossing)
       continue;
     if (source.points.empty()) {
       if (!require_symbolic(request.key,
@@ -3167,8 +4001,11 @@ bool verify_signed_feature_relations(
     if (i >= artifact.source_facet_stage_->relations.size())
       return fail(relation_subcode::missing_dependency,
                   "Component 07 symbolic facet relation table is incomplete");
-    const auto classification =
-        artifact.source_facet_stage_->relations[i].classification;
+    source_facet_support_relation_class classification;
+    if (!verifier_derive_facet_classification(
+            artifact.source_facet_stage_->relations[i], classification))
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 symbolic facet population is unresolved");
     if (classification !=
             source_facet_support_relation_class::coplanar_same_orientation &&
         classification !=
@@ -3184,7 +4021,11 @@ bool verify_signed_feature_relations(
   for (const auto &descriptor : overlay_descriptors) {
     const auto &source =
         artifact.coplanar_overlay_stage_->overlays[descriptor.ordinal];
-    if (source.classification == coplanar_facet_overlay_class::disjoint)
+    coplanar_facet_overlay_class classification;
+    if (!verifier_derive_overlay_classification(source, classification))
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 symbolic overlay population is unresolved");
+    if (classification == coplanar_facet_overlay_class::disjoint)
       continue;
     for (const auto &component : source.overlap_components)
       for (const auto acting : {operand_id::a, operand_id::b})
@@ -3553,6 +4394,276 @@ bool verify_signed_feature_relations(
         return fail(relation_subcode::verifier_rejection,
                     "Component 07 transverse carrier residual does not reconstruct");
     }
+  }
+
+  for (const auto operand : {operand_id::a, operand_id::b}) {
+    const auto index = static_cast<std::size_t>(operand);
+    const auto &published = artifact.source_topology_[index];
+    const auto &table = artifact.candidates_->primitive_table(operand);
+    const auto &topology = operand == operand_id::a
+                               ? *artifact.candidates_->manifolds()->a()
+                               : *artifact.candidates_->manifolds()->b();
+    const auto facet_feature = [&](std::uint64_t source_facet,
+                                   relation_feature_key &feature) {
+      if (source_facet >= topology.source_facet_to_group().size())
+        return false;
+      const auto group_id = topology.source_facet_to_group()[source_facet];
+      if (group_id >= topology.facet_groups().size())
+        return false;
+      const auto &group = topology.facet_groups()[group_id];
+      if (group.canonical_id != group_id || group.source_facet != source_facet)
+        return false;
+      feature = {};
+      feature.operand = operand;
+      feature.kind = relation_feature_kind::source_facet;
+      feature.primary = source_facet;
+      feature.secondary = group.ring;
+      return valid_relation_feature_key(feature, false);
+    };
+
+    std::vector<relation_source_edge_domain_record> expected_source_edges;
+    for (const auto &edge : table.edges) {
+      if (edge.edge_class != canonical_edge_class::source_edge ||
+          !edge.source_feature_owner)
+        continue;
+      relation_source_edge_domain_record record;
+      record.canonical_edge = edge.edge.ordinal();
+      record.source_edge.operand = operand;
+      record.source_edge.kind = relation_feature_kind::source_edge;
+      record.source_edge.primary = edge.semantic_key.primary;
+      record.source_edge.secondary = edge.semantic_key.secondary;
+      record.start_vertex.operand = operand;
+      record.start_vertex.kind = relation_feature_kind::source_vertex;
+      record.start_vertex.primary = edge.semantic_key.primary;
+      record.end_vertex.operand = operand;
+      record.end_vertex.kind = relation_feature_kind::source_vertex;
+      record.end_vertex.primary = edge.semantic_key.secondary;
+      expected_source_edges.push_back(std::move(record));
+    }
+
+    std::vector<relation_source_vertex_fan_record> expected_vertex_fans;
+    expected_vertex_fans.reserve(topology.vertices().size());
+    for (std::size_t i = 0; i < topology.vertices().size(); ++i) {
+      const auto &vertex = topology.vertices()[i];
+      if (vertex.canonical_id != i || vertex.fan >= topology.fans().size())
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 source topology fan predecessor is malformed");
+      const auto &fan = topology.fans()[vertex.fan];
+      if (fan.canonical_id != vertex.fan || fan.vertex != vertex.canonical_id)
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 source topology fan identity is malformed");
+      relation_source_vertex_fan_record record;
+      record.canonical_vertex = vertex.canonical_id;
+      record.source_vertex.operand = operand;
+      record.source_vertex.kind = relation_feature_kind::source_vertex;
+      record.source_vertex.primary = vertex.source_vertex;
+      for (const auto halfedge_id : fan.outgoing_halfedges) {
+        if (halfedge_id >= topology.halfedges().size())
+          return fail(relation_subcode::verifier_rejection,
+                      "Component 07 source topology fan halfedge is malformed");
+        const auto &halfedge = topology.halfedges()[halfedge_id];
+        if (halfedge.canonical_id != halfedge_id ||
+            halfedge.origin != vertex.canonical_id)
+          return fail(relation_subcode::verifier_rejection,
+                      "Component 07 source topology fan ownership is malformed");
+        relation_feature_key facet;
+        if (!facet_feature(halfedge.source_facet, facet))
+          return fail(relation_subcode::verifier_rejection,
+                      "Component 07 source topology fan facet is malformed");
+        if (record.ordered_facets.empty() ||
+            record.ordered_facets.back() != facet)
+          record.ordered_facets.push_back(facet);
+      }
+      if (record.ordered_facets.size() > 1 &&
+          record.ordered_facets.front() == record.ordered_facets.back())
+        record.ordered_facets.pop_back();
+      expected_vertex_fans.push_back(std::move(record));
+    }
+
+    std::vector<relation_source_edge_adjacency_record> expected_adjacencies;
+    expected_adjacencies.reserve(topology.edges().size());
+    for (std::size_t i = 0; i < topology.edges().size(); ++i) {
+      const auto &edge = topology.edges()[i];
+      if (edge.canonical_id != i)
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 source topology edge identity is malformed");
+      relation_source_edge_adjacency_record record;
+      record.canonical_edge = edge.canonical_id;
+      record.edge_class = edge.edge_class;
+      record.edge.operand = operand;
+      if (edge.edge_class == canonical_edge_class::source_edge) {
+        record.edge.kind = relation_feature_kind::source_edge;
+        record.edge.primary = edge.key.primary;
+        record.edge.secondary = edge.key.secondary;
+      } else if (edge.edge_class ==
+                 canonical_edge_class::facet_internal_diagonal) {
+        record.edge.kind = relation_feature_kind::facet_internal_diagonal;
+        record.edge.primary = edge.source_facet;
+        record.edge.secondary = edge.source_diagonal;
+      } else {
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 source topology edge class is malformed");
+      }
+      if (!facet_feature(edge.facets[0], record.first_facet) ||
+          !facet_feature(edge.facets[1], record.second_facet))
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 source topology adjacency facet is malformed");
+      record.source_feature_owner = edge.source_feature_owner;
+      record.bookkeeping_only =
+          !edge.source_feature_owner && !edge.symbolic_contact_owner &&
+          !edge.classification_barrier_inside_source_facet &&
+          !edge.retained_surface_feature;
+      expected_adjacencies.push_back(std::move(record));
+    }
+
+    if (published.operand != operand ||
+        published.schema_version !=
+            contract_versions::relation_downstream_topology_schema ||
+        published.reserved16 != 0 || published.reserved32 != 0 ||
+        published.source_triangle_count != table.triangles.size() ||
+        published.canonical_edge_count != topology.edges().size() ||
+        published.source_semantic_digest != table.source_semantic_digest ||
+        published.exact_topology_digest != table.exact_topology_digest ||
+        published.source_edges.size() != expected_source_edges.size() ||
+        published.vertex_fans.size() != expected_vertex_fans.size() ||
+        published.edge_adjacencies.size() != expected_adjacencies.size())
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 downstream source topology does not reconstruct");
+    for (std::size_t i = 0; i < expected_source_edges.size(); ++i) {
+      const auto &record = published.source_edges[i];
+      const auto &expected = expected_source_edges[i];
+      if (record.source_edge != expected.source_edge ||
+          record.start_vertex != expected.start_vertex ||
+          record.end_vertex != expected.end_vertex ||
+          record.canonical_edge != expected.canonical_edge ||
+          record.schema_version != expected.schema_version ||
+          record.reserved16 != expected.reserved16 ||
+          record.reserved32 != expected.reserved32)
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 downstream source-edge domain does not reconstruct");
+    }
+    for (std::size_t i = 0; i < expected_vertex_fans.size(); ++i) {
+      const auto &record = published.vertex_fans[i];
+      const auto &expected = expected_vertex_fans[i];
+      if (record.source_vertex != expected.source_vertex ||
+          record.ordered_facets != expected.ordered_facets ||
+          record.canonical_vertex != expected.canonical_vertex ||
+          record.schema_version != expected.schema_version ||
+          record.reserved16 != expected.reserved16 ||
+          record.reserved32 != expected.reserved32)
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 downstream source-vertex fan does not reconstruct");
+    }
+    for (std::size_t i = 0; i < expected_adjacencies.size(); ++i) {
+      const auto &record = published.edge_adjacencies[i];
+      const auto &expected = expected_adjacencies[i];
+      if (record.edge != expected.edge ||
+          record.first_facet != expected.first_facet ||
+          record.second_facet != expected.second_facet ||
+          record.canonical_edge != expected.canonical_edge ||
+          record.edge_class != expected.edge_class ||
+          record.source_feature_owner != expected.source_feature_owner ||
+          record.bookkeeping_only != expected.bookkeeping_only ||
+          record.reserved8 != expected.reserved8 ||
+          record.schema_version != expected.schema_version ||
+          record.reserved32 != expected.reserved32)
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 downstream source adjacency does not reconstruct");
+    }
+  }
+
+  std::vector<relation_transverse_carrier_support_record>
+      expected_transverse_supports;
+  for (const auto &relation : artifact.relations_) {
+    if (relation.family != feature_relation_family::source_facet_source_facet ||
+        relation.status != feature_relation_status::proper_crossing)
+      continue;
+    if (relation.producer.ordinal() >= artifact.request_graph_.requests.size())
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 transverse support request is absent");
+    const auto &request =
+        artifact.request_graph_.requests[relation.producer.ordinal()];
+    if (request.id != relation.producer ||
+        request.key.family !=
+            relation_request_family::source_facet_source_facet)
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 transverse support request is malformed");
+    const source_facet_source_facet_relation_record<T> *facet = nullptr;
+    for (const auto &candidate : artifact.source_facet_stage_->relations) {
+      if (candidate.first_feature != request.key.first ||
+          candidate.second_feature != request.key.second)
+        continue;
+      if (facet)
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 transverse facet classification is ambiguous");
+      facet = &candidate;
+    }
+    if (!facet ||
+        facet->classification != source_facet_support_relation_class::transverse ||
+        !facet->has_transverse_carrier)
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 transverse facet classification is incomplete");
+    const relation_construction_record *construction = nullptr;
+    for (const auto &candidate : artifact.constructions_) {
+      if (candidate.source_relation != relation.id ||
+          candidate.kind != relation_construction_kind::bounded_carrier)
+        continue;
+      if (construction)
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 transverse carrier construction is ambiguous");
+      construction = &candidate;
+    }
+    if (!construction)
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 transverse carrier construction is absent");
+    relation_transverse_carrier_support_record expected;
+    expected.relation = relation.id;
+    expected.construction = construction->id;
+    expected.first_facet = request.key.first;
+    expected.second_facet = request.key.second;
+    expected.expected_membership_count =
+        static_cast<std::uint64_t>(std::count_if(
+        artifact.transverse_carrier_memberships_.begin(),
+        artifact.transverse_carrier_memberships_.end(), [&](const auto &record) {
+          return record.carrier_relation == relation.id;
+        }));
+    expected.support_consistent = facet->has_transverse_carrier;
+    expected.orientation_consistent = facet->has_transverse_carrier;
+    expected.residuals_accepted = facet->transverse_carrier.residuals_accepted;
+    expected.precision_evidence_complete =
+        construction->precision_evidence_complete;
+    expected_transverse_supports.push_back(std::move(expected));
+  }
+  if (artifact.transverse_carrier_supports_.size() !=
+      expected_transverse_supports.size())
+    return fail(relation_subcode::verifier_rejection,
+                "Component 07 downstream transverse support table is incomplete");
+  for (std::size_t i = 0; i < expected_transverse_supports.size(); ++i) {
+    const auto &support = artifact.transverse_carrier_supports_[i];
+    const auto &expected = expected_transverse_supports[i];
+    if (support.relation != expected.relation ||
+        support.construction != expected.construction ||
+        support.first_facet != expected.first_facet ||
+        support.second_facet != expected.second_facet ||
+        support.expected_membership_count !=
+            expected.expected_membership_count ||
+        support.support_consistent != expected.support_consistent ||
+        support.orientation_consistent != expected.orientation_consistent ||
+        support.residuals_accepted != expected.residuals_accepted ||
+        support.precision_evidence_complete !=
+            expected.precision_evidence_complete ||
+        support.schema_version != expected.schema_version ||
+        support.reserved16 != expected.reserved16 ||
+        support.reserved32 != expected.reserved32)
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 downstream transverse support does not reconstruct");
+    const auto &construction =
+        artifact.constructions_[support.construction.ordinal()];
+    if (construction.id != support.construction ||
+        construction.kind != relation_construction_kind::bounded_carrier ||
+        construction.source_relation != support.relation)
+      return fail(relation_subcode::verifier_rejection,
+                  "Component 07 downstream transverse construction does not reconstruct");
   }
 
   if (!verify_relation_event_candidate_evidence(artifact, error))

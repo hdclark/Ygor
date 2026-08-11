@@ -1,7 +1,7 @@
 #pragma once
 
 #include "IntersectionCodec.h"
-#include "SignedFeatureRelations.h"
+#include "RelationQueries.h"
 
 #include <cstdint>
 
@@ -23,7 +23,7 @@ struct intersection_verifier_limits final {
 // separate from the Component 08 producers. The artifact is never modified.
 template <class T, class I>
 bool verify_intersection_complex_independent(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     const canonical_intersection_complex<T, I> &artifact,
     const intersection_codec_limits &codec_limits,
     const intersection_verifier_limits &limits,
@@ -35,7 +35,7 @@ bool verify_intersection_complex_independent(
 // failure. Repeated finalization is idempotent and byte-stable.
 template <class T, class I>
 bool finalize_intersection_complex_verification(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     canonical_intersection_complex<T, I> &artifact,
     const intersection_codec_limits &codec_limits,
     const intersection_verifier_limits &limits,
@@ -49,7 +49,7 @@ template <class T, class I>
 bool decode_intersection_complex_verified_private(
     const std::vector<std::uint8_t> &bytes,
     const intersection_canonicalization_header &expectations,
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     const intersection_codec_limits &codec_limits,
     const intersection_verifier_limits &verifier_limits,
     canonical_intersection_complex<T, I> &artifact,
@@ -57,20 +57,20 @@ bool decode_intersection_complex_verified_private(
 
 #define YGOR_DECLARE_INTERSECTION_VERIFIER(T, I)                            \
   extern template bool verify_intersection_complex_independent<T, I>(       \
-      const signed_feature_relations<T, I> &,                               \
+      const signed_feature_relations_view<T, I> &,                          \
       const canonical_intersection_complex<T, I> &,                         \
       const intersection_codec_limits &,                                    \
       const intersection_verifier_limits &,                                 \
       intersection_verification_evidence &, bounded_boolean_error &);       \
   extern template bool finalize_intersection_complex_verification<T, I>(    \
-      const signed_feature_relations<T, I> &,                               \
+      const signed_feature_relations_view<T, I> &,                          \
       canonical_intersection_complex<T, I> &,                               \
       const intersection_codec_limits &,                                    \
       const intersection_verifier_limits &, bounded_boolean_error &);       \
   extern template bool decode_intersection_complex_verified_private<T, I>( \
       const std::vector<std::uint8_t> &,                                    \
       const intersection_canonicalization_header &,                         \
-      const signed_feature_relations<T, I> &,                               \
+      const signed_feature_relations_view<T, I> &,                          \
       const intersection_codec_limits &,                                    \
       const intersection_verifier_limits &,                                \
       canonical_intersection_complex<T, I> &, bounded_boolean_error &)

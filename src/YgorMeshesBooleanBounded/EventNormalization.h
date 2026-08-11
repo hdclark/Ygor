@@ -1,7 +1,7 @@
 #pragma once
 
 #include "CanonicalIntersectionComplex.h"
-#include "SignedFeatureRelations.h"
+#include "RelationQueries.h"
 
 #include <vector>
 
@@ -42,24 +42,15 @@ bool normalize_event_seed_records(
 
 template <class T, class I>
 bool normalize_event_seeds(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     const context_owner_token &owner,
     std::vector<normalized_event_seed_proposal> &proposals,
     bounded_boolean_error &error) {
-  if (!owner.same_owner(relations.owner())) {
+  if (!relations.valid_owner() || !owner.same_owner(relations.owner())) {
     error = intersection_error(intersection_subcode::wrong_owner,
                                bounded_boolean_error_category::input_contract_error,
                                "Component 08 seed normalization owner mismatch",
                                intersection_checkpoint::seed_normalization);
-    return false;
-  }
-  if (relations.verification() !=
-      relation_verification_disposition::independently_verified) {
-    error = intersection_error(
-        intersection_subcode::predecessor_not_verified,
-        bounded_boolean_error_category::input_contract_error,
-        "Component 08 requires an independently verified Component 07 artifact",
-        intersection_checkpoint::seed_normalization);
     return false;
   }
   return normalize_event_seed_records(relations.event_seeds(),

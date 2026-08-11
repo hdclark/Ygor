@@ -30,6 +30,19 @@ namespace bounded = ygor::mesh_boolean::bounded;
 namespace qualification = ygor::mesh_boolean::qualification;
 using broad_phase_tests::require;
 
+namespace ygor::mesh_boolean::bounded {
+
+struct relation_artifact_test_access final {
+  template <class T, class I>
+  static void clear_carrier_lineage(signed_feature_relations<T, I> &artifact) {
+    for (auto &construction : artifact.constructions_)
+      if (construction.kind == relation_construction_kind::bounded_carrier)
+        construction.geometric_lineage = 0;
+  }
+};
+
+} // namespace ygor::mesh_boolean::bounded
+
 namespace {
 
 using relation_type = bounded::signed_feature_relations<double, std::uint32_t>;
@@ -453,6 +466,8 @@ void cancellation_poll(void *opaque,
 
 void test_resource_boundaries() {
   const auto fixture = empty_stage_fixture();
+  const bounded::signed_feature_relations_view<double, std::uint32_t>
+      relation_view(*fixture.relations, fixture.relations->owner());
   bounded::resource_manager reference_resources(
       resource_policy::conservative_defaults());
   const auto reference = build_stage(
@@ -466,7 +481,7 @@ void test_resource_boundaries() {
   bounded::intersection_preflight_plan plan;
   bounded_boolean_error error;
   auto roomy = stage_capabilities(fixture, reference_resources);
-  require(bounded::preflight_intersection_events(*fixture.relations, roomy,
+  require(bounded::preflight_intersection_events(relation_view, roomy,
                                                   plan, error),
           "Component 08 qualification preflight failed");
 
@@ -511,7 +526,7 @@ void test_resource_boundaries() {
     bounded::intersection_preflight_plan rejected;
     bounded_boolean_error rejected_error;
     require(!bounded::preflight_intersection_events(
-                *fixture.relations, below, rejected, rejected_error) &&
+                relation_view, below, rejected, rejected_error) &&
                 rejected_error.category ==
                     bounded_boolean_error_category::resource_limit,
             test.name);
@@ -523,11 +538,11 @@ void test_resource_boundaries() {
     bounded::intersection_preflight_plan accepted;
     bounded_boolean_error accepted_error;
     require(bounded::preflight_intersection_events(
-                *fixture.relations, exact, accepted, accepted_error),
+                relation_view, exact, accepted, accepted_error),
             "exact Component 08 capability boundary must pass");
     exact.*(test.field) = test.required + 1;
     require(bounded::preflight_intersection_events(
-                *fixture.relations, exact, accepted, accepted_error),
+                relation_view, exact, accepted, accepted_error),
             "Component 08 capability limit-plus-one must pass");
   }
 
@@ -538,7 +553,7 @@ void test_resource_boundaries() {
     bounded::intersection_preflight_plan rejected;
     bounded_boolean_error rejected_error;
     require(!bounded::preflight_intersection_events(
-                *fixture.relations, below, rejected, rejected_error) &&
+                relation_view, below, rejected, rejected_error) &&
                 rejected_error.category ==
                     bounded_boolean_error_category::resource_limit,
             "canonical-byte limit-minus-one must fail preflight");
@@ -671,6 +686,8 @@ void test_execution_determinism_and_fail_closed_gate() {
             "Component 08 execution mode or worker count changed semantics");
 
   const auto transverse = transverse_stage_fixture();
+  const bounded::signed_feature_relations_view<double, std::uint32_t>
+      transverse_view(*transverse.relations, transverse.relations->owner());
   std::vector<bounded::normalized_event_seed_proposal> normalized;
   bounded_boolean_error adapter_error;
   require(bounded::normalize_event_seed_records(
@@ -683,7 +700,7 @@ void test_execution_determinism_and_fail_closed_gate() {
           "nonempty source-edge adapter interning failed");
   bounded::event_incidence_tables incidence;
   require(bounded::build_event_incidence(
-              *transverse.relations, interning, incidence, adapter_error),
+              transverse_view, interning, incidence, adapter_error),
           "nonempty source-edge adapter incidence failed");
 
   std::vector<bounded::source_edge_membership_proposal> memberships;
@@ -796,8 +813,20 @@ void test_execution_determinism_and_fail_closed_gate() {
           "ambiguous construction-scoped parameter evidence did not fail closed");
 
   std::vector<bounded::transverse_carrier_proposal> carrier_proposals;
+  require(bounded::collect_component07_transverse_carrier_proposals(
+              transverse_view, carrier_proposals, adapter_error) &&
+              !carrier_proposals.empty(),
+          "valid Component 07 carrier lineage did not cross the checked view");
+
+  auto missing_lineage =
+      std::make_shared<relation_type>(*transverse.relations);
+  bounded::relation_artifact_test_access::clear_carrier_lineage(
+      *missing_lineage);
+  const bounded::signed_feature_relations_view<double, std::uint32_t>
+      missing_lineage_view(*missing_lineage,
+                           transverse.broad.predecessor.context.owner);
   require(!bounded::collect_component07_transverse_carrier_proposals(
-              *transverse.relations, carrier_proposals, adapter_error) &&
+              missing_lineage_view, carrier_proposals, adapter_error) &&
               adapter_error.subcode == static_cast<std::uint32_t>(
                   bounded::intersection_subcode::transverse_carrier_invalid),
           "Component 07 carrier construction without geometric lineage did not fail closed");
@@ -805,9 +834,10 @@ void test_execution_determinism_and_fail_closed_gate() {
           "failed transverse carrier adaptation leaked partial proposals");
 
   bounded::resource_manager resources(resource_policy::conservative_defaults());
+  std::shared_ptr<const relation_type> missing_lineage_input = missing_lineage;
   auto outcome = bounded::build_canonical_intersection_complex(
       transverse.broad.predecessor.context,
-      *transverse.broad.predecessor.precision, transverse.relations,
+      *transverse.broad.predecessor.precision, missing_lineage_input,
       stage_capabilities(transverse, resources));
   if (outcome.has_value() ||
       outcome.error()->subcode != static_cast<std::uint32_t>(

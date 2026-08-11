@@ -1,6 +1,6 @@
 #include "StrictFloatingBuild.h"
 #include "RelationCandidateEvidenceVerifier.h"
-#include "CoplanarRelationOverlay.h"
+#include "RelationArtifactInternalAccess.h"
 
 #include <algorithm>
 #include <array>
@@ -143,6 +143,138 @@ relation_feature_key candidate_triangle_feature(
   return out;
 }
 
+template <class T, class I>
+bool candidate_supports_request(
+    const canonical_candidate_stream<T, I> &candidates,
+    const canonical_candidate_record<T> &candidate,
+    const relation_request_key &key) noexcept {
+  const auto edge_operand =
+      candidate.role == directed_candidate_role::a_edge_b_triangle
+          ? operand_id::a
+          : operand_id::b;
+  const auto triangle_operand =
+      edge_operand == operand_id::a ? operand_id::b : operand_id::a;
+  const auto &edge_table = candidates.primitive_table(edge_operand);
+  const auto &triangle_table = candidates.primitive_table(triangle_operand);
+  if (candidate.edge.ordinal() >= edge_table.edges.size() ||
+      candidate.triangle.ordinal() >= triangle_table.triangles.size())
+    return false;
+  const auto &edge = edge_table.edges[candidate.edge.ordinal()];
+  const auto &triangle = triangle_table.triangles[candidate.triangle.ordinal()];
+  const auto discovery_edge = candidate_edge_feature(candidates, candidate);
+  const auto source_facet_contains_vertex = [&](operand_id operand,
+                                                std::uint64_t facet,
+                                                std::uint64_t vertex) {
+    const auto topology = operand == operand_id::a
+                              ? candidates.manifolds()->a()
+                              : candidates.manifolds()->b();
+    if (!topology || facet >= topology->source_facet_to_group().size())
+      return false;
+    const auto group = topology->source_facet_to_group()[facet];
+    if (group >= topology->facet_groups().size())
+      return false;
+    const auto &vertices = topology->facet_groups()[group].source_vertices;
+    return std::find(vertices.begin(), vertices.end(), vertex) != vertices.end();
+  };
+  const auto source_facet_contains_edge = [&](const relation_feature_key &feature,
+                                              std::uint64_t facet) {
+    if (feature.kind != relation_feature_kind::source_edge)
+      return false;
+    const auto &table = candidates.primitive_table(feature.operand);
+    return std::any_of(table.edges.begin(), table.edges.end(),
+                       [&](const auto &source) {
+                         if (source.edge_class !=
+                             canonical_edge_class::source_edge)
+                           return false;
+                         relation_feature_key source_feature;
+                         source_feature.operand = feature.operand;
+                         source_feature.kind = relation_feature_kind::source_edge;
+                         source_feature.primary = source.semantic_key.primary;
+                         source_feature.secondary = source.semantic_key.secondary;
+                         if (source_feature != feature)
+                           return false;
+                         return source.source_facet == facet ||
+                                std::find(source.source_facets.begin(),
+                                          source.source_facets.end(), facet) !=
+                                    source.source_facets.end();
+                       });
+  };
+  const auto edge_incident_facet = [&](std::uint64_t facet) {
+    return edge.edge_class == canonical_edge_class::facet_internal_diagonal
+               ? edge.source_facet == facet
+               : std::find(edge.source_facets.begin(), edge.source_facets.end(),
+                           facet) != edge.source_facets.end();
+  };
+
+  if (key.scope == relation_record_scope::bookkeeping_only)
+    return key.family == relation_request_family::source_edge_source_facet &&
+           key.first == discovery_edge &&
+           key.second == candidate_triangle_feature(candidates, candidate) &&
+           key.directed_use == candidate.id.ordinal();
+  switch (key.family) {
+  case relation_request_family::source_edge_source_facet:
+    return edge.edge_class == canonical_edge_class::source_edge &&
+           key.first == discovery_edge && key.second.operand == triangle_operand &&
+           key.second.kind == relation_feature_kind::source_facet &&
+           key.second.primary == triangle.source_facet;
+  case relation_request_family::source_facet_source_facet:
+  case relation_request_family::coplanar_source_facet_overlay:
+    return (key.first.operand == edge_operand &&
+            key.first.kind == relation_feature_kind::source_facet &&
+            edge_incident_facet(key.first.primary) &&
+            key.second.operand == triangle_operand &&
+            key.second.kind == relation_feature_kind::source_facet &&
+            key.second.primary == triangle.source_facet) ||
+           (key.second.operand == edge_operand &&
+            key.second.kind == relation_feature_kind::source_facet &&
+            edge_incident_facet(key.second.primary) &&
+            key.first.operand == triangle_operand &&
+            key.first.kind == relation_feature_kind::source_facet &&
+            key.first.primary == triangle.source_facet);
+  case relation_request_family::source_point_source_facet_region:
+    return key.first.kind == relation_feature_kind::source_vertex &&
+           key.second.kind == relation_feature_kind::source_facet &&
+           ((key.first.operand == edge_operand &&
+             key.second.operand == triangle_operand &&
+             key.second.primary == triangle.source_facet &&
+             (edge.edge_class ==
+                      canonical_edge_class::facet_internal_diagonal
+                  ? source_facet_contains_vertex(
+                        edge_operand, edge.source_facet, key.first.primary)
+                  : std::any_of(
+                        edge.source_facets.begin(), edge.source_facets.end(),
+                        [&](const auto facet) {
+                          return source_facet_contains_vertex(
+                              edge_operand, facet, key.first.primary);
+                        }))) ||
+            (key.first.operand == triangle_operand &&
+             key.second.operand == edge_operand &&
+             edge_incident_facet(key.second.primary) &&
+             source_facet_contains_vertex(triangle_operand,
+                                          triangle.source_facet,
+                                          key.first.primary)));
+  case relation_request_family::source_edge_source_edge:
+    if (edge.edge_class != canonical_edge_class::source_edge ||
+        key.first.operand == key.second.operand)
+      return false;
+    {
+      const auto &incident_feature =
+          key.first.operand == edge_operand ? key.first : key.second;
+      const auto &opposite_feature =
+          key.first.operand == triangle_operand ? key.first : key.second;
+      return std::any_of(
+                 edge.source_facets.begin(), edge.source_facets.end(),
+                 [&](const auto facet) {
+                   return source_facet_contains_edge(incident_feature, facet);
+                 }) &&
+             source_facet_contains_edge(opposite_feature,
+                                        triangle.source_facet);
+    }
+  default:
+    return false;
+  }
+}
+
 } // namespace
 
 template <class T, class I>
@@ -169,10 +301,51 @@ bool verify_relation_event_candidate_evidence(
   const auto &seed_coverage = artifact.candidate_event_seed_coverage();
   const auto &partitions = artifact.candidate_partitions();
   const auto &reconciliation = artifact.triangle_local_reconciliation();
-  const auto &candidates = artifact.candidates();
+  const auto &candidates =
+      relation_artifact_internal_access::predecessor_candidates(artifact);
   if (!candidates)
     return fail(relation_subcode::candidate_disposition_missing,
                 "Component 07 candidate predecessor is absent");
+  const auto &initial_graph = artifact.execution_authority().graph;
+  for (const auto &request : initial_graph.requests) {
+    const bool candidate_derived =
+        request.key.family == relation_request_family::source_edge_source_edge ||
+        request.key.family ==
+            relation_request_family::source_edge_source_facet ||
+        request.key.family ==
+            relation_request_family::source_facet_source_facet ||
+        request.key.family ==
+            relation_request_family::coplanar_source_facet_overlay ||
+        request.key.family ==
+            relation_request_family::source_point_source_facet_region;
+    if (!candidate_derived)
+      continue;
+    std::vector<candidate_id> expected;
+    for (const auto &candidate : candidates->candidates())
+      if (candidate_supports_request(*candidates, candidate, request.key))
+        expected.push_back(candidate.id);
+    if (request.witness_begin > initial_graph.candidate_witnesses.size() ||
+        request.witness_count >
+            initial_graph.candidate_witnesses.size() - request.witness_begin ||
+        request.witness_count != expected.size() ||
+        !std::equal(expected.begin(), expected.end(),
+                    initial_graph.candidate_witnesses.begin() +
+                        static_cast<std::ptrdiff_t>(request.witness_begin)))
+      return fail(
+          relation_subcode::candidate_disposition_contradiction,
+          request.key.family == relation_request_family::source_edge_source_edge
+              ? "Component 07 edge/edge candidate witnesses do not reconstruct"
+          : request.key.family ==
+                    relation_request_family::source_edge_source_facet
+              ? "Component 07 edge/facet candidate witnesses do not reconstruct"
+          : request.key.family ==
+                    relation_request_family::source_facet_source_facet
+              ? "Component 07 facet/facet candidate witnesses do not reconstruct"
+          : request.key.family == relation_request_family::
+                                      coplanar_source_facet_overlay
+              ? "Component 07 overlay candidate witnesses do not reconstruct"
+              : "Component 07 vertex/facet candidate witnesses do not reconstruct");
+  }
   std::vector<bool> event_seed_request_seen(
       graph.requests.size(), false);
   std::size_t expected_event_seed_count = 0;
@@ -380,25 +553,8 @@ bool verify_relation_event_candidate_evidence(
           relation.status ==
               feature_relation_status::coincidence_opposite_orientation));
     if (source_request.key.family ==
-        relation_request_family::coplanar_source_facet_overlay) {
-      const auto &overlay_stage = artifact.coplanar_overlay_stage();
-      if (!overlay_stage)
-        return fail(relation_subcode::missing_dependency,
-                    "Component 07 event seed omits its coplanar overlay predecessor");
-      const source_facet_coplanar_overlay_record<T> *matched_overlay = nullptr;
-      for (const auto &overlay : overlay_stage->overlays)
-        if (overlay.facets[0].feature == source_request.key.first &&
-            overlay.facets[1].feature == source_request.key.second) {
-          if (matched_overlay)
-            return fail(relation_subcode::duplicate_authoritative_producer,
-                        "Component 07 event seed has ambiguous coplanar occurrence lineage");
-          matched_overlay = &overlay;
-        }
-      if (!matched_overlay)
-        return fail(relation_subcode::missing_dependency,
-                    "Component 07 event seed coplanar occurrence lineage is absent");
-      expected_distinct = matched_overlay->distinct_sheet_occurrences;
-    }
+        relation_request_family::coplanar_source_facet_overlay)
+      expected_distinct = true;
     if (expected_symbolic) {
       expected_distinct = expected_distinct ||
                           expected_symbolic->occurrence_separation_required;
@@ -443,17 +599,21 @@ bool verify_relation_event_candidate_evidence(
       return fail(relation_subcode::verifier_rejection,
                   "Component 07 event-seed occurrence separation does not reconstruct");
 
+    std::vector<candidate_id> expected_candidate_witnesses;
+    for (const auto &candidate : candidates->candidates())
+      if (candidate_supports_request(*candidates, candidate,
+                                     source_request.key))
+        expected_candidate_witnesses.push_back(candidate.id);
     if (record.candidate_incidence_count !=
-        matched_seed_request->witness_count)
+        expected_candidate_witnesses.size())
       return fail(relation_subcode::candidate_disposition_missing,
-                  "Component 07 event seed omits candidate incidence");
+                   "Component 07 event seed omits candidate incidence");
     for (std::uint64_t offset = 0;
          offset < record.candidate_incidence_count; ++offset) {
       const auto index = record.candidate_incidence_begin + offset;
       const auto &incidence =
           candidate_incidence[index];
-      const auto candidate_id = graph.candidate_witnesses[
-          matched_seed_request->witness_begin + offset];
+      const auto candidate_id = expected_candidate_witnesses[offset];
       if (!candidates ||
           candidate_id.ordinal() >= candidates->candidates().size())
         return fail(relation_subcode::candidate_disposition_missing,
@@ -643,10 +803,9 @@ bool verify_relation_event_candidate_evidence(
       if (relation.producer.ordinal() >= graph.requests.size())
         return fail(relation_subcode::missing_dependency,
                     "Component 07 candidate relation producer is absent");
-      if (request_has_witness(
-              graph,
-              graph.requests[relation.producer.ordinal()],
-              candidate.id))
+      if (candidate_supports_request(
+              *candidates, candidate,
+              graph.requests[relation.producer.ordinal()].key))
         expected_relations.push_back(relation.id);
     }
     std::sort(expected_relations.begin(), expected_relations.end());

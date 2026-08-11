@@ -23,6 +23,36 @@ using broad_phase_tests::built_fixture;
 using broad_phase_tests::diagnostic;
 using broad_phase_tests::require;
 
+namespace ygor::mesh_boolean::bounded {
+
+struct relation_artifact_test_access final {
+  template <class T, class I>
+  static const auto &source_edge_stage(
+      const signed_feature_relations<T, I> &artifact) {
+    return artifact.source_edge_stage_;
+  }
+
+  template <class T, class I>
+  static const auto &source_edge_facet_stage(
+      const signed_feature_relations<T, I> &artifact) {
+    return artifact.source_edge_facet_stage_;
+  }
+
+  template <class T, class I>
+  static const auto &source_facet_stage(
+      const signed_feature_relations<T, I> &artifact) {
+    return artifact.source_facet_stage_;
+  }
+
+  template <class T, class I>
+  static const auto &coplanar_overlay_stage(
+      const signed_feature_relations<T, I> &artifact) {
+    return artifact.coplanar_overlay_stage_;
+  }
+};
+
+} // namespace ygor::mesh_boolean::bounded
+
 namespace {
 
 bounded::relation_capabilities capabilities(
@@ -58,16 +88,18 @@ relation_attempt build_relation(built_fixture &fixture) {
 
 void verify_exact_edge_oracle(
     const bounded::signed_feature_relations<double, std::uint32_t> &artifact) {
-  require(artifact.source_edge_stage() != nullptr,
+  const auto &stage =
+      bounded::relation_artifact_test_access::source_edge_stage(artifact);
+  require(stage != nullptr,
           "exact relation oracle requires the source-edge stage");
   std::size_t checked = 0;
-  for (const auto &record : artifact.source_edge_stage()->relations) {
+  for (const auto &record : stage->relations) {
     std::string failure;
     require(qualification::exact_source_edge_record_agrees(record, failure),
             failure.c_str());
     ++checked;
   }
-  require(checked == artifact.source_edge_stage()->evaluation_count,
+  require(checked == stage->evaluation_count,
           "exact relation oracle covers every compute-once edge relation");
 }
 
@@ -186,12 +218,26 @@ void test_downstream_handoff_boundary() {
               view.artifact_digest() &&
               *view.artifact_digest() == attempt.artifact->digest(),
           "downstream view exposes the verified owner-bound artifact handshake");
+  require(view.source_topology()[0].operand == bounded::operand_id::a &&
+              view.source_topology()[1].operand == bounded::operand_id::b &&
+              !view.source_topology()[0].source_edges.empty() &&
+              !view.source_topology()[1].source_edges.empty() &&
+              view.source_topology()[0].canonical_edge_count ==
+                  view.source_topology()[0].edge_adjacencies.size() &&
+              view.source_topology()[1].canonical_edge_count ==
+                  view.source_topology()[1].edge_adjacencies.size(),
+          "downstream view exposes complete owner-free source topology");
+  require(view.transverse_carrier_supports().size() <=
+              view.relations().size() &&
+              view.coplanar_event_nodes().size() <=
+                  view.constructions().size() + view.relations().size(),
+          "downstream view exposes checked transverse and coplanar evidence");
   bounded::signed_feature_relations_view<double, std::uint32_t> wrong_view(
       *attempt.artifact, bounded::context_owner_token::create());
   require(!wrong_view.valid_owner() &&
               wrong_view.event_seed(bounded::relation_event_seed_id(0)) ==
                   nullptr &&
-              wrong_view.artifact_digest() == nullptr,
+               wrong_view.artifact_digest() == nullptr,
           "downstream view rejects wrong-owner access before dereference");
 
   std::uint64_t truth_service_calls = 0;
@@ -259,14 +305,22 @@ void verify_structural_gates(
                   artifact.request_graph().requests.size() &&
               statistics.unique_request_count <=
                   statistics.request_proposal_count &&
-              artifact.source_edge_stage()->evaluation_count ==
-                  artifact.source_edge_stage()->relations.size() &&
-              artifact.source_edge_facet_stage()->evaluation_count ==
-                  artifact.source_edge_facet_stage()->relations.size() &&
-              artifact.source_facet_stage()->evaluation_count ==
-                  artifact.source_facet_stage()->relations.size() &&
-              artifact.coplanar_overlay_stage()->evaluation_count ==
-                  artifact.coplanar_overlay_stage()->overlays.size(),
+              bounded::relation_artifact_test_access::source_edge_stage(artifact)
+                      ->evaluation_count ==
+                  bounded::relation_artifact_test_access::source_edge_stage(artifact)
+                      ->relations.size() &&
+              bounded::relation_artifact_test_access::source_edge_facet_stage(artifact)
+                      ->evaluation_count ==
+                  bounded::relation_artifact_test_access::source_edge_facet_stage(artifact)
+                      ->relations.size() &&
+              bounded::relation_artifact_test_access::source_facet_stage(artifact)
+                      ->evaluation_count ==
+                  bounded::relation_artifact_test_access::source_facet_stage(artifact)
+                      ->relations.size() &&
+              bounded::relation_artifact_test_access::coplanar_overlay_stage(artifact)
+                      ->evaluation_count ==
+                  bounded::relation_artifact_test_access::coplanar_overlay_stage(artifact)
+                      ->overlays.size(),
           "structural gate proves one evaluation per canonical producer");
 
   const auto requests = statistics.unique_request_count;

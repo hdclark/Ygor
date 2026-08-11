@@ -560,6 +560,69 @@ encode_signed_feature_relations(const signed_feature_relations<T, I> &artifact) 
     writer.u16(record.reserved16);
     writer.u32(record.reserved32);
   }
+  canonical_writer handoff_writer;
+  handoff_writer.u16(contract_versions::relation_downstream_topology_schema);
+  for (const auto &topology : artifact.source_topology_) {
+    handoff_writer.u8(static_cast<std::uint8_t>(topology.operand));
+    handoff_writer.u64(topology.source_triangle_count);
+    handoff_writer.u64(topology.canonical_edge_count);
+    encode_digest(handoff_writer, topology.source_semantic_digest);
+    encode_digest(handoff_writer, topology.exact_topology_digest);
+    handoff_writer.u64(topology.source_edges.size());
+    for (const auto &edge : topology.source_edges) {
+      encode_relation_feature_key(handoff_writer, edge.source_edge);
+      encode_relation_feature_key(handoff_writer, edge.start_vertex);
+      encode_relation_feature_key(handoff_writer, edge.end_vertex);
+      handoff_writer.u64(edge.canonical_edge);
+      handoff_writer.u16(edge.schema_version);
+      handoff_writer.u16(edge.reserved16);
+      handoff_writer.u32(edge.reserved32);
+    }
+    handoff_writer.u64(topology.vertex_fans.size());
+    for (const auto &fan : topology.vertex_fans) {
+      encode_relation_feature_key(handoff_writer, fan.source_vertex);
+      handoff_writer.u64(fan.ordered_facets.size());
+      for (const auto &facet : fan.ordered_facets)
+        encode_relation_feature_key(handoff_writer, facet);
+      handoff_writer.u64(fan.canonical_vertex);
+      handoff_writer.u16(fan.schema_version);
+      handoff_writer.u16(fan.reserved16);
+      handoff_writer.u32(fan.reserved32);
+    }
+    handoff_writer.u64(topology.edge_adjacencies.size());
+    for (const auto &edge : topology.edge_adjacencies) {
+      encode_relation_feature_key(handoff_writer, edge.edge);
+      encode_relation_feature_key(handoff_writer, edge.first_facet);
+      encode_relation_feature_key(handoff_writer, edge.second_facet);
+      handoff_writer.u64(edge.canonical_edge);
+      handoff_writer.u8(static_cast<std::uint8_t>(edge.edge_class));
+      handoff_writer.boolean(edge.source_feature_owner);
+      handoff_writer.boolean(edge.bookkeeping_only);
+      handoff_writer.u8(edge.reserved8);
+      handoff_writer.u16(edge.schema_version);
+      handoff_writer.u32(edge.reserved32);
+    }
+    handoff_writer.u16(topology.schema_version);
+    handoff_writer.u16(topology.reserved16);
+    handoff_writer.u32(topology.reserved32);
+  }
+  handoff_writer.u16(contract_versions::relation_transverse_support_schema);
+  handoff_writer.u64(artifact.transverse_carrier_supports_.size());
+  for (const auto &support : artifact.transverse_carrier_supports_) {
+    handoff_writer.u64(support.relation.ordinal());
+    handoff_writer.u64(support.construction.ordinal());
+    encode_relation_feature_key(handoff_writer, support.first_facet);
+    encode_relation_feature_key(handoff_writer, support.second_facet);
+    handoff_writer.u64(support.expected_membership_count);
+    handoff_writer.boolean(support.support_consistent);
+    handoff_writer.boolean(support.orientation_consistent);
+    handoff_writer.boolean(support.residuals_accepted);
+    handoff_writer.boolean(support.precision_evidence_complete);
+    handoff_writer.u16(support.schema_version);
+    handoff_writer.u16(support.reserved16);
+    handoff_writer.u32(support.reserved32);
+  }
+  writer.sized_bytes(handoff_writer.take());
   writer.u64(artifact.candidate_dispositions_.size());
   for (const auto &record : artifact.candidate_dispositions_) {
     writer.u64(record.id.ordinal());
@@ -1845,7 +1908,15 @@ bool parse_relation_artifact_envelope(
     if (!read_transverse_membership_record(reader, i))
       return codec_failure(relation_subcode::codec_error,
                            bounded_boolean_error_category::input_contract_error,
-                           "Component 07 transverse membership table is truncated");
+                            "Component 07 transverse membership table is truncated");
+
+  std::vector<std::uint8_t> downstream_handoff;
+  if (!reader.sized_bytes(downstream_handoff,
+                          capabilities.maximum_canonical_bytes) ||
+      downstream_handoff.empty())
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 downstream handoff section is malformed");
 
   if (!reader.u64(envelope.candidate_disposition_count) ||
       !count_fits(reader, envelope.candidate_disposition_count,

@@ -31,6 +31,7 @@ template <class Record> struct relation_record_range final {
 // service from which downstream code could recompute authoritative geometry.
 template <class T, class I> class signed_feature_relations_view final {
 public:
+  signed_feature_relations_view() noexcept = default;
   signed_feature_relations_view(
       const signed_feature_relations<T, I> &artifact,
       const context_owner_token &owner) noexcept
@@ -40,6 +41,13 @@ public:
     return artifact_ && artifact_->owner().same_owner(owner_) &&
            artifact_->verification() ==
                relation_verification_disposition::independently_verified;
+  }
+
+  const context_owner_token &owner() const noexcept { return owner_; }
+  relation_verification_disposition verification() const noexcept {
+    return valid_owner()
+               ? relation_verification_disposition::independently_verified
+               : relation_verification_disposition::unverified;
   }
 
   std::uint16_t schema_version() const noexcept {
@@ -95,6 +103,79 @@ public:
   }
   const relation_replay_evidence *replay_evidence() const noexcept {
     return valid_owner() ? &artifact_->replay_evidence() : nullptr;
+  }
+
+  const bounded_boolean_digest &digest() const noexcept {
+    return valid_owner() ? artifact_->digest() : empty_digest();
+  }
+  const std::vector<relation_event_seed_record> &event_seeds() const noexcept {
+    return valid_owner() ? artifact_->event_seeds() : empty_vector<relation_event_seed_record>();
+  }
+  const std::vector<relation_construction_record> &constructions() const noexcept {
+    return valid_owner() ? artifact_->constructions() : empty_vector<relation_construction_record>();
+  }
+  const std::vector<relation_construction_ledger_record> &construction_ledger() const noexcept {
+    return valid_owner() ? artifact_->construction_ledger() : empty_vector<relation_construction_ledger_record>();
+  }
+  const std::vector<relation_feature_key> &event_seed_incidence() const noexcept {
+    return valid_owner() ? artifact_->event_seed_incidence() : empty_vector<relation_feature_key>();
+  }
+  const std::vector<relation_event_seed_candidate_incidence_record> &
+  event_seed_candidate_incidence() const noexcept {
+    return valid_owner() ? artifact_->event_seed_candidate_incidence()
+                         : empty_vector<relation_event_seed_candidate_incidence_record>();
+  }
+  const std::vector<feature_relation_record> &relations() const noexcept {
+    return valid_owner() ? artifact_->relations() : empty_vector<feature_relation_record>();
+  }
+  const std::vector<relation_candidate_disposition_record> &
+  candidate_dispositions() const noexcept {
+    return valid_owner() ? artifact_->candidate_dispositions()
+                         : empty_vector<relation_candidate_disposition_record>();
+  }
+  const std::vector<relation_interval_evidence_record> &interval_evidence() const noexcept {
+    return valid_owner() ? artifact_->interval_evidence()
+                         : empty_vector<relation_interval_evidence_record>();
+  }
+  const std::vector<relation_source_facet_region_record<T>> &
+  source_facet_regions() const noexcept {
+    return valid_owner() ? artifact_->source_facet_regions()
+                         : empty_vector<relation_source_facet_region_record<T>>();
+  }
+  const std::vector<relation_crossing_record> &crossings() const noexcept {
+    return valid_owner() ? artifact_->crossings() : empty_vector<relation_crossing_record>();
+  }
+  const std::vector<relation_transverse_carrier_membership_record> &
+  transverse_carrier_memberships() const noexcept {
+    return valid_owner() ? artifact_->transverse_carrier_memberships()
+                         : empty_vector<relation_transverse_carrier_membership_record>();
+  }
+  const std::vector<relation_transverse_carrier_support_record> &
+  transverse_carrier_supports() const noexcept {
+    return valid_owner() ? artifact_->transverse_carrier_supports()
+                         : empty_vector<relation_transverse_carrier_support_record>();
+  }
+  const std::vector<relation_coplanar_event_node_record> &
+  coplanar_event_nodes() const noexcept {
+    return valid_owner() ? artifact_->coplanar_event_nodes()
+                         : empty_vector<relation_coplanar_event_node_record>();
+  }
+  const std::vector<relation_coplanar_oriented_arc_record> &
+  coplanar_oriented_arcs() const noexcept {
+    return valid_owner() ? artifact_->coplanar_oriented_arcs()
+                         : empty_vector<relation_coplanar_oriented_arc_record>();
+  }
+  const std::vector<relation_coplanar_overlap_component_record> &
+  coplanar_overlap_components() const noexcept {
+    return valid_owner() ? artifact_->coplanar_overlap_components()
+                         : empty_vector<relation_coplanar_overlap_component_record>();
+  }
+  const std::array<relation_source_topology_record, 2> &
+  source_topology() const noexcept {
+    return valid_owner() ? artifact_->source_topology() : empty_topology();
+  }
+  const relation_request_graph &request_graph() const noexcept {
+    return valid_owner() ? artifact_->request_graph() : empty_graph();
   }
 
   const canonical_relation_request *request(
@@ -301,6 +382,24 @@ public:
   }
 
 private:
+  template <class Record>
+  static const std::vector<Record> &empty_vector() noexcept {
+    static const std::vector<Record> empty;
+    return empty;
+  }
+  static const bounded_boolean_digest &empty_digest() noexcept {
+    static const bounded_boolean_digest empty;
+    return empty;
+  }
+  static const std::array<relation_source_topology_record, 2> &
+  empty_topology() noexcept {
+    static const std::array<relation_source_topology_record, 2> empty{};
+    return empty;
+  }
+  static const relation_request_graph &empty_graph() noexcept {
+    static const relation_request_graph empty;
+    return empty;
+  }
   template <class Record>
   static const Record *at(const std::vector<Record> *records,
                           std::uint64_t ordinal) noexcept {

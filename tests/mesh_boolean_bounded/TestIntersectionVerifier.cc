@@ -85,23 +85,12 @@ std::shared_ptr<const relation_type> make_relations(
 std::vector<bounded::source_edge_domain_record> source_domains(
     const relation_type &relations) {
   std::vector<bounded::source_edge_domain_record> domains;
-  for (const auto operand : {bounded::operand_id::a, bounded::operand_id::b}) {
-    const auto &table = relations.candidates()->primitive_table(operand);
-    for (const auto &edge : table.edges) {
-      if (edge.edge_class != bounded::canonical_edge_class::source_edge ||
-          !edge.source_feature_owner)
-        continue;
+  for (const auto &topology : relations.source_topology()) {
+    for (const auto &edge : topology.source_edges) {
       bounded::source_edge_domain_record domain;
-      domain.source_edge.operand = operand;
-      domain.source_edge.kind = bounded::relation_feature_kind::source_edge;
-      domain.source_edge.primary = edge.semantic_key.primary;
-      domain.source_edge.secondary = edge.semantic_key.secondary;
-      domain.start_vertex.operand = operand;
-      domain.start_vertex.kind = bounded::relation_feature_kind::source_vertex;
-      domain.start_vertex.primary = edge.semantic_key.primary;
-      domain.end_vertex.operand = operand;
-      domain.end_vertex.kind = bounded::relation_feature_kind::source_vertex;
-      domain.end_vertex.primary = edge.semantic_key.secondary;
+      domain.source_edge = edge.source_edge;
+      domain.start_vertex = edge.start_vertex;
+      domain.end_vertex = edge.end_vertex;
       domains.push_back(domain);
     }
   }
@@ -119,22 +108,17 @@ bounded::intersection_canonicalization_header header(
   value.context_digest = relations.context_digest();
   value.precision_digest = relations.precision_digest();
   value.relation_digest = relations.digest();
-  value.source_semantic_digests[0] =
-      relations.candidates()->primitive_table(bounded::operand_id::a)
-          .source_semantic_digest;
-  value.source_semantic_digests[1] =
-      relations.candidates()->primitive_table(bounded::operand_id::b)
-          .source_semantic_digest;
-  value.exact_triangulation_digests[0] =
-      relations.candidates()->primitive_table(bounded::operand_id::a)
-          .exact_topology_digest;
-  value.exact_triangulation_digests[1] =
-      relations.candidates()->primitive_table(bounded::operand_id::b)
-          .exact_topology_digest;
+  for (const auto &topology : relations.source_topology()) {
+    const auto index = static_cast<std::size_t>(topology.operand);
+    value.source_semantic_digests[index] = topology.source_semantic_digest;
+    value.exact_triangulation_digests[index] = topology.exact_topology_digest;
+  }
   return value;
 }
 
 artifact_type make_artifact(const relation_type &relations) {
+  const bounded::signed_feature_relations_view<double, std::uint32_t> view(
+      relations, relations.owner());
   std::vector<bounded::normalized_event_seed_proposal> proposals;
   bounded_boolean_error error;
   require(bounded::normalize_event_seed_records(
@@ -151,7 +135,7 @@ artifact_type make_artifact(const relation_type &relations) {
               relations.construction_ledger(), interning, coordinates, error),
           "Component 08 verifier fixture coordinate attachment failed");
   bounded::event_incidence_tables incidence;
-  require(bounded::build_event_incidence(relations, interning, incidence, error),
+  require(bounded::build_event_incidence(view, interning, incidence, error),
           "Component 08 verifier fixture incidence failed");
 
   std::vector<bounded::source_edge_membership_proposal> memberships;
@@ -185,7 +169,7 @@ artifact_type make_artifact(const relation_type &relations) {
           "Component 08 verifier fixture base descriptors failed");
   bounded::intersection_descriptor_tables descriptors;
   require(bounded::extend_intersection_descriptors_with_source_topology(
-              *relations.candidates()->manifolds(), relations.crossings(),
+              view.source_topology(), relations.crossings(),
               relations.event_seeds(), interning, incidence, base_descriptors,
               descriptors, error),
           "Component 08 verifier fixture topology descriptors failed");
@@ -222,8 +206,10 @@ void require_repaired_mutation_rejected(const relation_type &relations,
   require(bounded::refresh_intersection_codec(candidate, codec_limits, error),
           "mutation must have a repaired canonical codec");
   bounded::intersection_verification_evidence evidence;
+  const bounded::signed_feature_relations_view<double, std::uint32_t> view(
+      relations, relations.owner());
   require(!bounded::verify_intersection_complex_independent(
-              relations, candidate, codec_limits,
+              view, candidate, codec_limits,
               bounded::intersection_verifier_limits{}, evidence, error),
           "independent verifier accepted a repaired semantic mutation");
 }
@@ -235,6 +221,8 @@ int main() {
       broad_phase_tests::box(),
       broad_phase_tests::box(4.0, 4.0, 4.0, 5.0, 5.0, 5.0));
   const auto relations = make_relations(fixture);
+  const bounded::signed_feature_relations_view<double, std::uint32_t> view(
+      *relations, relations->owner());
   require(relations->event_seeds().empty(),
           "verifier fixture must isolate empty event lineage");
 
@@ -246,7 +234,7 @@ int main() {
   const bounded::intersection_verifier_limits verifier_limits;
   const bool initial_verified =
       bounded::verify_intersection_complex_independent(
-          *relations, artifact, codec_limits, verifier_limits, evidence, error);
+           view, artifact, codec_limits, verifier_limits, evidence, error);
   if (!initial_verified)
     std::cerr << "verifier failure: subcode=" << error.subcode
               << " summary=" << error.summary << '\n';
@@ -257,7 +245,7 @@ int main() {
               evidence.descriptors_reconstructed && evidence.work_units != 0,
           "independent verifier did not publish complete evidence");
   require(bounded::finalize_intersection_complex_verification(
-              *relations, artifact, codec_limits, verifier_limits, error),
+              view, artifact, codec_limits, verifier_limits, error),
           "Component 08 verification finalization failed");
   require(artifact.verification() ==
               bounded::intersection_verification_disposition::
@@ -269,7 +257,7 @@ int main() {
   artifact_type decoded_unverified;
   const bool decoded_unverified_ok =
       bounded::decode_intersection_complex_verified_private(
-          unverified_bytes, header(*relations), *relations, codec_limits,
+          unverified_bytes, header(*relations), view, codec_limits,
           verifier_limits, decoded_unverified, error);
   if (!decoded_unverified_ok)
     std::cerr << "decode failure: subcode=" << error.subcode
@@ -284,7 +272,7 @@ int main() {
 
   artifact_type decoded_verified;
   require(bounded::decode_intersection_complex_verified_private(
-              artifact.canonical_bytes(), header(*relations), *relations,
+              artifact.canonical_bytes(), header(*relations), view,
               codec_limits, verifier_limits, decoded_verified, error),
           "Component 08 verified decode rejected verified canonical bytes");
   require(decoded_verified.canonical_bytes() == artifact.canonical_bytes() &&
@@ -293,7 +281,7 @@ int main() {
           "Component 08 verified decode changed a verified artifact");
   const auto bytes = artifact.canonical_bytes();
   require(bounded::finalize_intersection_complex_verification(
-              *relations, artifact, codec_limits, verifier_limits, error) &&
+              view, artifact, codec_limits, verifier_limits, error) &&
               artifact.canonical_bytes() == bytes,
           "Component 08 verification finalization is not idempotent");
 
@@ -340,7 +328,7 @@ int main() {
   auto byte_corruption = artifact;
   bounded::intersection_artifact_test_access::bytes(byte_corruption)[80] ^= 1;
   require(!bounded::verify_intersection_complex_independent(
-              *relations, byte_corruption, codec_limits, verifier_limits,
+              view, byte_corruption, codec_limits, verifier_limits,
               evidence, error),
           "independent verifier accepted byte corruption");
 
@@ -348,7 +336,7 @@ int main() {
   bounded::intersection_artifact_test_access::digest(digest_corruption)
       .bytes[0] ^= 1;
   require(!bounded::verify_intersection_complex_independent(
-              *relations, digest_corruption, codec_limits, verifier_limits,
+              view, digest_corruption, codec_limits, verifier_limits,
               evidence, error),
           "independent verifier accepted digest corruption");
 
@@ -359,14 +347,14 @@ int main() {
                                               error),
           "forged evidence must retain a repaired canonical codec");
   require(!bounded::verify_intersection_complex_independent(
-              *relations, forged_evidence, codec_limits, verifier_limits,
+              view, forged_evidence, codec_limits, verifier_limits,
               evidence, error),
           "independent verifier accepted forged evidence");
 
   auto malformed_limits = verifier_limits;
   malformed_limits.reserved32 = 1;
   require(!bounded::verify_intersection_complex_independent(
-              *relations, artifact, codec_limits, malformed_limits, evidence,
+              view, artifact, codec_limits, malformed_limits, evidence,
               error),
           "independent verifier accepted reserved limit fields");
 }

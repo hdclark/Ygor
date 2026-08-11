@@ -67,6 +67,51 @@ std::vector<relation_feature_key> semantic_fan_facets(
   return facets;
 }
 
+std::array<relation_source_topology_record, 2> downstream_topology(
+    const canonical_source_manifolds<double, std::uint32_t> &manifolds) {
+  std::array<relation_source_topology_record, 2> result{};
+  for (const auto operand : {operand_id::a, operand_id::b}) {
+    const auto &source =
+        *(operand == operand_id::a ? manifolds.a() : manifolds.b());
+    auto &published = result[static_cast<std::size_t>(operand)];
+    published.operand = operand;
+    published.source_triangle_count = source.triangles().size();
+    published.canonical_edge_count = source.edges().size();
+    for (const auto &vertex : source.vertices()) {
+      relation_source_vertex_fan_record fan;
+      fan.canonical_vertex = vertex.canonical_id;
+      fan.source_vertex = feature(operand, relation_feature_kind::source_vertex,
+                                  vertex.source_vertex);
+      fan.ordered_facets = semantic_fan_facets(source, vertex.source_vertex);
+      published.vertex_fans.push_back(std::move(fan));
+    }
+    for (const auto &edge : source.edges()) {
+      relation_source_edge_adjacency_record adjacency;
+      adjacency.canonical_edge = edge.canonical_id;
+      adjacency.edge_class = edge.edge_class;
+      adjacency.edge.operand = operand;
+      if (edge.edge_class == canonical_edge_class::source_edge) {
+        adjacency.edge.kind = relation_feature_kind::source_edge;
+        adjacency.edge.primary = edge.key.primary;
+        adjacency.edge.secondary = edge.key.secondary;
+      } else {
+        adjacency.edge.kind = relation_feature_kind::facet_internal_diagonal;
+        adjacency.edge.primary = edge.source_facet;
+        adjacency.edge.secondary = edge.source_diagonal;
+      }
+      adjacency.first_facet = facet_feature(source, edge.facets[0]);
+      adjacency.second_facet = facet_feature(source, edge.facets[1]);
+      adjacency.source_feature_owner = edge.source_feature_owner;
+      adjacency.bookkeeping_only =
+          !edge.source_feature_owner && !edge.symbolic_contact_owner &&
+          !edge.classification_barrier_inside_source_facet &&
+          !edge.retained_surface_feature;
+      published.edge_adjacencies.push_back(std::move(adjacency));
+    }
+  }
+  return result;
+}
+
 intersection_event_key event_key(
     const relation_event_seed_key &public_relation,
     const relation_feature_key &query_edge,
@@ -358,16 +403,17 @@ int main() {
       broad_phase_tests::box(2, 2, 2, 3, 3, 3),
       source_triangulation_provider_kind::indexed_dependency_v1, false);
   const auto &manifolds = *predecessor.manifolds;
+  const auto topology = downstream_topology(manifolds);
   const auto base = make_base(manifolds);
   bounded_boolean_error error;
 
   auto fixture = make_fan_fixture(manifolds, fan_case::positive);
   intersection_descriptor_tables tables;
   require(extend_intersection_descriptors_with_source_topology(
-      manifolds, fixture.crossings, fixture.seeds, fixture.interning,
+      topology, fixture.crossings, fixture.seeds, fixture.interning,
       fixture.incidence, base, tables, error));
   require(verify_intersection_source_topology_descriptors(
-      manifolds, fixture.crossings, fixture.seeds, fixture.interning,
+      topology, fixture.crossings, fixture.seeds, fixture.interning,
       fixture.incidence, base, tables, error));
   require(count_locus(tables,
                       intersection_descriptor_locus::source_vertex_sector) ==
@@ -426,17 +472,17 @@ int main() {
   std::reverse(reversed_crossings.begin(), reversed_crossings.end());
   intersection_descriptor_tables reversed_tables;
   require(extend_intersection_descriptors_with_source_topology(
-      manifolds, reversed_crossings, fixture.seeds, fixture.interning,
+      topology, reversed_crossings, fixture.seeds, fixture.interning,
       fixture.incidence, base, reversed_tables, error));
   require(same_semantic_projection(tables, reversed_tables));
 
   auto swapped = make_fan_fixture(manifolds, fan_case::positive, false, true);
   intersection_descriptor_tables swapped_tables;
   require(extend_intersection_descriptors_with_source_topology(
-      manifolds, swapped.crossings, swapped.seeds, swapped.interning,
+      topology, swapped.crossings, swapped.seeds, swapped.interning,
       swapped.incidence, base, swapped_tables, error));
   require(verify_intersection_source_topology_descriptors(
-      manifolds, swapped.crossings, swapped.seeds, swapped.interning,
+      topology, swapped.crossings, swapped.seeds, swapped.interning,
       swapped.incidence, base, swapped_tables, error));
   require(count_locus(swapped_tables,
                       intersection_descriptor_locus::source_vertex_sector) ==
@@ -453,17 +499,18 @@ int main() {
       broad_phase_tests::box(2, 2, 2, 3, 3, 3),
       source_triangulation_provider_kind::full_rescan_reference_v1, false);
   const auto &alternative_manifolds = *alternative.manifolds;
+  const auto alternative_topology = downstream_topology(alternative_manifolds);
   const auto alternative_base = make_base(alternative_manifolds);
   auto alternative_fixture =
       make_fan_fixture(alternative_manifolds, fan_case::positive);
   intersection_descriptor_tables alternative_tables;
   require(extend_intersection_descriptors_with_source_topology(
-      alternative_manifolds, alternative_fixture.crossings,
+      alternative_topology, alternative_fixture.crossings,
       alternative_fixture.seeds, alternative_fixture.interning,
       alternative_fixture.incidence, alternative_base, alternative_tables,
       error));
   require(verify_intersection_source_topology_descriptors(
-      alternative_manifolds, alternative_fixture.crossings,
+      alternative_topology, alternative_fixture.crossings,
       alternative_fixture.seeds, alternative_fixture.interning,
       alternative_fixture.incidence, alternative_base, alternative_tables,
       error));
@@ -472,7 +519,7 @@ int main() {
   auto tangent = make_fan_fixture(manifolds, fan_case::tangent);
   intersection_descriptor_tables tangent_tables;
   require(extend_intersection_descriptors_with_source_topology(
-      manifolds, tangent.crossings, tangent.seeds, tangent.interning,
+      topology, tangent.crossings, tangent.seeds, tangent.interning,
       tangent.incidence, base, tangent_tables, error));
   for (std::size_t i = 0; i < tangent.facets.size(); ++i) {
     const auto *sector = find_sector(tangent_tables, i);
@@ -486,7 +533,7 @@ int main() {
   auto zero_net = make_fan_fixture(manifolds, fan_case::zero_net);
   intersection_descriptor_tables zero_net_tables;
   require(extend_intersection_descriptors_with_source_topology(
-      manifolds, zero_net.crossings, zero_net.seeds, zero_net.interning,
+      topology, zero_net.crossings, zero_net.seeds, zero_net.interning,
       zero_net.incidence, base, zero_net_tables, error));
   require(find_sector(zero_net_tables, 0)->key.orientation == 1);
   require(find_sector(zero_net_tables, 1)->key.orientation == -1);
@@ -496,7 +543,7 @@ int main() {
   auto separated = make_fan_fixture(manifolds, fan_case::tangent, true);
   intersection_descriptor_tables separated_tables;
   require(extend_intersection_descriptors_with_source_topology(
-      manifolds, separated.crossings, separated.seeds, separated.interning,
+      topology, separated.crossings, separated.seeds, separated.interning,
       separated.incidence, base, separated_tables, error));
   for (std::size_t i = 0; i < separated.facets.size(); ++i) {
     const auto *sector = find_sector(separated_tables, i);
@@ -517,7 +564,7 @@ int main() {
   require(mutated_sector != mutated.records.end());
   mutated_sector->signed_crossing_delta = 0;
   require(!verify_intersection_source_topology_descriptors(
-      manifolds, fixture.crossings, fixture.seeds, fixture.interning,
+      topology, fixture.crossings, fixture.seeds, fixture.interning,
       fixture.incidence, base, mutated, error));
   require(error.subcode ==
           static_cast<std::uint32_t>(intersection_subcode::verifier_rejection));
@@ -525,7 +572,7 @@ int main() {
   auto missing = fixture.crossings;
   missing.pop_back();
   require(!extend_intersection_descriptors_with_source_topology(
-      manifolds, missing, fixture.seeds, fixture.interning, fixture.incidence,
+      topology, missing, fixture.seeds, fixture.interning, fixture.incidence,
       base, mutated, error));
   require(error.subcode ==
           static_cast<std::uint32_t>(intersection_subcode::descriptor_mismatch));
@@ -533,13 +580,13 @@ int main() {
   auto duplicate_ordinal = fixture.crossings;
   duplicate_ordinal.back().source_fan_group_ordinal = 0;
   require(!extend_intersection_descriptors_with_source_topology(
-      manifolds, duplicate_ordinal, fixture.seeds, fixture.interning,
+      topology, duplicate_ordinal, fixture.seeds, fixture.interning,
       fixture.incidence, base, mutated, error));
 
   auto mixed_owner = fixture.crossings;
   mixed_owner.back().half_open_owner = operand_id::b;
   require(!extend_intersection_descriptors_with_source_topology(
-      manifolds, mixed_owner, fixture.seeds, fixture.interning,
+      topology, mixed_owner, fixture.seeds, fixture.interning,
       fixture.incidence, base, mutated, error));
 
   auto bad_facet = fixture.seeds;
@@ -558,13 +605,13 @@ int main() {
     }
   }
   require(!extend_intersection_descriptors_with_source_topology(
-      manifolds, fixture.crossings, bad_facet, bad_interning, bad_incidence,
+      topology, fixture.crossings, bad_facet, bad_interning, bad_incidence,
       base, mutated, error));
 
   auto malformed_incidence = fixture.incidence;
   malformed_incidence.records.front().reserved16 = 1;
   require(!extend_intersection_descriptors_with_source_topology(
-      manifolds, fixture.crossings, fixture.seeds, fixture.interning,
+      topology, fixture.crossings, fixture.seeds, fixture.interning,
       malformed_incidence, base, mutated, error));
 
   return 0;

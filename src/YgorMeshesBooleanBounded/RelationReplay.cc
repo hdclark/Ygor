@@ -1,5 +1,6 @@
 #include "StrictFloatingBuild.h"
 #include "RelationReplay.h"
+#include "RelationArtifactInternalAccess.h"
 
 #include "RelationCodec.h"
 #include "CandidateSourceEdgeRelations.h"
@@ -117,16 +118,17 @@ bounded_boolean_digest replay_input_equivalence_digest(
   encode_digest(writer, artifact.candidate_digest());
   encode_digest(writer, artifact.symbolic_policy_digest());
   const std::array<bounded_boolean_digest, 4> stage_digests{{
-      artifact.source_edge_stage() ? artifact.source_edge_stage()->semantic_digest
+      relation_artifact_internal_access::source_edge_stage(artifact)
+          ? relation_artifact_internal_access::source_edge_stage(artifact)->semantic_digest
                                   : bounded_boolean_digest{},
-      artifact.source_edge_facet_stage()
-          ? artifact.source_edge_facet_stage()->semantic_digest
+      relation_artifact_internal_access::source_edge_facet_stage(artifact)
+          ? relation_artifact_internal_access::source_edge_facet_stage(artifact)->semantic_digest
           : bounded_boolean_digest{},
-      artifact.source_facet_stage()
-          ? artifact.source_facet_stage()->semantic_digest
+      relation_artifact_internal_access::source_facet_stage(artifact)
+          ? relation_artifact_internal_access::source_facet_stage(artifact)->semantic_digest
           : bounded_boolean_digest{},
-      artifact.coplanar_overlay_stage()
-          ? artifact.coplanar_overlay_stage()->semantic_digest
+      relation_artifact_internal_access::coplanar_overlay_stage(artifact)
+          ? relation_artifact_internal_access::coplanar_overlay_stage(artifact)->semantic_digest
           : bounded_boolean_digest{},
   }};
   for (const auto &digest : stage_digests)
@@ -144,17 +146,25 @@ struct checkpoint_spec final {
 template <class T, class I>
 std::array<checkpoint_spec, 17> replay_checkpoint_specs(
     const signed_feature_relations<T, I> &artifact) {
-  const std::uint64_t stage_edge_count = artifact.source_edge_stage()
-      ? static_cast<std::uint64_t>(artifact.source_edge_stage()->relations.size())
+  const auto &edge_stage =
+      relation_artifact_internal_access::source_edge_stage(artifact);
+  const auto &edge_facet_stage =
+      relation_artifact_internal_access::source_edge_facet_stage(artifact);
+  const auto &facet_stage =
+      relation_artifact_internal_access::source_facet_stage(artifact);
+  const auto &overlay_stage =
+      relation_artifact_internal_access::coplanar_overlay_stage(artifact);
+  const std::uint64_t stage_edge_count = edge_stage
+      ? static_cast<std::uint64_t>(edge_stage->relations.size())
       : 0;
-  const std::uint64_t stage_edge_facet_count = artifact.source_edge_facet_stage()
-      ? static_cast<std::uint64_t>(artifact.source_edge_facet_stage()->relations.size())
+  const std::uint64_t stage_edge_facet_count = edge_facet_stage
+      ? static_cast<std::uint64_t>(edge_facet_stage->relations.size())
       : 0;
-  const std::uint64_t stage_facet_count = artifact.source_facet_stage()
-      ? static_cast<std::uint64_t>(artifact.source_facet_stage()->relations.size())
+  const std::uint64_t stage_facet_count = facet_stage
+      ? static_cast<std::uint64_t>(facet_stage->relations.size())
       : 0;
-  const std::uint64_t stage_overlay_count = artifact.coplanar_overlay_stage()
-      ? static_cast<std::uint64_t>(artifact.coplanar_overlay_stage()->overlays.size())
+  const std::uint64_t stage_overlay_count = overlay_stage
+      ? static_cast<std::uint64_t>(overlay_stage->overlays.size())
       : 0;
   const auto &statistics = artifact.statistics();
   std::array<checkpoint_spec, 17> out{};

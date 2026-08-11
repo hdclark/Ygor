@@ -134,10 +134,7 @@ bool valid_header_and_predecessor(
                            "Component 08 verifier owner mismatch");
     return false;
   }
-  if (relations.verification() !=
-          relation_verification_disposition::independently_verified ||
-      !relations.candidates() || !relations.candidates()->manifolds() ||
-      !relations.candidates()->owner().same_owner(relations.owner())) {
+  if (!relations.valid_owner()) {
     error = verifier_error(
         intersection_subcode::predecessor_not_verified,
         "Component 08 verifier rejected predecessor publication state");
@@ -154,21 +151,17 @@ bool valid_header_and_predecessor(
           intersection_provider_kind::canonical_lineage_event_arrangement_v1 ||
       !valid_operation(artifact.operation()) ||
       artifact.operation() != relations.operation() ||
-      artifact.context_digest() != relations.context_digest() ||
-      artifact.precision_digest() != relations.precision_digest() ||
+       artifact.context_digest() != *relations.context_digest() ||
+       artifact.precision_digest() != *relations.precision_digest() ||
       artifact.relation_digest() != relations.digest() ||
-      artifact.source_semantic_digests()[0] !=
-          relations.candidates()->primitive_table(operand_id::a)
-              .source_semantic_digest ||
-      artifact.source_semantic_digests()[1] !=
-          relations.candidates()->primitive_table(operand_id::b)
-              .source_semantic_digest ||
-      artifact.exact_triangulation_digests()[0] !=
-          relations.candidates()->primitive_table(operand_id::a)
-              .exact_topology_digest ||
-      artifact.exact_triangulation_digests()[1] !=
-          relations.candidates()->primitive_table(operand_id::b)
-              .exact_topology_digest) {
+       artifact.source_semantic_digests()[0] !=
+           relations.source_topology()[0].source_semantic_digest ||
+       artifact.source_semantic_digests()[1] !=
+           relations.source_topology()[1].source_semantic_digest ||
+       artifact.exact_triangulation_digests()[0] !=
+           relations.source_topology()[0].exact_topology_digest ||
+       artifact.exact_triangulation_digests()[1] !=
+           relations.source_topology()[1].exact_topology_digest) {
     error = verifier_error(
         intersection_subcode::predecessor_mismatch,
         "Component 08 verifier rejected header or predecessor digest");
@@ -456,25 +449,14 @@ std::vector<source_edge_domain_record> source_domains(const Artifact &artifact,
 
 template <class T, class I>
 std::vector<source_edge_domain_record> predecessor_source_domains(
-    const signed_feature_relations<T, I> &relations, bool &ok) {
+    const signed_feature_relations_view<T, I> &relations, bool &ok) {
   std::vector<source_edge_domain_record> domains;
-  for (const auto operand : {operand_id::a, operand_id::b}) {
-    const auto &table = relations.candidates()->primitive_table(operand);
-    for (const auto &edge : table.edges) {
-      if (edge.edge_class != canonical_edge_class::source_edge ||
-          !edge.source_feature_owner)
-        continue;
+  for (const auto &topology : relations.source_topology()) {
+    for (const auto &edge : topology.source_edges) {
       source_edge_domain_record domain;
-      domain.source_edge.operand = operand;
-      domain.source_edge.kind = relation_feature_kind::source_edge;
-      domain.source_edge.primary = edge.semantic_key.primary;
-      domain.source_edge.secondary = edge.semantic_key.secondary;
-      domain.start_vertex.operand = operand;
-      domain.start_vertex.kind = relation_feature_kind::source_vertex;
-      domain.start_vertex.primary = edge.semantic_key.primary;
-      domain.end_vertex.operand = operand;
-      domain.end_vertex.kind = relation_feature_kind::source_vertex;
-      domain.end_vertex.primary = edge.semantic_key.secondary;
+      domain.source_edge = edge.source_edge;
+      domain.start_vertex = edge.start_vertex;
+      domain.end_vertex = edge.end_vertex;
       if (!valid_relation_feature_key(domain.source_edge, false) ||
           !valid_relation_feature_key(domain.start_vertex, false) ||
           !valid_relation_feature_key(domain.end_vertex, false)) {
@@ -530,7 +512,7 @@ bounded_boolean_digest semantic_reconstruction_digest(
 
 template <class T, class I>
 bool audit_event_partition(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     const canonical_intersection_complex<T, I> &artifact,
     const event_interning_tables &interning,
     const event_coordinate_tables &coordinates,
@@ -714,7 +696,7 @@ bool audit_event_partition(
 
 template <class T, class I>
 bool audit_source_edges(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     const canonical_intersection_complex<T, I> &artifact,
     const event_interning_tables &interning,
     const event_incidence_tables &incidence,
@@ -860,7 +842,7 @@ bool audit_source_edges(
 
 template <class T, class I>
 bool audit_transverse(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     const canonical_intersection_complex<T, I> &artifact,
     const transverse_carrier_arrangement_tables &transverse,
     const intersection_verifier_limits &limits, std::uint64_t &pair_checks,
@@ -1082,7 +1064,7 @@ bool audit_transverse(
 
 template <class T, class I>
 bool audit_coplanar(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     const canonical_intersection_complex<T, I> &artifact,
     const coplanar_carrier_arrangement_tables &coplanar,
     const intersection_verifier_limits &limits, std::uint64_t &work,
@@ -1287,7 +1269,7 @@ bool audit_coplanar(
 
 template <class T, class I>
 bool audit_aggregates_and_descriptors(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     const canonical_intersection_complex<T, I> &artifact,
     const event_interning_tables &interning,
     const event_incidence_tables &incidence,
@@ -1316,7 +1298,7 @@ bool audit_aggregates_and_descriptors(
     return false;
   }
   if (!verify_intersection_source_topology_descriptors(
-          *relations.candidates()->manifolds(), relations.crossings(),
+          relations.source_topology(), relations.crossings(),
           relations.event_seeds(), interning, incidence, base, full, local)) {
     error = verifier_error(
         intersection_subcode::facet_reconciliation_failed,
@@ -1430,7 +1412,7 @@ bool audit_aggregates_and_descriptors(
 
 template <class T, class I>
 bool audit_statistics_replay_and_partitions(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     const canonical_intersection_complex<T, I> &artifact,
     const intersection_verifier_limits &limits, std::uint64_t &work,
     bounded_boolean_error &error) {
@@ -1538,7 +1520,7 @@ struct intersection_verifier_access final {
 
 template <class T, class I>
 bool verify_intersection_complex_independent(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     const canonical_intersection_complex<T, I> &artifact,
     const intersection_codec_limits &codec_limits,
     const intersection_verifier_limits &limits,
@@ -1625,7 +1607,7 @@ bool verify_intersection_complex_independent(
 
 template <class T, class I>
 bool finalize_intersection_complex_verification(
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     canonical_intersection_complex<T, I> &artifact,
     const intersection_codec_limits &codec_limits,
     const intersection_verifier_limits &limits,
@@ -1660,7 +1642,7 @@ template <class T, class I>
 bool decode_intersection_complex_verified_private(
     const std::vector<std::uint8_t> &bytes,
     const intersection_canonicalization_header &expectations,
-    const signed_feature_relations<T, I> &relations,
+    const signed_feature_relations_view<T, I> &relations,
     const intersection_codec_limits &codec_limits,
     const intersection_verifier_limits &verifier_limits,
     canonical_intersection_complex<T, I> &artifact,
@@ -1678,20 +1660,20 @@ bool decode_intersection_complex_verified_private(
 
 #define YGOR_INSTANTIATE_INTERSECTION_VERIFIER(T, I)                         \
   template bool verify_intersection_complex_independent<T, I>(              \
-      const signed_feature_relations<T, I> &,                               \
+      const signed_feature_relations_view<T, I> &,                          \
       const canonical_intersection_complex<T, I> &,                         \
       const intersection_codec_limits &,                                    \
       const intersection_verifier_limits &,                                 \
       intersection_verification_evidence &, bounded_boolean_error &);       \
   template bool finalize_intersection_complex_verification<T, I>(           \
-      const signed_feature_relations<T, I> &,                               \
+      const signed_feature_relations_view<T, I> &,                          \
       canonical_intersection_complex<T, I> &,                               \
       const intersection_codec_limits &,                                    \
       const intersection_verifier_limits &, bounded_boolean_error &);       \
   template bool decode_intersection_complex_verified_private<T, I>(        \
       const std::vector<std::uint8_t> &,                                    \
       const intersection_canonicalization_header &,                         \
-      const signed_feature_relations<T, I> &,                               \
+      const signed_feature_relations_view<T, I> &,                          \
       const intersection_codec_limits &,                                    \
       const intersection_verifier_limits &,                                \
       canonical_intersection_complex<T, I> &, bounded_boolean_error &)
