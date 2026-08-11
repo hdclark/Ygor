@@ -5,7 +5,8 @@
 - [x] Component 4: source polygon triangulation and provenance.
 - [x] Component 5: canonical halfedge topology.
 - [x] Component 6: broad phase, gated against exhaustive enumeration.
-- [ ] Component 7: incomplete
+- [ ] Component 7: incomplete: assess implemented and missing elements and update this tracker.
+- [ ] Component 7: missing conponents
 - [ ] Component 8: canonical event registry and shared construction lineage.
 - [ ] Component 9: connectivity and winding classification.
 - [ ] Component 10: Boolean selection and topological occurrence accounting.
