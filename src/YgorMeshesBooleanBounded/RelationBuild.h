@@ -84,6 +84,7 @@ bool estimate_relation_persistent_bytes(
       !add_vector(artifact.coplanar_event_nodes()) ||
       !add_vector(artifact.coplanar_oriented_arcs()) ||
       !add_vector(artifact.coplanar_overlap_components()) ||
+      !add_vector(artifact.coplanar_supports()) ||
       !add_vector(artifact.symbolic_eligibility()) ||
       !add_vector(artifact.symbolic_decisions()) ||
       !add_vector(artifact.crossings()) ||
@@ -106,6 +107,12 @@ bool estimate_relation_persistent_bytes(
     if (!add_vector(record.region.source_vertex_owners) ||
         !add_vector(record.region.source_edge_owners) ||
         !add_vector(record.region.orientation_evidence))
+      return false;
+  }
+  for (const auto &record : artifact.coplanar_supports()) {
+    if (!add_vector(record.original_boundary_edges[0]) ||
+        !add_vector(record.original_boundary_edges[1]) ||
+        !add_vector(record.partition_coverage))
       return false;
   }
   for (const auto &record : artifact.interval_evidence())
@@ -638,6 +645,7 @@ private:
         !add(artifact_->coplanar_event_nodes_.size(), used[6]) ||
         !add(artifact_->coplanar_oriented_arcs_.size(), used[6]) ||
         !add(artifact_->coplanar_overlap_components_.size(), used[6]) ||
+        !add(artifact_->coplanar_supports_.size(), used[6]) ||
         !add(artifact_->constructions_.size(), used[7]) ||
         !add(artifact_->construction_ledger_.size(), used[7]) ||
         !add(artifact_->crossings_.size(), used[8]) ||
@@ -658,6 +666,42 @@ private:
     used[13] = 0;
     used[14] = artifact_->diagnostics_.size() + artifact_->replay_checkpoints_.size();
     used[15] = artifact_->statistics_.verifier_work_units;
+    for (const auto &support : artifact_->coplanar_supports_) {
+      if (!add(support.original_boundary_edges[0].size(), used[6]) ||
+          !add(support.original_boundary_edges[1].size(), used[6]) ||
+          !add(support.partition_coverage.size(), used[6]))
+        return fail(relation_subcode::count_overflow,
+                    bounded_boolean_error_category::index_overflow,
+                    "Component 07 nested coplanar resource count overflow",
+                    relation_checkpoint::resource_reconciliation);
+    }
+    for (const auto &node : artifact_->coplanar_event_nodes_) {
+      if (!add(node.occurrences.size(), used[6]))
+        return fail(relation_subcode::count_overflow,
+                    bounded_boolean_error_category::index_overflow,
+                    "Component 07 nested coplanar resource count overflow",
+                    relation_checkpoint::resource_reconciliation);
+      for (const auto &occurrence : node.occurrences)
+        if (!add(occurrence.event_lineages.size(), used[6]))
+          return fail(relation_subcode::count_overflow,
+                      bounded_boolean_error_category::index_overflow,
+                      "Component 07 nested coplanar resource count overflow",
+                      relation_checkpoint::resource_reconciliation);
+    }
+    for (const auto &arc : artifact_->coplanar_oriented_arcs_)
+      if (!add(arc.occurrences.size(), used[6]) ||
+          !add(arc.overlap_lineages.size(), used[6]))
+        return fail(relation_subcode::count_overflow,
+                    bounded_boolean_error_category::index_overflow,
+                    "Component 07 nested coplanar resource count overflow",
+                    relation_checkpoint::resource_reconciliation);
+    for (const auto &component : artifact_->coplanar_overlap_components_)
+      if (!add(component.node_ids.size(), used[6]) ||
+          !add(component.arc_ids.size(), used[6]))
+        return fail(relation_subcode::count_overflow,
+                    bounded_boolean_error_category::index_overflow,
+                    "Component 07 nested coplanar resource count overflow",
+                    relation_checkpoint::resource_reconciliation);
 
     const std::array<relation_resource_domain, 17> domains{{
         relation_resource_domain::requests,

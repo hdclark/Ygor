@@ -27,6 +27,7 @@ struct relation_event_seed_incidence_tag;
 struct relation_coplanar_event_node_tag;
 struct relation_coplanar_oriented_arc_tag;
 struct relation_coplanar_overlap_component_tag;
+struct relation_coplanar_support_tag;
 struct relation_candidate_disposition_tag;
 struct relation_candidate_partition_tag;
 struct relation_verifier_evidence_tag;
@@ -58,6 +59,7 @@ using relation_coplanar_oriented_arc_id =
     strong_id<relation_coplanar_oriented_arc_tag>;
 using relation_coplanar_overlap_component_id =
     strong_id<relation_coplanar_overlap_component_tag>;
+using relation_coplanar_support_id = strong_id<relation_coplanar_support_tag>;
 using relation_candidate_disposition_id =
     strong_id<relation_candidate_disposition_tag>;
 using relation_candidate_partition_id =
@@ -188,6 +190,28 @@ enum class relation_coplanar_component_kind : std::uint8_t {
   boundary_segment = 2,
   area_boundary = 3,
   coincident_sheet_boundary = 4,
+};
+
+enum class relation_coplanar_classification : std::uint8_t {
+  disjoint = 1,
+  point_contact = 2,
+  segment_contact = 3,
+  area_overlap = 4,
+  first_contains_second = 5,
+  second_contains_first = 6,
+  equal_same_orientation = 7,
+  equal_opposite_orientation = 8,
+};
+
+enum class relation_coplanar_orientation : std::uint8_t {
+  same = 1,
+  opposite = 2,
+};
+
+enum class relation_coplanar_partition_class : std::uint8_t {
+  interior = 1,
+  outside = 2,
+  original_edge_overlap = 3,
 };
 
 enum class candidate_relation_disposition_kind : std::uint8_t {
@@ -535,6 +559,8 @@ struct relation_statistics final {
   std::uint64_t coplanar_event_node_count = 0;
   std::uint64_t coplanar_oriented_arc_count = 0;
   std::uint64_t coplanar_overlap_component_count = 0;
+  std::uint64_t coplanar_support_count = 0;
+  std::uint64_t coplanar_partition_coverage_count = 0;
   std::uint64_t symbolic_eligibility_count = 0;
   std::uint64_t symbolic_decision_count = 0;
   std::uint64_t crossing_record_count = 0;

@@ -643,8 +643,18 @@ inline std::uint64_t contact_lineage(relation_request_id request,
 
 template <class T>
 bool parameter_definitely_before(const source_edge_parameter_evidence<T> &a,
-                                 const source_edge_parameter_evidence<T> &b) {
+                                  const source_edge_parameter_evidence<T> &b) {
   return source_edge_relation_detail::definitely_before(a, b);
+}
+
+template <class T>
+finite_interval<T> canonical_contact_parameter(
+    const source_edge_parameter_evidence<T> &parameter) {
+  if (parameter.exact_zero == exact_relation_status::exact_zero)
+    return finite_interval<T>::singleton(T(0));
+  if (parameter.exact_one == exact_relation_status::exact_zero)
+    return finite_interval<T>::singleton(T(1));
+  return parameter.enclosure;
 }
 
 template <class T>
@@ -676,19 +686,17 @@ bool append_coplanar_contacts(
     return false;
   }
 
-  const auto add_vertex_owner = [&](
-                                    const source_edge_parameter_evidence<T> &p,
-                                    std::vector<std::uint64_t> &owners,
-                                    projected_source_point<T> &projected,
-                                    bool &identity_valid) {
-    const auto mask = source_edge_relation_detail::endpoint_mask(p);
-    if (mask == 1 || mask == 2) {
-      const auto vertex =
-          boundary.binding.parameter_source_vertices[endpoint_index(mask)];
-      owners.push_back(vertex);
-      projected.source_vertex = vertex;
-      identity_valid = true;
-    }
+  // Vertex ownership is recorded from exact stored-nominal coincidence with the
+  // opposite-operand polygon, never from a parameter-endpoint index. The
+  // relation's edge parameterization direction is not guaranteed to match the
+  // polygon traversal order, so parameter-derived vertex selection can attach a
+  // contact to the wrong source vertex at a shared boundary edge.
+  const auto add_vertex_owner = [&](const projected_source_point<T> &point,
+                                    std::vector<std::uint64_t> &owners) {
+    for (const auto &vertex : input.polygon)
+      if (source_facet_region_detail::same_nominal_projected_geometry(point,
+                                                                      vertex))
+        owners.push_back(vertex.source_vertex);
   };
 
   if (relation.contact == source_edge_contact_class::proper_crossing ||
@@ -704,13 +712,11 @@ bool append_coplanar_contacts(
     contact.kind = source_facet_segment_contact_kind::point_contact;
     contact.lineage = contact_lineage(boundary.binding.request, 0);
     contact.first_rounded_parameter = (*query)[0].rounded_nominal;
-    contact.first_parameter = (*query)[0].enclosure;
+    contact.first_parameter = canonical_contact_parameter((*query)[0]);
     contact.first_point = project_snapshot(relation.points[0].point,
                                            input.dropped_axis);
     contact.first_source_edge_owners = {boundary.binding.owner};
-    add_vertex_owner((*facet)[0], contact.first_source_vertex_owners,
-                     contact.first_point,
-                     contact.first_point_source_identity_valid);
+    add_vertex_owner(contact.first_point, contact.first_source_vertex_owners);
     contact.second_rounded_parameter = contact.first_rounded_parameter;
     contact.second_parameter = contact.first_parameter;
     contact.second_point = contact.first_point;
@@ -747,21 +753,17 @@ bool append_coplanar_contacts(
   contact.kind = source_facet_segment_contact_kind::boundary_overlap;
   contact.lineage = contact_lineage(boundary.binding.request, 0);
   contact.first_rounded_parameter = (*query)[first].rounded_nominal;
-  contact.first_parameter = (*query)[first].enclosure;
+  contact.first_parameter = canonical_contact_parameter((*query)[first]);
   contact.first_point =
       project_snapshot(relation.points[first].point, input.dropped_axis);
   contact.first_source_edge_owners = {boundary.binding.owner};
-  add_vertex_owner((*facet)[first], contact.first_source_vertex_owners,
-                   contact.first_point,
-                   contact.first_point_source_identity_valid);
+  add_vertex_owner(contact.first_point, contact.first_source_vertex_owners);
   contact.second_rounded_parameter = (*query)[second].rounded_nominal;
-  contact.second_parameter = (*query)[second].enclosure;
+  contact.second_parameter = canonical_contact_parameter((*query)[second]);
   contact.second_point =
       project_snapshot(relation.points[second].point, input.dropped_axis);
   contact.second_source_edge_owners = {boundary.binding.owner};
-  add_vertex_owner((*facet)[second], contact.second_source_vertex_owners,
-                   contact.second_point,
-                   contact.second_point_source_identity_valid);
+  add_vertex_owner(contact.second_point, contact.second_source_vertex_owners);
   contact.overlap_source_edge_owners = {boundary.binding.owner};
   if (contact.lineage == 0) {
     error = source_edge_facet_error(
@@ -1260,7 +1262,7 @@ build_source_vertex_facet_evaluated_stage(
           group.source_facet, group.ring,
           source_edge_facet_detail::project_point(
               point, group.basis.dropped_axis, request.key.first.primary),
-          false, polygon, orientation->bounded_sign);
+          false, polygon, orientation->bounded_sign, nullptr, nullptr, true);
       if (!region.has_value())
         return boolean_outcome<stage_type>::failure(*region.error());
       record.has_region = true;
@@ -2129,7 +2131,7 @@ bool build_event_order(
       item.local_event = static_cast<std::uint32_t>(local);
       item.event = &record.events[local];
       if (!occurrence_tie_key(request.key.first, request.key.second,
-                              record.events[local], item.tie_key)) {
+                               record.events[local], item.tie_key)) {
         error = source_edge_facet_error(
             relation_subcode::source_edge_facet_invariant,
             "Component 07 event occurrence tie key is malformed");

@@ -257,7 +257,6 @@ bool collect_source_edge_membership_proposals(
     const auto range = incidence.seed_ranges[i];
     const auto &construction = constructions[seed.construction.ordinal()];
     if (construction.id != seed.construction ||
-        construction.source_relation != seed.source_relation ||
         !checked_range(construction.interval_evidence_begin,
                        construction.interval_evidence_count,
                        interval_evidence.size())) {

@@ -183,6 +183,11 @@ public:
     return valid_owner() ? artifact_->coplanar_overlap_components()
                          : empty_vector<relation_coplanar_overlap_component_record>();
   }
+  const std::vector<relation_coplanar_support_record> &
+  coplanar_supports() const noexcept {
+    return valid_owner() ? artifact_->coplanar_supports()
+                         : empty_vector<relation_coplanar_support_record>();
+  }
   const std::array<relation_source_topology_record, 2> &
   source_topology() const noexcept {
     return valid_owner() ? artifact_->source_topology() : empty_topology();
@@ -288,6 +293,11 @@ public:
       relation_transverse_carrier_membership_id id) const noexcept {
     return at(valid_owner() ? &artifact_->transverse_carrier_memberships()
                             : nullptr,
+              id.ordinal());
+  }
+  const relation_coplanar_support_record *coplanar_support(
+      relation_coplanar_support_id id) const noexcept {
+    return at(valid_owner() ? &artifact_->coplanar_supports() : nullptr,
               id.ordinal());
   }
   const relation_diagnostic_record *diagnostic(

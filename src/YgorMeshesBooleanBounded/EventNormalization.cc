@@ -47,7 +47,9 @@ occurrence_role classify_occurrence(
     return occurrence_role::single_occurrence;
   if (event_class == intersection_event_class::overlap_endpoint)
     return occurrence_role::overlap_boundary_occurrence;
-  if (seed.has_symbolic_decision)
+  if (seed.has_symbolic_decision &&
+      seed.conceptual_side != symbolic_relation_side::coincident &&
+      seed.symbolic_occurrence_rank != 0)
     return occurrence_role::symbolic_side_occurrence;
   if (seed.contact_status ==
           feature_relation_status::coincidence_same_orientation ||
@@ -145,7 +147,6 @@ bool normalize_event_seed_records(
 
     const auto &construction = constructions[seed.construction.ordinal()];
     if (construction.id != seed.construction ||
-        construction.source_relation != seed.source_relation ||
         construction.kind != seed.construction_kind ||
         construction.component_count == 0 ||
         construction.component_count > construction.nominal_bits.size() ||
@@ -153,7 +154,7 @@ bool normalize_event_seed_records(
         !construction.precision_evidence_complete ||
         construction.reserved != 0)
       return fail(error, intersection_subcode::authoritative_construction_conflict,
-                  "Component 08 seed and authoritative construction disagree");
+                   "Component 08 seed and authoritative construction disagree");
     if (construction.kind != relation_construction_kind::bounded_point)
       return fail(error, intersection_subcode::missing_authoritative_point,
                   "Component 08 point event seed lacks a bounded-point construction");
@@ -233,9 +234,11 @@ bool normalize_event_seed_records(
     occurrence.event = event;
     occurrence.discriminator.role = classify_occurrence(seed, event.event_class);
     occurrence.discriminator.component07_occurrence = seed.key.occurrence;
-    occurrence.discriminator.symbolic_side = seed.conceptual_side;
-    occurrence.discriminator.symbolic_priority = seed.symbolic_occurrence_rank;
-    occurrence.discriminator.multiplicity_slot = seed.symbolic_occurrence_rank;
+    if (occurrence.discriminator.role != occurrence_role::single_occurrence) {
+      occurrence.discriminator.symbolic_side = seed.conceptual_side;
+      occurrence.discriminator.symbolic_priority = seed.symbolic_occurrence_rank;
+      occurrence.discriminator.multiplicity_slot = seed.symbolic_occurrence_rank;
+    }
     occurrence.discriminator.occurrence_lineage =
         seed.distinct_occurrence_required
             ? (seed.symbolic_subject_ordinal != 0
@@ -247,10 +250,12 @@ bool normalize_event_seed_records(
         classify_membership(seed, event.event_class);
     proposal.expected_carrier_role = event.carrier_role;
 
-    if (!valid_intersection_event_key(event) ||
-        !valid_intersection_occurrence_key(occurrence))
+    if (!valid_intersection_event_key(event))
       return fail(error, intersection_subcode::malformed_event_key,
-                  "Component 08 produced an invalid normalized event or occurrence key");
+                   "Component 08 produced an invalid normalized event key");
+    if (!valid_intersection_occurrence_key(occurrence))
+      return fail(error, intersection_subcode::malformed_event_key,
+                  "Component 08 produced an invalid normalized occurrence key");
 
     try {
       proposals.push_back(std::move(proposal));

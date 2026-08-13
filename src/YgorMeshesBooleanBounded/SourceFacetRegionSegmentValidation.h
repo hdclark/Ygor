@@ -210,9 +210,13 @@ bool valid_source_facet_segment_partition_record(
     const auto &b = record.contacts[i];
     if (definitely_before(b.first_parameter, a.first_parameter) ||
         (!definitely_before(a.first_parameter, b.first_parameter) &&
-         !interval_equal_bits(a.first_parameter, b.first_parameter)))
+         !same_stored_parameter_point(
+             a.first_rounded_parameter, a.first_point,
+             b.first_rounded_parameter, b.first_point)))
       return false;
-    if (interval_equal_bits(a.first_parameter, b.first_parameter) &&
+    if (same_stored_parameter_point(
+            a.first_rounded_parameter, a.first_point,
+            b.first_rounded_parameter, b.first_point) &&
         a.lineage >= b.lineage)
       return false;
   }

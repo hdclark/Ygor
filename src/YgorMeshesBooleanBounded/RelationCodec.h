@@ -61,6 +61,8 @@ template <class T> struct relation_artifact_envelope final {
   std::uint64_t coplanar_event_node_count = 0;
   std::uint64_t coplanar_oriented_arc_count = 0;
   std::uint64_t coplanar_overlap_component_count = 0;
+  std::uint64_t coplanar_support_count = 0;
+  std::uint64_t coplanar_partition_coverage_count = 0;
   std::uint64_t symbolic_eligibility_count = 0;
   std::uint64_t symbolic_decision_count = 0;
   std::uint64_t crossing_count = 0;

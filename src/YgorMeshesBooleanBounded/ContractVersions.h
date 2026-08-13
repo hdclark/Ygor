@@ -120,7 +120,7 @@ struct contract_versions final {
     static constexpr std::uint16_t broad_phase_encoding_policy = 1;
 
     // Component 07 canonical relation graph and symbolic perturbation.
-    static constexpr std::uint16_t relation_artifact_schema = 18;
+    static constexpr std::uint16_t relation_artifact_schema = 19;
     static constexpr std::uint16_t relation_precision_projection = 1;
     static constexpr std::uint16_t relation_provider = 1;
     static constexpr std::uint16_t relation_graph_policy = 3;
@@ -157,8 +157,8 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_coplanar_overlay_policy = 1;
     static constexpr std::uint16_t relation_coplanar_overlay_stage_schema = 1;
     static constexpr std::uint16_t relation_coplanar_overlay_stage_policy = 1;
-    static constexpr std::uint16_t relation_coplanar_topology_schema = 1;
-    static constexpr std::uint16_t relation_coplanar_topology_policy = 1;
+    static constexpr std::uint16_t relation_coplanar_topology_schema = 2;
+    static constexpr std::uint16_t relation_coplanar_topology_policy = 2;
     static constexpr std::uint16_t relation_feature_key_schema = 1;
     static constexpr std::uint16_t relation_request_key_schema = 1;
     static constexpr std::uint16_t relation_event_seed_key_schema = 1;
@@ -182,8 +182,8 @@ struct contract_versions final {
     static constexpr std::uint16_t relation_replay_evidence_schema = 1;
     static constexpr std::uint16_t relation_replay_policy = 1;
     static constexpr std::uint16_t relation_cancellation_observer = 1;
-    static constexpr std::uint16_t relation_codec = 20;
-    static constexpr std::uint16_t relation_verifier = 20;
+    static constexpr std::uint16_t relation_codec = 21;
+    static constexpr std::uint16_t relation_verifier = 21;
 
     // Component 08 canonical intersection-event registry.
     static constexpr std::uint16_t intersection_artifact_schema = 1;

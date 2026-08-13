@@ -37,6 +37,21 @@ bool canonical_parameter_point(const finite_interval<T> &parameter) noexcept {
 }
 
 template <class T>
+bool same_stored_parameter_point(
+    T first_parameter, const projected_source_point<T> &first_point,
+    T second_parameter, const projected_source_point<T> &second_point) noexcept {
+  // Signed zeros are one numerical point; numeric equality matches the
+  // canonical [-0,+0] exact-zero handling used elsewhere in the segment
+  // partition domain.
+  if (first_parameter != second_parameter)
+    return false;
+  for (std::size_t axis = 0; axis < 2; ++axis)
+    if (first_point.nominal[axis] != second_point.nominal[axis])
+      return false;
+  return true;
+}
+
+template <class T>
 bool definitely_before(const finite_interval<T> &a,
                        const finite_interval<T> &b) noexcept {
   return finite_numeric_less(a.upper(), b.lower());
@@ -335,7 +350,8 @@ bool promote_declared_vertex_owner(
                    [declared](const projected_source_point<T> &candidate) {
                      return candidate.source_vertex == declared;
                    });
-  if (iterator == polygon.end() || !same_projected_geometry(point, *iterator))
+  if (iterator == polygon.end() ||
+      !same_nominal_projected_geometry(point, *iterator))
     return false;
 
   record.source_vertex_owners = declared_vertices;

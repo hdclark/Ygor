@@ -998,14 +998,19 @@ void write_overlap_carrier(canonical_writer &writer,
                            const collinear_overlap_carrier_record &value) {
   write_id(writer, value.id);
   encode_collinear_overlap_carrier_key(writer, value.key);
-  write_id(writer, value.first_parameter_interval);
-  write_id(writer, value.second_parameter_interval);
-  write_id(writer, value.first_parameter_evidence);
-  write_id(writer, value.second_parameter_evidence);
+  for (const auto bits : value.first_nominal_bits) writer.u64(bits);
+  for (const auto bits : value.first_lower_bits) writer.u64(bits);
+  for (const auto bits : value.first_upper_bits) writer.u64(bits);
+  for (const auto domain : value.first_domains) write_enum8(writer, domain);
+  for (const auto bits : value.second_nominal_bits) writer.u64(bits);
+  for (const auto bits : value.second_lower_bits) writer.u64(bits);
+  for (const auto bits : value.second_upper_bits) writer.u64(bits);
+  for (const auto domain : value.second_domains) write_enum8(writer, domain);
   write_id(writer, value.start_occurrence);
   write_id(writer, value.end_occurrence);
   write_feature_key(writer, value.start_source_vertex);
   write_feature_key(writer, value.end_source_vertex);
+  writer.boolean(value.source_vertices_valid);
   write_enum8(writer, value.symbolic_owner);
   writer.boolean(value.half_open_first);
   writer.boolean(value.half_open_second);
@@ -1025,14 +1030,27 @@ bool read_overlap_carrier(canonical_reader &reader,
                           collinear_overlap_carrier_record &value) {
   return read_id(reader, value.id) &&
          read_overlap_carrier_key(reader, value.key) &&
-         read_id(reader, value.first_parameter_interval) &&
-         read_id(reader, value.second_parameter_interval) &&
-         read_id(reader, value.first_parameter_evidence) &&
-         read_id(reader, value.second_parameter_evidence) &&
+          reader.u64(value.first_nominal_bits[0]) &&
+          reader.u64(value.first_nominal_bits[1]) &&
+          reader.u64(value.first_lower_bits[0]) &&
+          reader.u64(value.first_lower_bits[1]) &&
+          reader.u64(value.first_upper_bits[0]) &&
+          reader.u64(value.first_upper_bits[1]) &&
+          read_enum8(reader, value.first_domains[0]) &&
+          read_enum8(reader, value.first_domains[1]) &&
+          reader.u64(value.second_nominal_bits[0]) &&
+          reader.u64(value.second_nominal_bits[1]) &&
+          reader.u64(value.second_lower_bits[0]) &&
+          reader.u64(value.second_lower_bits[1]) &&
+          reader.u64(value.second_upper_bits[0]) &&
+          reader.u64(value.second_upper_bits[1]) &&
+          read_enum8(reader, value.second_domains[0]) &&
+          read_enum8(reader, value.second_domains[1]) &&
          read_id(reader, value.start_occurrence) &&
          read_id(reader, value.end_occurrence) &&
          read_feature_key(reader, value.start_source_vertex, true) &&
-         read_feature_key(reader, value.end_source_vertex, true) &&
+          read_feature_key(reader, value.end_source_vertex, true) &&
+          reader.boolean(value.source_vertices_valid) &&
          read_enum8(reader, value.symbolic_owner) &&
          reader.boolean(value.half_open_first) &&
          reader.boolean(value.half_open_second) &&
@@ -1090,8 +1108,6 @@ void write_region_incidence(canonical_writer &writer,
   write_id(writer, value.support);
   write_feature_key(writer, value.first_facet);
   write_feature_key(writer, value.second_facet);
-  write_feature_key(writer, value.first_triangle);
-  write_feature_key(writer, value.second_triangle);
   write_id(writer, value.component);
   writer.u64(value.component_lineage);
   write_enum8(writer, value.classification);
@@ -1103,7 +1119,7 @@ void write_region_incidence(canonical_writer &writer,
   writer.u8(value.reserved8);
   write_range(writer, value.boundary_events);
   write_range(writer, value.boundary_carriers);
-  write_range(writer, value.coverage_witnesses);
+  write_range(writer, value.partition_coverage);
   write_digest(writer, value.source_facet_semantic_digest);
   writer.u16(value.schema_version);
   writer.u16(value.reserved16);
@@ -1114,8 +1130,6 @@ bool read_region_incidence(canonical_reader &reader,
   return read_id(reader, value.id) && read_id(reader, value.support) &&
          read_feature_key(reader, value.first_facet) &&
          read_feature_key(reader, value.second_facet) &&
-         read_feature_key(reader, value.first_triangle) &&
-         read_feature_key(reader, value.second_triangle) &&
          read_id(reader, value.component) &&
          reader.u64(value.component_lineage) &&
          read_enum8(reader, value.classification) &&
@@ -1127,9 +1141,39 @@ bool read_region_incidence(canonical_reader &reader,
          reader.u8(value.reserved8) &&
          read_range(reader, value.boundary_events) &&
          read_range(reader, value.boundary_carriers) &&
-         read_range(reader, value.coverage_witnesses) &&
+          read_range(reader, value.partition_coverage) &&
          read_digest(reader, value.source_facet_semantic_digest) &&
          reader.u16(value.schema_version) && reader.u16(value.reserved16);
+}
+
+void write_partition_coverage(
+    canonical_writer &writer,
+    const coplanar_partition_coverage_commitment &value) {
+  write_feature_key(writer, value.source_edge);
+  writer.u8(value.polygon);
+  writer.u64(value.edge_ordinal);
+  writer.u64(value.breakpoint_count);
+  writer.u64(value.interior_interval_count);
+  writer.u64(value.outside_interval_count);
+  writer.u64(value.original_edge_overlap_interval_count);
+  writer.boolean(value.complete_boundary_contact_set);
+  writer.boolean(value.triangle_reconciliation_complete);
+  writer.u16(value.reserved16);
+  writer.u32(value.reserved32);
+}
+
+bool read_partition_coverage(
+    canonical_reader &reader,
+    coplanar_partition_coverage_commitment &value) {
+  return read_feature_key(reader, value.source_edge) &&
+         reader.u8(value.polygon) && reader.u64(value.edge_ordinal) &&
+         reader.u64(value.breakpoint_count) &&
+         reader.u64(value.interior_interval_count) &&
+         reader.u64(value.outside_interval_count) &&
+         reader.u64(value.original_edge_overlap_interval_count) &&
+         reader.boolean(value.complete_boundary_contact_set) &&
+         reader.boolean(value.triangle_reconciliation_complete) &&
+         reader.u16(value.reserved16) && reader.u32(value.reserved32);
 }
 
 void write_crossing_subtotal(canonical_writer &writer,
@@ -1598,8 +1642,9 @@ struct intersection_codec_access final {
       write_id_vector(writer, artifact.coplanar_region_boundary_event_index_);
       write_id_vector(writer,
                       artifact.coplanar_region_boundary_carrier_index_);
-      write_feature_vector(
-          writer, artifact.coplanar_region_coverage_witness_index_);
+      write_record_vector(
+          writer, artifact.coplanar_region_partition_coverage_index_,
+          write_partition_coverage);
       sections[5] = writer.take();
     }
     {
@@ -1859,9 +1904,9 @@ struct intersection_codec_access final {
           !read_id_vector(reader,
                           artifact.coplanar_region_boundary_carrier_index_,
                           budget) ||
-          !read_feature_vector(
-              reader, artifact.coplanar_region_coverage_witness_index_,
-              budget) ||
+          !read_record_vector(
+              reader, artifact.coplanar_region_partition_coverage_index_,
+              budget, read_partition_coverage) ||
           !reader.complete())
         return false;
     }
@@ -2256,8 +2301,8 @@ struct intersection_codec_access final {
                          a.coplanar_region_boundary_event_index_.size()) ||
           !checked_range(record.boundary_carriers,
                          a.coplanar_region_boundary_carrier_index_.size()) ||
-          !checked_range(record.coverage_witnesses,
-                         a.coplanar_region_coverage_witness_index_.size()) ||
+          !checked_range(record.partition_coverage,
+                         a.coplanar_region_partition_coverage_index_.size()) ||
           record.reserved8 != 0 || record.reserved16 != 0 ||
           record.schema_version != contract_versions::intersection_overlap_schema)
         return false;
@@ -2357,7 +2402,9 @@ struct intersection_codec_access final {
         s.carrier_cluster_count != a.carrier_clusters_.size() ||
         s.carrier_span_count != a.carrier_active_spans_.size() ||
         s.coplanar_support_count != a.coplanar_supports_.size() ||
-        s.overlap_count != a.coplanar_overlaps_.size() ||
+        s.overlap_count != a.overlap_carriers_.size() +
+                               a.coplanar_overlaps_.size() +
+                               a.coplanar_region_incidence_.size() ||
         s.aggregate_count !=
             a.crossing_aggregates_.size() + a.contact_aggregates_.size() ||
         s.descriptor_count != a.descriptors_.size() ||
@@ -2414,7 +2461,7 @@ struct intersection_codec_access final {
     YGOR_CODEC_ADD(overlap_carrier_source_provenance_); YGOR_CODEC_ADD(coplanar_overlap_boundary_event_index_);
     YGOR_CODEC_ADD(coplanar_overlap_boundary_carrier_index_); YGOR_CODEC_ADD(coplanar_overlap_relation_provenance_);
     YGOR_CODEC_ADD(coplanar_region_boundary_event_index_); YGOR_CODEC_ADD(coplanar_region_boundary_carrier_index_);
-    YGOR_CODEC_ADD(coplanar_region_coverage_witness_index_); YGOR_CODEC_ADD(crossing_aggregates_);
+    YGOR_CODEC_ADD(coplanar_region_partition_coverage_index_); YGOR_CODEC_ADD(crossing_aggregates_);
     YGOR_CODEC_ADD(crossing_aggregate_members_); YGOR_CODEC_ADD(crossing_facet_subtotals_);
     YGOR_CODEC_ADD(crossing_facet_subtotal_members_); YGOR_CODEC_ADD(crossing_shell_subtotals_);
     YGOR_CODEC_ADD(crossing_shell_subtotal_members_); YGOR_CODEC_ADD(contact_aggregates_);

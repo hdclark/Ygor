@@ -292,14 +292,21 @@ struct coplanar_support_record final {
 struct collinear_overlap_carrier_record final {
   collinear_overlap_carrier_id id{0};
   collinear_overlap_carrier_key key{};
-  relation_construction_id first_parameter_interval{0};
-  relation_construction_id second_parameter_interval{0};
-  relation_interval_evidence_id first_parameter_evidence{0};
-  relation_interval_evidence_id second_parameter_evidence{0};
+  std::array<std::uint64_t, 2> first_nominal_bits{};
+  std::array<std::uint64_t, 2> first_lower_bits{};
+  std::array<std::uint64_t, 2> first_upper_bits{};
+  std::array<parameter_domain_status, 2> first_domains{
+      parameter_domain_status::invalid, parameter_domain_status::invalid};
+  std::array<std::uint64_t, 2> second_nominal_bits{};
+  std::array<std::uint64_t, 2> second_lower_bits{};
+  std::array<std::uint64_t, 2> second_upper_bits{};
+  std::array<parameter_domain_status, 2> second_domains{
+      parameter_domain_status::invalid, parameter_domain_status::invalid};
   event_occurrence_id start_occurrence{0};
   event_occurrence_id end_occurrence{0};
   relation_feature_key start_source_vertex{};
   relation_feature_key end_source_vertex{};
+  bool source_vertices_valid = false;
   operand_id symbolic_owner = operand_id::a;
   bool half_open_first = false;
   bool half_open_second = false;
@@ -335,13 +342,42 @@ struct coplanar_overlap_record final {
   std::uint16_t reserved16 = 0;
 };
 
+struct coplanar_partition_coverage_commitment final {
+  relation_feature_key source_edge{};
+  std::uint8_t polygon = 0;
+  std::uint64_t edge_ordinal = 0;
+  std::uint64_t breakpoint_count = 0;
+  std::uint64_t interior_interval_count = 0;
+  std::uint64_t outside_interval_count = 0;
+  std::uint64_t original_edge_overlap_interval_count = 0;
+  bool complete_boundary_contact_set = false;
+  bool triangle_reconciliation_complete = false;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+
+  friend bool operator==(
+      const coplanar_partition_coverage_commitment &a,
+      const coplanar_partition_coverage_commitment &b) noexcept {
+    return a.source_edge == b.source_edge && a.polygon == b.polygon &&
+           a.edge_ordinal == b.edge_ordinal &&
+           a.breakpoint_count == b.breakpoint_count &&
+           a.interior_interval_count == b.interior_interval_count &&
+           a.outside_interval_count == b.outside_interval_count &&
+           a.original_edge_overlap_interval_count ==
+               b.original_edge_overlap_interval_count &&
+           a.complete_boundary_contact_set ==
+               b.complete_boundary_contact_set &&
+           a.triangle_reconciliation_complete ==
+               b.triangle_reconciliation_complete &&
+           a.reserved16 == b.reserved16 && a.reserved32 == b.reserved32;
+  }
+};
+
 struct coplanar_region_incidence_record final {
   coplanar_region_incidence_id id{0};
   coplanar_support_id support{0};
   relation_feature_key first_facet{};
   relation_feature_key second_facet{};
-  relation_feature_key first_triangle{};
-  relation_feature_key second_triangle{};
   coplanar_overlap_record_id component{0};
   std::uint64_t component_lineage = 0;
   coplanar_region_classification classification =
@@ -355,7 +391,7 @@ struct coplanar_region_incidence_record final {
   std::uint8_t reserved8 = 0;
   intersection_range boundary_events{};
   intersection_range boundary_carriers{};
-  intersection_range coverage_witnesses{};
+  intersection_range partition_coverage{};
   bounded_boolean_digest source_facet_semantic_digest{};
   std::uint16_t schema_version = contract_versions::intersection_overlap_schema;
   std::uint16_t reserved16 = 0;
@@ -700,8 +736,10 @@ public:
   coplanar_region_boundary_carrier_index() const noexcept {
     return coplanar_region_boundary_carrier_index_;
   }
-  const std::vector<relation_feature_key> &coplanar_region_coverage_witness_index()
-      const noexcept { return coplanar_region_coverage_witness_index_; }
+  const std::vector<coplanar_partition_coverage_commitment> &
+  coplanar_region_partition_coverage_index() const noexcept {
+    return coplanar_region_partition_coverage_index_;
+  }
   const std::vector<crossing_aggregate_record> &crossing_aggregates()
       const noexcept { return crossing_aggregates_; }
   const std::vector<event_incidence_id> &crossing_aggregate_members()
@@ -845,7 +883,8 @@ private:
   std::vector<event_occurrence_id> coplanar_region_boundary_event_index_{};
   std::vector<collinear_overlap_carrier_id>
       coplanar_region_boundary_carrier_index_{};
-  std::vector<relation_feature_key> coplanar_region_coverage_witness_index_{};
+  std::vector<coplanar_partition_coverage_commitment>
+      coplanar_region_partition_coverage_index_{};
   std::vector<crossing_aggregate_record> crossing_aggregates_{};
   std::vector<event_incidence_id> crossing_aggregate_members_{};
   std::vector<crossing_subtotal_record> crossing_facet_subtotals_{};

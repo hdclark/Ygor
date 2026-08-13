@@ -716,8 +716,12 @@ boolean_outcome<coplanar_boundary_partition<T>> build_boundary_partition(
         return false;
       rounded = value;
       enclosure = *singleton;
-      point = query_facet.polygon[
-          (edge_ordinal + endpoint) % query_facet.polygon.size()];
+      // The stored contact point is already the relation's exact accepted
+      // source vertex. Do not replace it with a polygon-order lookup: the query
+      // edge's relation parameterization may be reversed relative to the source
+      // polygon traversal, so (edge_ordinal + endpoint) can select the wrong
+      // polygon vertex for a shared boundary edge.
+      (void)point;
       // Source identities are operand-local. Opposite-operand query endpoint
       // identity cannot be used as target-polygon ownership evidence.
       identity_valid = false;
@@ -904,7 +908,7 @@ bool breakpoint_event_lineages(
                          const projected_source_point<T> &point) {
       if (!source_facet_region_detail::interval_equal_bits(
               breakpoint.parameter, parameter) ||
-          !source_facet_region_detail::same_projected_geometry(
+          !source_facet_region_detail::same_nominal_projected_geometry(
               breakpoint.point, point))
         return true;
       std::uint8_t role = 0;
@@ -1788,10 +1792,13 @@ classify_coplanar_facet_overlay(
           record.vertex_regions.push_back(
               {polygon, vertex, evaluated->region, 0});
         } else {
+          // The vertex classification is an opposite-operand query, so exact
+          // stored-coordinate boundary ties are admitted uniformly.
           auto region = classify_source_facet_point(
               record.facets[other].source_facet, record.facets[other].ring,
               record.facets[polygon].polygon[vertex], false,
-              record.facets[other].polygon, record.facets[other].orientation);
+              record.facets[other].polygon, record.facets[other].orientation,
+              nullptr, nullptr, true);
           if (!region.has_value())
             return boolean_outcome<record_type>::failure(coplanar_overlay_error(
                 relation_subcode::coplanar_overlay_region_unresolved,
@@ -2122,6 +2129,29 @@ bool reconstruct_overlay(
     return false;
   }
   dependencies.reserve(first_count * second_count);
+  const auto flip_parameter_evidence =
+      [](source_edge_parameter_evidence<T> &parameter) {
+        parameter.rounded_nominal = T(1) - parameter.rounded_nominal;
+        const auto flipped = finite_interval<T>::create(
+            T(1) - parameter.enclosure.upper(),
+            T(1) - parameter.enclosure.lower());
+        if (flipped)
+          parameter.enclosure = *flipped;
+        std::swap(parameter.exact_zero, parameter.exact_one);
+      };
+  const auto flip_endpoint_mask = [](std::uint8_t &mask) {
+    if (mask == 1)
+      mask = 2;
+    else if (mask == 2)
+      mask = 1;
+  };
+  const auto edge_reversed = [&](const source_edge_geometry_snapshot<T> &start,
+                                 const projected_source_point<T> &polygon_start) {
+    const auto projected = source_edge_facet_detail::project_snapshot(
+        start, support.dropped_axes[0]);
+    return !source_facet_region_detail::same_nominal_projected_geometry(
+        projected, polygon_start);
+  };
   for (std::size_t first = 0; first < first_count; ++first)
     for (std::size_t second = 0; second < second_count; ++second) {
       const source_edge_relation_record<T> *relation = nullptr;
@@ -2134,8 +2164,40 @@ bool reconstruct_overlay(
             "Component 07 candidate-derived coplanar overlay lacks a boundary relation");
         return false;
       }
+      // The relation parameterization follows the primitive edge direction.
+      // Re-orient each feature so parameters follow the source-polygon
+      // traversal, which the boundary partitions use as their segment order.
+      source_edge_relation_record<T> relation_copy = *relation;
+      const bool flip_first =
+          edge_reversed(relation_copy.first_start, facets[0].polygon[first]);
+      const bool flip_second =
+          edge_reversed(relation_copy.second_start, facets[1].polygon[second]);
+      if (flip_first) {
+        if (relation_copy.parameter_count == 2) {
+          std::swap(relation_copy.points[0], relation_copy.points[1]);
+          std::swap(relation_copy.first_parameters[0],
+                    relation_copy.first_parameters[1]);
+          std::swap(relation_copy.second_parameters[0],
+                    relation_copy.second_parameters[1]);
+        }
+        for (std::size_t i = 0; i < relation_copy.parameter_count; ++i)
+          flip_parameter_evidence(relation_copy.first_parameters[i]);
+        for (std::size_t i = 0; i < relation_copy.point_count; ++i)
+          flip_endpoint_mask(
+              relation_copy.points[i].first_endpoint_owner_mask);
+      }
+      if (flip_second) {
+        for (std::size_t i = 0; i < relation_copy.parameter_count; ++i)
+          flip_parameter_evidence(relation_copy.second_parameters[i]);
+        for (std::size_t i = 0; i < relation_copy.point_count; ++i)
+          flip_endpoint_mask(
+              relation_copy.points[i].second_endpoint_owner_mask);
+      }
+      if (flip_first || flip_second)
+        relation_copy.semantic_digest =
+            sha256::digest(encode_source_edge_relation_semantics(relation_copy));
       dependencies.push_back(
-          {request->id, first, second, *relation, 0});
+          {request->id, first, second, relation_copy, 0});
     }
   auto classified = classify_coplanar_facet_overlay(
       std::move(facets[0]), std::move(facets[1]), support,

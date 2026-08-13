@@ -83,26 +83,31 @@ verified: clearing the Component 07 carrier `geometric_lineage` must reject at
 checkpoint `transverse_carriers` with `transverse_carrier_invalid` and no leaked
 reservations.
 
-## Remaining fail-closed boundary: coplanar arrangements
+## Coplanar arrangement handoff
 
-The coplanar proposal ingestion (`build_coplanar`) is still fail-closed.  When
-the Component 07 artifact carries coplanar lineage (coincident facets, coplanar
-event nodes, oriented arcs, or overlap components) the stage rejects at
-checkpoint `coplanar_carriers` with `membership_incomplete` rather than welding
-or approximating coplanar relations.  The collinear-overlap and coplanar-support
-arrangement machinery (`build_coplanar_carrier_arrangements`) is implemented and
-independently tested against synthetic proposals; only the Component 07 record
-adapter is deferred.
+Component 08 consumes the checked Component 07 coplanar support, event-node,
+oriented-arc, overlap-component, and partition-coverage records through a
+public-view-only adapter. Node records map to interned occurrences by
+authoritative construction representative and decoded public contact-request
+lineage, never by coordinate matching. Shared-boundary arcs produce collinear
+carriers with direct bounded endpoint intervals; interior arcs remain component
+boundaries and do not acquire transverse support identities.
 
-The coplanar adapter remains gated on the predecessor contract, not on
-Component 08 machinery.  Component 07 currently returns typed failures for
-coplanar and contact fixtures before Component 08 runs: full-face overlap and
-partial coplanar overlap exceed the conservative `persistent_bytes` reservation
-(the coplanar request/dependency upper bounds reach ~1.36M requests and ~18M
-dependencies for two face-touching boxes), while vertex- and edge-touching
-fixtures are rejected with unresolved half-open sweep ordering and source-facet
-boundary ownership.  Component 08 therefore cannot consume valid coplanar
-lineage yet.  Component 08 does not project retained point coordinates onto a
-carrier or invent coplanar supports as a fallback; the coplanar adapter and
-non-empty coplanar qualification are integrated only after Component 07
-publishes bounded coplanar lineage for these degenerate cases.
+Region incidence commits to exact source-facet boundary partitions because the
+public handoff does not publish triangle coverage. Internal diagonals remain
+bookkeeping-only rather than fabricated coverage owners. Qualification uses the
+successful touching-box Component 07 fixture and checks non-empty full-stage
+publication, independent proposal reconstruction, mutation rejection,
+fail-closed incomplete handoff behavior, and serial/worker canonical identity.
+### Construction witness compatibility
+
+The coordinate adapter intentionally does not require every secondary ledger
+entry to name the same source relation as every seed grouped at an event. A
+canonical construction may be shared by several independently admitted
+relations. Safety instead follows from the stronger per-entry checks: every
+ledger entry names the same construction, carries the construction's tolerance
+boundary, has complete lineage/enclosure/parameter/residual compatibility, and
+each seed must find a ledger use with its own source relation and occurrence.
+Thus unrelated witnesses cannot authorize a seed, while compatible
+cross-relation witnesses remain auditable. Focused mutation tests must reject a
+missing matching use and any false compatibility field.

@@ -5,7 +5,8 @@ set(component08_sources
     IntersectionVerifier.cc
     EventNormalization.h
     EventIncidence.h
-    TransverseRelationAdapter.h)
+    TransverseRelationAdapter.h
+    CoplanarRelationAdapter.h)
 
 foreach(source IN LISTS component08_sources)
     file(READ "${SOURCE_ROOT}/src/YgorMeshesBooleanBounded/${source}" contents)

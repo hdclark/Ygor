@@ -112,12 +112,25 @@ partition_source_facet_segment(
     canonicalize_owners(empty_vertices,
                         contact.overlap_source_edge_owners);
     if (!valid_contact_proposal(contact, segment_start, segment_end,
-                                polygon))
+                                polygon)) {
+      auto contact_error = source_facet_region_error(
+          relation_subcode::source_facet_segment_malformed,
+          "Component 07 canonical boundary-contact proposal is invalid");
+      contact_error.witnesses[0] = contact.lineage;
+      contact_error.witnesses[1] =
+          static_cast<std::uint64_t>(contact.kind);
+      contact_error.witnesses[2] =
+          unit_parameter(contact.first_parameter,
+                         contact.first_rounded_parameter) ? 1 : 0;
+      contact_error.witnesses[3] =
+          parameter_matches_projected_point(
+              segment_start, segment_end, contact.first_rounded_parameter,
+              contact.first_parameter, contact.first_point) ? 1 : 0;
+      contact_error.witness_count = 4;
       return boolean_outcome<
           source_facet_segment_partition_record<T>>::failure(
-          source_facet_region_error(
-              relation_subcode::source_facet_segment_malformed,
-              "Component 07 canonical boundary-contact proposal is invalid"));
+          contact_error);
+    }
   }
 
   // Canonical contact order is proven from complete parameter enclosures.
@@ -137,9 +150,9 @@ partition_source_facet_segment(
       if (definitely_before(iterator->first_parameter,
                             contact.first_parameter))
         continue;
-      if (!interval_equal_bits(contact.first_parameter,
-                               iterator->first_parameter) ||
-          !canonical_parameter_point(contact.first_parameter))
+      if (!same_stored_parameter_point(
+              contact.first_rounded_parameter, contact.first_point,
+              iterator->first_rounded_parameter, iterator->first_point))
         return boolean_outcome<
             source_facet_segment_partition_record<T>>::failure(
             source_facet_region_error(
@@ -239,10 +252,13 @@ partition_source_facet_segment(
   result.breakpoints.reserve(canonical_positions.value()->size());
 
   for (const auto &position : *canonical_positions.value()) {
+    // Every segment position is an opposite-operand query against this polygon,
+    // so exact stored-coordinate boundary ties are admitted uniformly. Segment
+    // endpoints with no declared owner may still coincide with a polygon corner.
     auto region = classify_source_facet_point(
         source_facet, ring, position.point,
         position.point_source_identity_valid, polygon,
-        polygon_orientation);
+        polygon_orientation, nullptr, nullptr, true);
     if (!region.has_value())
       return boolean_outcome<
           source_facet_segment_partition_record<T>>::failure(

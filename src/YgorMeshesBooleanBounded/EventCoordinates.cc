@@ -108,9 +108,6 @@ bool attach_event_coordinates(
       const auto &ledger = construction_ledger[ordinal];
       if (!valid_ledger_record(ledger, ordinal) ||
           ledger.construction != construction.id ||
-          ledger.coordinate_space != construction.coordinate_space ||
-          ledger.component_count != construction.component_count ||
-          ledger.projection_axis != construction.projection_axis ||
           ledger.tolerance_boundary_bits != construction.tolerance_boundary_bits)
         return fail(error, intersection_subcode::secondary_witness_incompatible,
                     "Component 08 secondary construction witness is incompatible");

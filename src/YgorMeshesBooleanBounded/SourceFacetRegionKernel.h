@@ -208,6 +208,16 @@ bool same_projected_geometry(const projected_source_point<T> &a,
 }
 
 template <class T>
+bool same_nominal_projected_geometry(
+    const projected_source_point<T> &a,
+    const projected_source_point<T> &b) noexcept {
+  for (std::size_t axis = 0; axis < 2; ++axis)
+    if (to_bits(a.nominal[axis]) != to_bits(b.nominal[axis]))
+      return false;
+  return true;
+}
+
+template <class T>
 bool singleton(const finite_interval<T> &interval) noexcept {
   return to_bits(interval.lower()) == to_bits(interval.upper()) ||
          (interval.lower() == T(0) && interval.upper() == T(0));
@@ -220,13 +230,14 @@ bool singleton(const projected_source_point<T> &point) noexcept {
 
 template <class T>
 interval_position compare_interval_to_query(const finite_interval<T> &value,
-                                            const finite_interval<T> &query) {
+                                             T value_nominal,
+                                             const finite_interval<T> &query,
+                                             T query_nominal) {
   if (finite_numeric_less(value.upper(), query.lower()))
     return interval_position::below;
   if (finite_numeric_less(query.upper(), value.lower()))
     return interval_position::above;
-  if (singleton(value) && singleton(query) &&
-      to_bits(value.lower()) == to_bits(query.lower()))
+  if (to_bits(value_nominal) == to_bits(query_nominal))
     return interval_position::equal;
   return interval_position::uncertain;
 }
@@ -260,6 +271,28 @@ bool definite_point_on_edge(const projected_source_point<T> &point,
          orientation.determinant.lower() == T(0) &&
          orientation.determinant.upper() == T(0) &&
          point_interval_inside_edge_box(point, a, b);
+}
+
+template <class T>
+bool exact_stored_point_on_edge(
+    const projected_source_point<T> &point,
+    const projected_source_point<T> &a,
+    const projected_source_point<T> &b,
+    const source_orientation_evidence<T> &orientation) {
+  if (orientation.exact_sign != 0)
+    return false;
+  for (std::size_t axis = 0; axis < 2; ++axis) {
+    const T low = finite_numeric_less(a.nominal[axis], b.nominal[axis])
+                      ? a.nominal[axis]
+                      : b.nominal[axis];
+    const T high = finite_numeric_less(a.nominal[axis], b.nominal[axis])
+                       ? b.nominal[axis]
+                       : a.nominal[axis];
+    if (finite_numeric_less(point.nominal[axis], low) ||
+        finite_numeric_less(high, point.nominal[axis]))
+      return false;
+  }
+  return true;
 }
 
 template <class T>
@@ -299,7 +332,8 @@ classify_source_facet_point(
     bounded_planar_sign polygon_orientation,
     const std::vector<std::uint64_t> *certified_source_vertices = nullptr,
     const std::vector<source_facet_boundary_edge_owner> *certified_source_edges =
-        nullptr) {
+        nullptr,
+    bool admit_exact_stored_boundary_tie = false) {
   static_assert(supported_precision_scalar_v<T>);
   using namespace source_facet_region_detail;
 
@@ -418,6 +452,18 @@ classify_source_facet_point(
       result.source_vertex_owners.push_back(a.source_vertex);
     }
 
+    // Cross-operand exact boundary ties: the query point's source identity is
+    // operand-local and cannot be compared to the target polygon's vertex IDs.
+    // A stored-nominal coincidence with a polygon vertex is the only admissible
+    // evidence that the query lands on that exact source vertex.
+    if (admit_exact_stored_boundary_tie &&
+        !query_source_identity_valid) {
+      if (same_nominal_projected_geometry(query, a))
+        result.source_vertex_owners.push_back(a.source_vertex);
+      if (same_nominal_projected_geometry(query, b))
+        result.source_vertex_owners.push_back(b.source_vertex);
+    }
+
     const auto evidence =
         bounded_source_polygon_kernel<T>::orientation(a, b, query);
     if (!valid_source_orientation_evidence(evidence))
@@ -467,7 +513,9 @@ classify_source_facet_point(
         (query.source_vertex == a.source_vertex ||
          query.source_vertex == b.source_vertex);
     const bool geometric_owned =
-        definite_point_on_edge(query, a, b, evidence);
+        definite_point_on_edge(query, a, b, evidence) ||
+        (admit_exact_stored_boundary_tie &&
+         exact_stored_point_on_edge(query, a, b, evidence));
     if (identity_owned || geometric_owned || certified_edge_owned) {
       result.source_edge_owners.push_back(
           {static_cast<std::uint64_t>(i), a.source_vertex,
@@ -520,9 +568,11 @@ classify_source_facet_point(
     const auto &a = polygon[i];
     const auto &b = polygon[(i + 1) % polygon.size()];
     const auto a_position =
-        compare_interval_to_query(a.enclosure[1], query.enclosure[1]);
+        compare_interval_to_query(a.enclosure[1], a.nominal[1],
+                                  query.enclosure[1], query.nominal[1]);
     const auto b_position =
-        compare_interval_to_query(b.enclosure[1], query.enclosure[1]);
+        compare_interval_to_query(b.enclosure[1], b.nominal[1],
+                                  query.enclosure[1], query.nominal[1]);
 
     if (a_position == interval_position::uncertain ||
         b_position == interval_position::uncertain)

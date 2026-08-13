@@ -363,6 +363,7 @@ struct relation_event_seed_candidate_incidence_record final {
 };
 
 struct relation_coplanar_event_lineage_record final {
+  relation_request_id request{0};
   std::uint64_t contact_lineage = 0;
   std::uint8_t endpoint_role = 0;
   std::uint8_t reserved8 = 0;
@@ -373,8 +374,10 @@ struct relation_coplanar_event_occurrence_record final {
   std::uint8_t polygon = 0;
   std::uint64_t edge_ordinal = 0;
   std::uint64_t breakpoint_ordinal = 0;
+  relation_feature_key source_edge{};
   bool query_source_vertex_valid = false;
   std::uint64_t query_source_vertex = 0;
+  relation_feature_key endpoint_source_vertex{};
   std::vector<relation_coplanar_event_lineage_record> event_lineages;
   std::uint8_t reserved8 = 0;
   std::uint16_t reserved16 = 0;
@@ -398,6 +401,13 @@ struct relation_coplanar_arc_occurrence_record final {
   std::uint64_t interval_ordinal = 0;
   relation_coplanar_event_node_id start_node{0};
   relation_coplanar_event_node_id end_node{0};
+  relation_feature_key source_edge{};
+  std::uint64_t source_edge_lineage = 0;
+  std::array<std::uint64_t, 2> endpoint_nominal_bits{};
+  std::array<std::uint64_t, 2> endpoint_lower_bits{};
+  std::array<std::uint64_t, 2> endpoint_upper_bits{};
+  std::array<parameter_domain_status, 2> endpoint_domains{
+      parameter_domain_status::invalid, parameter_domain_status::invalid};
   bool forward_along_source_edge = true;
   std::uint8_t reserved8 = 0;
   std::uint16_t reserved16 = 0;
@@ -413,6 +423,9 @@ struct relation_coplanar_oriented_arc_record final {
   relation_coplanar_event_node_id end_node{0};
   std::vector<relation_coplanar_arc_occurrence_record> occurrences;
   std::vector<relation_request_id> overlap_lineages;
+  std::array<relation_feature_key, 2> source_edge_pair{};
+  std::uint8_t source_edge_count = 0;
+  std::uint64_t arc_lineage = 0;
   std::uint8_t sheet_mask = 0;
   std::uint8_t reserved8 = 0;
   std::uint16_t reserved16 = 0;
@@ -426,11 +439,55 @@ struct relation_coplanar_overlap_component_record final {
       relation_coplanar_component_kind::isolated_point;
   std::vector<relation_coplanar_event_node_id> node_ids;
   std::vector<relation_coplanar_oriented_arc_id> arc_ids;
+  std::uint64_t component_lineage = 0;
+  operand_id half_open_owner = operand_id::a;
   std::uint8_t sheet_mask = 0;
   bool closed = false;
   bool distinct_sheet_occurrences = false;
+  bool zero_measure = true;
   std::uint8_t reserved8 = 0;
   std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_coplanar_partition_coverage_record final {
+  relation_feature_key source_edge{};
+  std::uint8_t polygon = 0;
+  std::uint64_t edge_ordinal = 0;
+  std::uint64_t breakpoint_count = 0;
+  std::uint64_t interior_interval_count = 0;
+  std::uint64_t outside_interval_count = 0;
+  std::uint64_t original_edge_overlap_interval_count = 0;
+  bool complete_boundary_contact_set = false;
+  bool triangle_reconciliation_complete = false;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+};
+
+struct relation_coplanar_support_record final {
+  relation_coplanar_support_id id{0};
+  feature_relation_id overlay_relation{0};
+  std::array<relation_feature_key, 2> support_facets{};
+  relation_coplanar_orientation orientation =
+      relation_coplanar_orientation::same;
+  relation_coplanar_classification classification =
+      relation_coplanar_classification::disjoint;
+  std::array<occupied_side, 2> material_sides{
+      occupied_side::negative, occupied_side::negative};
+  operand_id half_open_owner = operand_id::a;
+  std::uint64_t support_lineage = 0;
+  std::array<std::vector<relation_feature_key>, 2> original_boundary_edges;
+  std::vector<relation_coplanar_partition_coverage_record> partition_coverage;
+  bool complete_boundary_pair_coverage = false;
+  bool complete_vertex_coverage = false;
+  bool complete_boundary_partition_coverage = false;
+  bool complete_event_lineage = false;
+  bool complete_authorized_arc_coverage = false;
+  bool complete_overlap_component_assembly = false;
+  bool distinct_sheet_occurrences = false;
+  bool zero_measure = true;
+  std::uint16_t schema_version =
+      contract_versions::relation_coplanar_topology_schema;
   std::uint32_t reserved32 = 0;
 };
 
@@ -806,6 +863,8 @@ public:
   coplanar_overlap_components() const noexcept {
     return coplanar_overlap_components_;
   }
+  const std::vector<relation_coplanar_support_record> &
+  coplanar_supports() const noexcept { return coplanar_supports_; }
   const std::vector<relation_feature_key> &event_seed_incidence() const noexcept {
     return event_seed_incidence_;
   }
@@ -923,6 +982,7 @@ private:
   std::vector<relation_coplanar_oriented_arc_record> coplanar_oriented_arcs_;
   std::vector<relation_coplanar_overlap_component_record>
       coplanar_overlap_components_;
+  std::vector<relation_coplanar_support_record> coplanar_supports_;
   std::vector<relation_feature_key> event_seed_incidence_;
   std::vector<relation_event_seed_candidate_incidence_record>
       event_seed_candidate_incidence_;

@@ -22,22 +22,23 @@ struct coplanar_support_proposal final {
 
 struct collinear_overlap_carrier_proposal final {
   collinear_overlap_carrier_key key{};
-  relation_construction_id first_parameter_interval{intersection_invalid_ordinal};
-  relation_construction_id second_parameter_interval{intersection_invalid_ordinal};
-  relation_interval_evidence_id first_parameter_evidence{intersection_invalid_ordinal};
-  relation_interval_evidence_id second_parameter_evidence{intersection_invalid_ordinal};
-  std::uint64_t first_lower_bits = 0;
-  std::uint64_t first_upper_bits = 0;
-  std::uint64_t second_lower_bits = 0;
-  std::uint64_t second_upper_bits = 0;
-  parameter_domain_status first_domain = parameter_domain_status::invalid;
-  parameter_domain_status second_domain = parameter_domain_status::invalid;
+  std::array<std::uint64_t, 2> first_nominal_bits{};
+  std::array<std::uint64_t, 2> first_lower_bits{};
+  std::array<std::uint64_t, 2> first_upper_bits{};
+  std::array<parameter_domain_status, 2> first_domains{
+      parameter_domain_status::invalid, parameter_domain_status::invalid};
+  std::array<std::uint64_t, 2> second_nominal_bits{};
+  std::array<std::uint64_t, 2> second_lower_bits{};
+  std::array<std::uint64_t, 2> second_upper_bits{};
+  std::array<parameter_domain_status, 2> second_domains{
+      parameter_domain_status::invalid, parameter_domain_status::invalid};
   event_occurrence_id start_occurrence{intersection_invalid_ordinal};
   event_occurrence_id end_occurrence{intersection_invalid_ordinal};
   intersection_occurrence_key start_occurrence_key{};
   intersection_occurrence_key end_occurrence_key{};
   relation_feature_key start_source_vertex{};
   relation_feature_key end_source_vertex{};
+  bool source_vertices_valid = false;
   feature_relation_id relation{intersection_invalid_ordinal};
   candidate_id candidate{intersection_invalid_ordinal};
   std::vector<relation_feature_key> source_provenance{};
@@ -73,8 +74,6 @@ struct coplanar_region_incidence_proposal final {
   coplanar_overlap_key component{};
   relation_feature_key first_facet{};
   relation_feature_key second_facet{};
-  relation_feature_key first_triangle{};
-  relation_feature_key second_triangle{};
   coplanar_region_classification classification =
       coplanar_region_classification::point_contact;
   feature_relation_status relation_status =
@@ -83,7 +82,8 @@ struct coplanar_region_incidence_proposal final {
   std::uint8_t sheet_mask = 0;
   std::vector<event_occurrence_id> boundary_events{};
   std::vector<collinear_overlap_carrier_key> boundary_carriers{};
-  std::vector<relation_feature_key> coverage_witnesses{};
+  std::vector<coplanar_partition_coverage_commitment>
+      partition_coverage{};
   bounded_boolean_digest source_facet_semantic_digest{};
   bool coverage_complete = false;
   bool internal_diagonals_coverage_only = false;
@@ -113,7 +113,8 @@ struct coplanar_carrier_arrangement_tables final {
   std::vector<coplanar_region_incidence_record> regions{};
   std::vector<event_occurrence_id> region_boundary_event_index{};
   std::vector<collinear_overlap_carrier_id> region_boundary_carrier_index{};
-  std::vector<relation_feature_key> region_coverage_witness_index{};
+  std::vector<coplanar_partition_coverage_commitment>
+      region_partition_coverage_index{};
 };
 
 template <class T>

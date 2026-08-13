@@ -406,11 +406,14 @@ std::vector<std::uint8_t> encode_relation_unframed_payload(
       writer.u8(occurrence.polygon);
       writer.u64(occurrence.edge_ordinal);
       writer.u64(occurrence.breakpoint_ordinal);
+      encode_relation_feature_key(writer, occurrence.source_edge);
       writer.boolean(occurrence.query_source_vertex_valid);
       writer.u64(occurrence.query_source_vertex);
+      encode_relation_feature_key(writer, occurrence.endpoint_source_vertex);
       writer.u64(occurrence.event_lineages.size());
-      for (const auto &lineage : occurrence.event_lineages) {
-        writer.u64(lineage.contact_lineage);
+    for (const auto &lineage : occurrence.event_lineages) {
+      writer.u64(lineage.request.ordinal());
+      writer.u64(lineage.contact_lineage);
         writer.u8(lineage.endpoint_role);
         writer.u8(lineage.reserved8);
         writer.u16(lineage.reserved16);
@@ -438,6 +441,13 @@ std::vector<std::uint8_t> encode_relation_unframed_payload(
       writer.u64(occurrence.interval_ordinal);
       writer.u64(occurrence.start_node.ordinal());
       writer.u64(occurrence.end_node.ordinal());
+      encode_relation_feature_key(writer, occurrence.source_edge);
+      writer.u64(occurrence.source_edge_lineage);
+      for (const auto bits : occurrence.endpoint_nominal_bits) writer.u64(bits);
+      for (const auto bits : occurrence.endpoint_lower_bits) writer.u64(bits);
+      for (const auto bits : occurrence.endpoint_upper_bits) writer.u64(bits);
+      for (const auto domain : occurrence.endpoint_domains)
+        writer.u8(static_cast<std::uint8_t>(domain));
       writer.boolean(occurrence.forward_along_source_edge);
       writer.u8(occurrence.reserved8);
       writer.u16(occurrence.reserved16);
@@ -446,6 +456,10 @@ std::vector<std::uint8_t> encode_relation_unframed_payload(
     writer.u64(record.overlap_lineages.size());
     for (const auto lineage : record.overlap_lineages)
       writer.u64(lineage.ordinal());
+    for (const auto &edge : record.source_edge_pair)
+      encode_relation_feature_key(writer, edge);
+    writer.u8(record.source_edge_count);
+    writer.u64(record.arc_lineage);
     writer.u8(record.sheet_mask);
     writer.u8(record.reserved8);
     writer.u16(record.reserved16);
@@ -462,11 +476,55 @@ std::vector<std::uint8_t> encode_relation_unframed_payload(
     writer.u64(record.arc_ids.size());
     for (const auto arc : record.arc_ids)
       writer.u64(arc.ordinal());
+    writer.u64(record.component_lineage);
+    writer.u8(static_cast<std::uint8_t>(record.half_open_owner));
     writer.u8(record.sheet_mask);
     writer.boolean(record.closed);
     writer.boolean(record.distinct_sheet_occurrences);
+    writer.boolean(record.zero_measure);
     writer.u8(record.reserved8);
     writer.u16(record.reserved16);
+    writer.u32(record.reserved32);
+  }
+  writer.u64(artifact.coplanar_supports_.size());
+  for (const auto &record : artifact.coplanar_supports_) {
+    writer.u64(record.id.ordinal());
+    writer.u64(record.overlay_relation.ordinal());
+    for (const auto &facet : record.support_facets)
+      encode_relation_feature_key(writer, facet);
+    writer.u8(static_cast<std::uint8_t>(record.orientation));
+    writer.u8(static_cast<std::uint8_t>(record.classification));
+    for (const auto side : record.material_sides)
+      writer.u8(static_cast<std::uint8_t>(side));
+    writer.u8(static_cast<std::uint8_t>(record.half_open_owner));
+    writer.u64(record.support_lineage);
+    for (const auto &edges : record.original_boundary_edges) {
+      writer.u64(edges.size());
+      for (const auto &edge : edges) encode_relation_feature_key(writer, edge);
+    }
+    writer.u64(record.partition_coverage.size());
+    for (const auto &coverage : record.partition_coverage) {
+      encode_relation_feature_key(writer, coverage.source_edge);
+      writer.u8(coverage.polygon);
+      writer.u64(coverage.edge_ordinal);
+      writer.u64(coverage.breakpoint_count);
+      writer.u64(coverage.interior_interval_count);
+      writer.u64(coverage.outside_interval_count);
+      writer.u64(coverage.original_edge_overlap_interval_count);
+      writer.boolean(coverage.complete_boundary_contact_set);
+      writer.boolean(coverage.triangle_reconciliation_complete);
+      writer.u16(coverage.reserved16);
+      writer.u32(coverage.reserved32);
+    }
+    writer.boolean(record.complete_boundary_pair_coverage);
+    writer.boolean(record.complete_vertex_coverage);
+    writer.boolean(record.complete_boundary_partition_coverage);
+    writer.boolean(record.complete_event_lineage);
+    writer.boolean(record.complete_authorized_arc_coverage);
+    writer.boolean(record.complete_overlap_component_assembly);
+    writer.boolean(record.distinct_sheet_occurrences);
+    writer.boolean(record.zero_measure);
+    writer.u16(record.schema_version);
     writer.u32(record.reserved32);
   }
   if (boundaries)
@@ -744,6 +802,8 @@ std::vector<std::uint8_t> encode_relation_unframed_payload(
   writer.u64(artifact.statistics_.coplanar_event_node_count);
   writer.u64(artifact.statistics_.coplanar_oriented_arc_count);
   writer.u64(artifact.statistics_.coplanar_overlap_component_count);
+  writer.u64(artifact.statistics_.coplanar_support_count);
+  writer.u64(artifact.statistics_.coplanar_partition_coverage_count);
   writer.u64(artifact.statistics_.symbolic_eligibility_count);
   writer.u64(artifact.statistics_.symbolic_decision_count);
   writer.u64(artifact.statistics_.crossing_record_count);
@@ -1291,7 +1351,8 @@ inline bool read_coplanar_event_node_record(
   for (std::uint64_t occurrence = 0; occurrence < occurrence_count;
        ++occurrence) {
     if (!reader.u8(byte) || !reader.u64(value) || !reader.u64(value) ||
-        !reader.boolean(flag) || !reader.u64(value) ||
+        !read_feature_key(reader) || !reader.boolean(flag) ||
+        !reader.u64(value) || !read_feature_key(reader) ||
         !reader.u64(lineage_count) ||
         !count_fits(reader, lineage_count, capabilities.maximum_dependencies,
                     12))
@@ -1322,18 +1383,27 @@ inline bool read_coplanar_oriented_arc_record(
                   41))
     return false;
   for (std::uint64_t occurrence = 0; occurrence < occurrence_count;
-       ++occurrence)
+       ++occurrence) {
     if (!reader.u8(byte) || !reader.u64(value) || !reader.u64(value) ||
-        !reader.u64(value) || !reader.u64(value) || !reader.boolean(flag) ||
+        !reader.u64(value) || !reader.u64(value) || !read_feature_key(reader) ||
+        !reader.u64(value))
+      return false;
+    for (std::size_t i = 0; i < 6; ++i)
+      if (!reader.u64(value)) return false;
+    if (!reader.u8(byte) || !reader.u8(byte) || !reader.boolean(flag) ||
         !reader.u8(byte) || !reader.u16(reserved16) ||
         !reader.u32(reserved32))
       return false;
+  }
   if (!reader.u64(lineage_count) ||
       !count_fits(reader, lineage_count, capabilities.maximum_dependencies, 8))
     return false;
   for (std::uint64_t lineage = 0; lineage < lineage_count; ++lineage)
     if (!reader.u64(value))
       return false;
+  if (!read_feature_key(reader) || !read_feature_key(reader) ||
+      !reader.u8(byte) || !reader.u64(value))
+    return false;
   return reader.u8(byte) && reader.u8(byte) && reader.u16(reserved16) &&
          reader.u32(reserved32);
 }
@@ -1358,9 +1428,51 @@ inline bool read_coplanar_overlap_component_record(
   for (std::uint64_t arc = 0; arc < arc_count; ++arc)
     if (!reader.u64(value))
       return false;
-  return reader.u8(byte) && reader.boolean(flag) && reader.boolean(flag) &&
-         reader.u8(byte) && reader.u16(reserved16) &&
-         reader.u32(reserved32);
+  return reader.u64(value) && reader.u8(byte) && reader.u8(byte) &&
+          reader.boolean(flag) && reader.boolean(flag) && reader.boolean(flag) &&
+          reader.u8(byte) && reader.u16(reserved16) &&
+          reader.u32(reserved32);
+}
+
+inline bool read_coplanar_support_record(
+    canonical_reader &reader, const relation_capabilities &capabilities,
+    std::uint64_t &partition_total) {
+  std::uint64_t value = 0, count = 0;
+  std::uint8_t byte = 0;
+  std::uint16_t reserved16 = 0;
+  std::uint32_t reserved32 = 0;
+  bool flag = false;
+  if (!reader.u64(value) || !reader.u64(value) ||
+      !read_feature_key(reader) || !read_feature_key(reader))
+    return false;
+  for (std::size_t i = 0; i < 5; ++i)
+    if (!reader.u8(byte)) return false;
+  if (!reader.u64(value) || value == 0) return false;
+  for (std::size_t polygon = 0; polygon < 2; ++polygon) {
+    if (!reader.u64(count) ||
+        !count_fits(reader, count, capabilities.maximum_dependencies, 16))
+      return false;
+    for (std::uint64_t edge = 0; edge < count; ++edge)
+      if (!read_feature_key(reader)) return false;
+  }
+  if (!reader.u64(count) ||
+      !count_fits(reader, count, capabilities.maximum_dependencies, 67) ||
+      !checked_add(partition_total, count, partition_total))
+    return false;
+  for (std::uint64_t partition = 0; partition < count; ++partition) {
+    if (!read_feature_key(reader) || !reader.u8(byte)) return false;
+    for (std::size_t i = 0; i < 5; ++i)
+      if (!reader.u64(value)) return false;
+    if (!reader.boolean(flag) || !reader.boolean(flag) ||
+        !reader.u16(reserved16) || reserved16 != 0 ||
+        !reader.u32(reserved32) || reserved32 != 0)
+      return false;
+  }
+  for (std::size_t i = 0; i < 8; ++i)
+    if (!reader.boolean(flag)) return false;
+  return reader.u16(reserved16) &&
+         reserved16 == contract_versions::relation_coplanar_topology_schema &&
+         reader.u32(reserved32) && reserved32 == 0;
 }
 
 inline bool read_eligibility_record(canonical_reader &reader) {
@@ -2015,6 +2127,21 @@ bool parse_relation_artifact_envelope(
                            bounded_boolean_error_category::input_contract_error,
                            "Component 07 coplanar component table is truncated");
 
+  if (!reader.u64(envelope.coplanar_support_count) ||
+      !count_fits(reader, envelope.coplanar_support_count,
+                  capabilities.maximum_relations, 128))
+    return codec_failure(relation_subcode::codec_error,
+                         bounded_boolean_error_category::input_contract_error,
+                         "Component 07 coplanar support count is malformed");
+  envelope.coplanar_partition_coverage_count = 0;
+  for (std::uint64_t i = 0; i < envelope.coplanar_support_count; ++i)
+    if (!read_coplanar_support_record(
+            reader, capabilities,
+            envelope.coplanar_partition_coverage_count))
+      return codec_failure(relation_subcode::codec_error,
+                           bounded_boolean_error_category::input_contract_error,
+                           "Component 07 coplanar support table is truncated");
+
   if (!reader.u64(envelope.symbolic_eligibility_count) ||
       !count_fits(reader, envelope.symbolic_eligibility_count,
                   capabilities.maximum_symbolic_decisions, 117))
@@ -2207,6 +2334,8 @@ bool parse_relation_artifact_envelope(
       !reader.u64(statistics.coplanar_event_node_count) ||
       !reader.u64(statistics.coplanar_oriented_arc_count) ||
       !reader.u64(statistics.coplanar_overlap_component_count) ||
+      !reader.u64(statistics.coplanar_support_count) ||
+      !reader.u64(statistics.coplanar_partition_coverage_count) ||
       !reader.u64(statistics.symbolic_eligibility_count) ||
       !reader.u64(statistics.symbolic_decision_count) ||
       !reader.u64(statistics.crossing_record_count) ||
@@ -2318,6 +2447,9 @@ bool parse_relation_artifact_envelope(
           envelope.coplanar_oriented_arc_count ||
       statistics.coplanar_overlap_component_count !=
           envelope.coplanar_overlap_component_count ||
+      statistics.coplanar_support_count != envelope.coplanar_support_count ||
+      statistics.coplanar_partition_coverage_count !=
+          envelope.coplanar_partition_coverage_count ||
       statistics.symbolic_eligibility_count !=
           envelope.symbolic_eligibility_count ||
       statistics.symbolic_decision_count != envelope.symbolic_decision_count ||

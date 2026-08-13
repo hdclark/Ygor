@@ -3,6 +3,7 @@
 
 #include "ContextVerifier.h"
 #include "CoplanarCarrierArrangements.h"
+#include "CoplanarRelationAdapter.h"
 #include "EventCoordinates.h"
 #include "EventIncidence.h"
 #include "EventInterning.h"
@@ -82,23 +83,6 @@ std::vector<source_edge_domain_record> source_edge_domains(
       }),
       domains.end());
   return domains;
-}
-
-template <class T, class I>
-bool has_coplanar_lineage(
-    const signed_feature_relations_view<T, I> &relations) {
-  if (!relations.coplanar_event_nodes().empty() ||
-      !relations.coplanar_oriented_arcs().empty() ||
-      !relations.coplanar_overlap_components().empty())
-    return true;
-  for (const auto &record : relations.relations())
-    if (record.family == feature_relation_family::source_facet_source_facet &&
-        (record.status ==
-             feature_relation_status::coincidence_same_orientation ||
-         record.status ==
-             feature_relation_status::coincidence_opposite_orientation))
-      return true;
-  return false;
 }
 
 inline bool checked_accumulate(std::uint64_t value,
@@ -411,16 +395,20 @@ private:
   bool build_coplanar() {
     if (!check_cancel(intersection_checkpoint::coplanar_carriers))
       return false;
-    if (intersection_build_detail::has_coplanar_lineage(relations_))
-      return fail(
-          intersection_subcode::membership_incomplete,
-          bounded_boolean_error_category::internal_invariant_error,
-          "Component 08 coplanar proposal ingestion is not yet integrated",
-          intersection_checkpoint::coplanar_carriers);
-    return build_coplanar_carrier_arrangements<T>({}, {}, {}, {}, coplanar_,
-                                                   error_) &&
-           verify_coplanar_carrier_arrangements<T>({}, {}, {}, {}, coplanar_,
-                                                    error_);
+    std::vector<coplanar_support_proposal> supports;
+    std::vector<collinear_overlap_carrier_proposal> carriers;
+    std::vector<coplanar_overlap_component_proposal> components;
+    std::vector<coplanar_region_incidence_proposal> regions;
+    return collect_component07_coplanar_arrangement_proposals(
+               relations_, interning_, supports, carriers, components, regions,
+               error_) &&
+           verify_component07_coplanar_arrangement_proposals(
+               relations_, interning_, supports, carriers, components, regions,
+               error_) &&
+           build_coplanar_carrier_arrangements<T>(supports, carriers, components,
+                                                   regions, coplanar_, error_) &&
+           verify_coplanar_carrier_arrangements<T>(
+               supports, carriers, components, regions, coplanar_, error_);
   }
 
   bool build_aggregates_and_descriptors() {
@@ -564,7 +552,8 @@ private:
         record.used = s.source_edge_interval_count + s.carrier_span_count;
         break;
       case resource_kind::intersection_carriers:
-        record.used = s.transverse_carrier_count + s.coplanar_support_count;
+        record.used = s.transverse_carrier_count + s.coplanar_support_count +
+                      artifact_->overlap_carriers().size();
         break;
       case resource_kind::intersection_overlaps:
         record.used = s.overlap_count;

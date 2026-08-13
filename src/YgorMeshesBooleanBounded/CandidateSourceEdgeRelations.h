@@ -110,8 +110,10 @@ bool import_vertex_point(const canonical_manifold_vertex_record<T> &vertex,
   std::uint64_t scalar_base = 0;
   if (!checked_multiply<std::uint64_t>(vertex.canonical_id, std::uint64_t{2},
                                        semantic_vertex) ||
-      !checked_add<std::uint64_t>(semantic_vertex,
-                                  static_cast<std::uint64_t>(operand),
+       !checked_add<std::uint64_t>(semantic_vertex,
+                                   static_cast<std::uint64_t>(operand),
+                                   semantic_vertex) ||
+      !checked_add<std::uint64_t>(semantic_vertex, std::uint64_t{1},
                                   semantic_vertex) ||
       !checked_multiply<std::uint64_t>(semantic_vertex, std::uint64_t{4},
                                        scalar_base))

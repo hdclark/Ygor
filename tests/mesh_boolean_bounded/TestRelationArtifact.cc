@@ -169,6 +169,11 @@ struct relation_artifact_test_access final {
   }
 
   template <class T, class I>
+  static auto &coplanar_supports(signed_feature_relations<T, I> &artifact) {
+    return artifact.coplanar_supports_;
+  }
+
+  template <class T, class I>
   static auto &dispositions(signed_feature_relations<T, I> &artifact) {
     return artifact.candidate_dispositions_;
   }
@@ -296,6 +301,35 @@ built_fixture empty_fixture() {
   return broad_phase_tests::build(
       broad_phase_tests::box(),
       broad_phase_tests::box(4.0, 4.0, 4.0, 5.0, 5.0, 5.0));
+}
+
+void test_zero_ordinal_source_vertex_import() {
+  auto fixture = empty_fixture();
+  const auto &vertices = fixture.predecessor.manifolds->a()->vertices();
+  const auto vertex = std::find_if(vertices.begin(), vertices.end(), [](const auto &value) {
+    return value.canonical_id == 0;
+  });
+  require(vertex != vertices.end(),
+          "source-import regression requires canonical vertex zero");
+  bounded::bounded_point3<double> point;
+  require(bounded::candidate_source_edge_relation_detail::import_vertex_point(
+              *vertex, bounded::operand_id::a,
+              fixture.predecessor.context.owner, point),
+          "canonical vertex zero imports with nonzero bounded identities");
+  std::vector<const bounded::bounded_scalar<double> *> inputs;
+  for (const auto &component : point.coordinates.components) {
+    require(component.identity.value.ordinal() != 0,
+            "source-import bounded identity reserves the zero sentinel");
+    inputs.push_back(&component);
+  }
+  auto certificate = bounded::certify_construction_operation(
+      bounded::rounded_operation_code::source_import,
+      bounded::contract_versions::rounded_operation_graphs, point, inputs,
+      bounded::finite_interval<double>::singleton(1.0),
+      bounded::construction_category::exact_stored_coordinate_tie,
+      bounded::construction_tolerance_disposition::accepted, 1.0);
+  require(certificate.has_value(),
+          "canonical vertex zero produces a valid source-import certificate");
 }
 
 struct cancellation_observer_state final {
@@ -1370,7 +1404,80 @@ void test_matched_mutation_rejection() {
                   expected_arcs &&
               symbolic_artifact->statistics()
                       .coplanar_overlap_component_count == expected_components,
-          "coplanar topology is published as complete first-class artifact tables");
+           "coplanar topology is published as complete first-class artifact tables");
+
+  require(symbolic_artifact->coplanar_supports().size() ==
+              bounded::relation_artifact_test_access::coplanar_overlay_stage(
+                  *symbolic_artifact)->overlays.size() &&
+              symbolic_artifact->statistics().coplanar_support_count ==
+                  symbolic_artifact->coplanar_supports().size(),
+          "coplanar supports are published one-for-one with private overlays");
+  std::uint64_t coverage_count = 0;
+  for (const auto &support : symbolic_artifact->coplanar_supports()) {
+    require(support.support_lineage != 0 &&
+                support.support_facets[0].kind ==
+                    bounded::relation_feature_kind::source_facet &&
+                support.support_facets[1].kind ==
+                    bounded::relation_feature_kind::source_facet &&
+                !support.original_boundary_edges[0].empty() &&
+                !support.original_boundary_edges[1].empty() &&
+                support.complete_boundary_pair_coverage &&
+                support.complete_vertex_coverage &&
+                support.complete_boundary_partition_coverage &&
+                support.complete_event_lineage &&
+                support.complete_authorized_arc_coverage &&
+                support.complete_overlap_component_assembly &&
+                support.distinct_sheet_occurrences,
+            "coplanar support exposes complete normalized support and policy evidence");
+    coverage_count += support.partition_coverage.size();
+    for (const auto &coverage : support.partition_coverage)
+      require(coverage.source_edge.kind ==
+                      bounded::relation_feature_kind::source_edge &&
+                  coverage.breakpoint_count >= 2 &&
+                  coverage.complete_boundary_contact_set &&
+                  coverage.triangle_reconciliation_complete,
+              "coplanar partition coverage retains every original boundary edge");
+  }
+  require(coverage_count ==
+              symbolic_artifact->statistics()
+                  .coplanar_partition_coverage_count,
+          "coplanar partition coverage statistics reconstruct");
+  for (const auto &node_record : symbolic_artifact->coplanar_event_nodes())
+    for (const auto &occurrence : node_record.occurrences) {
+      require(occurrence.source_edge.kind ==
+                  bounded::relation_feature_kind::source_edge,
+              "coplanar node occurrence retains its original boundary edge");
+      if (occurrence.query_source_vertex_valid)
+        require(occurrence.endpoint_source_vertex.kind ==
+                        bounded::relation_feature_kind::source_vertex &&
+                    occurrence.endpoint_source_vertex.primary ==
+                        occurrence.query_source_vertex,
+                "coplanar endpoint retains source-vertex ownership");
+    }
+  for (const auto &arc_record : symbolic_artifact->coplanar_oriented_arcs()) {
+    require(arc_record.arc_lineage != 0 &&
+                arc_record.source_edge_count >= 1 &&
+                arc_record.source_edge_count <= 2,
+            "coplanar arc retains stable lineage and source-edge pair");
+    for (const auto &occurrence : arc_record.occurrences) {
+      require(occurrence.source_edge_lineage != 0,
+              "coplanar arc occurrence retains nonzero source-edge lineage");
+      for (std::size_t endpoint = 0; endpoint < 2; ++endpoint)
+        require(occurrence.endpoint_domains[endpoint] !=
+                        bounded::parameter_domain_status::invalid,
+                "coplanar arc endpoint retains bounded parameter evidence");
+    }
+  }
+  for (const auto &component_record :
+       symbolic_artifact->coplanar_overlap_components())
+    require(component_record.component_lineage != 0 &&
+                component_record.distinct_sheet_occurrences &&
+                component_record.zero_measure ==
+                    (component_record.kind ==
+                         bounded::relation_coplanar_component_kind::isolated_point ||
+                     component_record.kind ==
+                         bounded::relation_coplanar_component_kind::boundary_segment),
+            "coplanar component retains lineage, sheet policy, and measure class");
 
   auto topology_decode_fixture = symbolic_fixture();
   bounded::resource_manager topology_decode_resources(
@@ -1388,8 +1495,10 @@ void test_matched_mutation_rejection() {
                   expected_nodes &&
               (*topology_decoded.value())->coplanar_oriented_arcs().size() ==
                   expected_arcs &&
-              (*topology_decoded.value())->coplanar_overlap_components().size() ==
-                  expected_components,
+               (*topology_decoded.value())->coplanar_overlap_components().size() ==
+                   expected_components &&
+               (*topology_decoded.value())->coplanar_supports().size() ==
+                   symbolic_artifact->coplanar_supports().size(),
           "coplanar topology codec rebuilds identical first-class tables");
 
   auto node_mutation =
@@ -1421,7 +1530,28 @@ void test_matched_mutation_rejection() {
   bounded::relation_artifact_test_access::repair_codec(component_mutation);
   error = bounded_boolean_error{};
   require(!bounded::verify_signed_feature_relations(component_mutation, error),
-          "matched coplanar component mutation is independently rejected");
+           "matched coplanar component mutation is independently rejected");
+
+  auto support_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &support = bounded::relation_artifact_test_access::coplanar_supports(
+      support_mutation).front();
+  support.support_lineage = 0;
+  bounded::relation_artifact_test_access::repair_codec(support_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(support_mutation, error),
+          "matched coplanar support-lineage mutation is independently rejected");
+
+  auto parameter_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &parameter =
+      bounded::relation_artifact_test_access::coplanar_oriented_arcs(
+          parameter_mutation).front().occurrences.front();
+  parameter.endpoint_domains[0] = bounded::parameter_domain_status::invalid;
+  bounded::relation_artifact_test_access::repair_codec(parameter_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(parameter_mutation, error),
+          "matched coplanar endpoint-parameter mutation is independently rejected");
 
   auto symbolic_mutation =
       bounded::relation_artifact_test_access::copy(*symbolic_artifact);
@@ -2123,6 +2253,7 @@ void test_deterministic_cancellation_matrix() {
 
 int main() {
   try {
+    test_zero_ordinal_source_vertex_import();
     test_context_execution_is_nonsemantic();
     test_empty_artifact_and_decode();
     test_nonempty_determinism_and_decode();

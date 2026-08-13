@@ -139,6 +139,68 @@ inline relation_coplanar_component_kind final_coplanar_component_kind(
   return relation_coplanar_component_kind::isolated_point;
 }
 
+inline relation_coplanar_classification final_coplanar_classification(
+    coplanar_facet_overlay_class value) noexcept {
+  switch (value) {
+  case coplanar_facet_overlay_class::disjoint:
+    return relation_coplanar_classification::disjoint;
+  case coplanar_facet_overlay_class::point_contact:
+    return relation_coplanar_classification::point_contact;
+  case coplanar_facet_overlay_class::segment_contact:
+    return relation_coplanar_classification::segment_contact;
+  case coplanar_facet_overlay_class::area_overlap:
+    return relation_coplanar_classification::area_overlap;
+  case coplanar_facet_overlay_class::first_contains_second:
+    return relation_coplanar_classification::first_contains_second;
+  case coplanar_facet_overlay_class::second_contains_first:
+    return relation_coplanar_classification::second_contains_first;
+  case coplanar_facet_overlay_class::equal_same_orientation:
+    return relation_coplanar_classification::equal_same_orientation;
+  case coplanar_facet_overlay_class::equal_opposite_orientation:
+    return relation_coplanar_classification::equal_opposite_orientation;
+  }
+  return relation_coplanar_classification::disjoint;
+}
+
+inline relation_coplanar_orientation final_coplanar_orientation(
+    source_facet_support_relation_class value) noexcept {
+  return value == source_facet_support_relation_class::coplanar_same_orientation
+             ? relation_coplanar_orientation::same
+             : relation_coplanar_orientation::opposite;
+}
+
+inline std::uint64_t nonzero_lineage(std::uint8_t domain,
+                                     std::uint64_t ordinal) noexcept {
+  return (static_cast<std::uint64_t>(domain) << 56U) | (ordinal + 1U);
+}
+
+inline std::uint64_t semantic_lineage(canonical_writer writer) {
+  const auto digest = sha256::digest(writer.take());
+  std::uint64_t value = 0;
+  for (std::size_t i = 0; i < sizeof(value); ++i)
+    value = (value << 8U) | digest.bytes[i];
+  return value == 0 ? std::uint64_t{1} : value;
+}
+
+inline std::uint64_t support_semantic_lineage(
+    const relation_request_key &request, const relation_feature_key &first,
+    const relation_feature_key &second) {
+  canonical_writer writer;
+  writer.u8(1);
+  encode_relation_request_key(writer, request);
+  encode_relation_feature_key(writer, first);
+  encode_relation_feature_key(writer, second);
+  return semantic_lineage(std::move(writer));
+}
+
+inline std::uint64_t source_edge_semantic_lineage(
+    const relation_feature_key &edge) {
+  canonical_writer writer;
+  writer.u8(2);
+  encode_relation_feature_key(writer, edge);
+  return semantic_lineage(std::move(writer));
+}
+
 inline orientation_relation orientation_from_edge(
     source_edge_orientation_relation value) noexcept {
   switch (value) {
@@ -599,12 +661,13 @@ public:
           !check_cancel(error, relation_checkpoint::graph_finalization) ||
           !publish_imported_geometry(error) ||
           !check_cancel(error, relation_checkpoint::canonical_id_and_reference_remap) ||
-          !publish_relations(error) || !publish_family04_evidence(error) ||
-          !publish_constructions(error) || !publish_coplanar_topology(error) ||
+           !publish_relations(error) || !publish_family04_evidence(error) ||
+           !publish_constructions(error) ||
           !check_cancel(error, relation_checkpoint::crossing_multiplicity) ||
           !check_cancel(error, relation_checkpoint::symbolic_eligibility) ||
           !check_cancel(error, relation_checkpoint::symbolic_matrix_lookup) ||
-          !publish_symbolics_and_crossings(error) ||
+           !publish_symbolics_and_crossings(error) ||
+           !publish_coplanar_topology(error) ||
           !check_cancel(error, relation_checkpoint::event_seed_and_disposition_reconciliation) ||
            !publish_event_seeds(error) ||
            !publish_transverse_carrier_memberships(error) ||
@@ -636,6 +699,7 @@ public:
       artifact.coplanar_oriented_arcs_ = std::move(coplanar_oriented_arcs_);
       artifact.coplanar_overlap_components_ =
           std::move(coplanar_overlap_components_);
+      artifact.coplanar_supports_ = std::move(coplanar_supports_);
       artifact.symbolic_eligibility_ = std::move(eligibility_);
       artifact.symbolic_decisions_ = std::move(decisions_);
       artifact.crossings_ = std::move(crossings_);
@@ -2551,7 +2615,8 @@ private:
             add_symbolic_descriptor(
                 base, rule_key,
                 symbolic_relation_subject_kind::event_occurrence, occurrence,
-                occurrence, &authority_record.key, &multiplicity);
+                static_cast<std::uint32_t>(local_event), &authority_record.key,
+                &multiplicity);
           }
         }
         break;
@@ -3297,6 +3362,80 @@ private:
                     "Component 07 coplanar topology predecessor is incomplete",
                     relation_checkpoint::producer_verification);
 
+      relation_coplanar_support_record support;
+      support.id = relation_coplanar_support_id(coplanar_supports_.size());
+      support.overlay_relation = relation->second;
+      support.support_facets = {{source.facets[0].feature,
+                                 source.facets[1].feature}};
+      support.orientation = relation_artifact_assembly_detail::
+          final_coplanar_orientation(source.support_relation.classification);
+      support.classification = relation_artifact_assembly_detail::
+          final_coplanar_classification(source.classification);
+      support.material_sides = source.support_relation.material_sides;
+      support.support_lineage = relation_artifact_assembly_detail::
+          support_semantic_lineage(base.key, support.support_facets[0],
+                                   support.support_facets[1]);
+      support.original_boundary_edges[0] = source.facets[0].boundary_edges;
+      support.original_boundary_edges[1] = source.facets[1].boundary_edges;
+      if (!checked_add<std::uint64_t>(
+              nested_count, support.original_boundary_edges[0].size(),
+              nested_count) ||
+          !checked_add<std::uint64_t>(
+              nested_count, support.original_boundary_edges[1].size(),
+              nested_count) ||
+          !checked_add<std::uint64_t>(nested_count,
+                                      source.boundary_partitions.size(),
+                                      nested_count))
+        return fail(error, relation_subcode::work_limit,
+                    "Component 07 coplanar support nesting overflowed",
+                    relation_checkpoint::count_representability_preflight);
+      support.complete_boundary_pair_coverage =
+          source.complete_boundary_pair_coverage;
+      support.complete_vertex_coverage = source.complete_vertex_coverage;
+      support.complete_boundary_partition_coverage =
+          source.complete_boundary_partition_coverage;
+      support.complete_event_lineage = source.complete_event_lineage;
+      support.complete_authorized_arc_coverage =
+          source.complete_authorized_arc_coverage;
+      support.complete_overlap_component_assembly =
+          source.complete_overlap_component_assembly;
+      support.distinct_sheet_occurrences = source.distinct_sheet_occurrences;
+      support.zero_measure =
+          source.classification == coplanar_facet_overlay_class::disjoint ||
+          source.classification == coplanar_facet_overlay_class::point_contact ||
+          source.classification == coplanar_facet_overlay_class::segment_contact;
+      support.partition_coverage.reserve(source.boundary_partitions.size());
+      for (const auto &partition : source.boundary_partitions) {
+        if (partition.polygon > 1 ||
+            partition.edge_ordinal >=
+                source.facets[partition.polygon].boundary_edges.size())
+          return fail(error, relation_subcode::coplanar_overlay_invariant,
+                      "Component 07 coplanar partition coverage is malformed",
+                      relation_checkpoint::producer_verification);
+        relation_coplanar_partition_coverage_record coverage;
+        coverage.polygon = partition.polygon;
+        coverage.edge_ordinal = partition.edge_ordinal;
+        coverage.source_edge =
+            source.facets[partition.polygon].boundary_edges[partition.edge_ordinal];
+        coverage.breakpoint_count = partition.partition.breakpoints.size();
+        coverage.complete_boundary_contact_set =
+            partition.partition.complete_boundary_contact_set;
+        coverage.triangle_reconciliation_complete =
+            partition.partition.triangle_reconciliation_complete;
+        for (const auto &interval : partition.partition.intervals) {
+          if (interval.classification ==
+              source_facet_segment_interval_class::interior)
+            ++coverage.interior_interval_count;
+          else if (interval.classification ==
+                   source_facet_segment_interval_class::outside)
+            ++coverage.outside_interval_count;
+          else
+            ++coverage.original_edge_overlap_interval_count;
+        }
+        support.partition_coverage.push_back(std::move(coverage));
+      }
+      coplanar_supports_.push_back(std::move(support));
+
       std::vector<relation_coplanar_event_node_id> node_ids(
           source.event_nodes.size(), relation_coplanar_event_node_id(0));
       for (std::size_t local = 0; local < source.event_nodes.size(); ++local) {
@@ -3336,9 +3475,24 @@ private:
           published.polygon = occurrence.polygon;
           published.edge_ordinal = occurrence.edge_ordinal;
           published.breakpoint_ordinal = occurrence.breakpoint_ordinal;
+          if (occurrence.edge_ordinal >=
+              source.facets[occurrence.polygon].boundary_edges.size())
+            return fail(error, relation_subcode::coplanar_overlay_invariant,
+                        "Component 07 coplanar node source edge is absent",
+                        relation_checkpoint::producer_verification);
+          published.source_edge = source.facets[occurrence.polygon]
+                                      .boundary_edges[occurrence.edge_ordinal];
           published.query_source_vertex_valid =
               occurrence.query_source_vertex_valid;
           published.query_source_vertex = occurrence.query_source_vertex;
+          if (occurrence.query_source_vertex_valid) {
+            published.endpoint_source_vertex.operand =
+                source.facets[occurrence.polygon].feature.operand;
+            published.endpoint_source_vertex.kind =
+                relation_feature_kind::source_vertex;
+            published.endpoint_source_vertex.primary =
+                occurrence.query_source_vertex;
+          }
           published.event_lineages.reserve(occurrence.event_lineages.size());
           for (const auto &lineage : occurrence.event_lineages) {
             if (lineage.reserved8 != 0 || lineage.reserved16 != 0 ||
@@ -3346,8 +3500,26 @@ private:
               return fail(error, relation_subcode::coplanar_overlay_invariant,
                           "Component 07 coplanar event lineage is malformed",
                           relation_checkpoint::producer_verification);
+            relation_request_id source_request{0};
+            if (!coplanar_relation_overlay_detail::decode_contact_lineage(
+                    lineage.contact_lineage, source_request) ||
+                source_request.ordinal() >=
+                    edge_stage_->request_graph.requests.size())
+              return fail(error, relation_subcode::coplanar_overlay_invariant,
+                          "Component 07 coplanar contact request is malformed",
+                          relation_checkpoint::producer_verification);
+            const auto &source_key = edge_stage_->request_graph
+                                         .requests[source_request.ordinal()]
+                                         .key;
+            const auto *request = relation_artifact_assembly_detail::find_request(
+                graph_, source_key);
+            if (!request)
+              return fail(error, relation_subcode::missing_dependency,
+                          "Component 07 coplanar contact request is absent",
+                          relation_checkpoint::canonical_id_and_reference_remap);
             published.event_lineages.push_back(
-                {lineage.contact_lineage, lineage.endpoint_role, 0, 0});
+                {request->id, relation_stable_lineage(source_key, 5),
+                 lineage.endpoint_role, 0, 0});
           }
           record.sheet_mask = static_cast<std::uint8_t>(
               record.sheet_mask | (std::uint8_t{1} << occurrence.polygon));
@@ -3393,12 +3565,70 @@ private:
           published.interval_ordinal = occurrence.interval_ordinal;
           published.start_node = node_ids[occurrence.start_node];
           published.end_node = node_ids[occurrence.end_node];
+          if (occurrence.edge_ordinal >=
+              source.facets[occurrence.polygon].boundary_edges.size())
+            return fail(error, relation_subcode::coplanar_overlay_invariant,
+                        "Component 07 coplanar arc source edge is absent",
+                        relation_checkpoint::producer_verification);
+          published.source_edge = source.facets[occurrence.polygon]
+                                      .boundary_edges[occurrence.edge_ordinal];
+          published.source_edge_lineage =
+              relation_artifact_assembly_detail::source_edge_semantic_lineage(
+                  published.source_edge);
+          const auto partition_index =
+              (occurrence.polygon == 0
+                   ? std::uint64_t{0}
+                   : source.facets[0].boundary_edges.size()) +
+              occurrence.edge_ordinal;
+          if (partition_index >= source.boundary_partitions.size() ||
+              occurrence.interval_ordinal >=
+                  source.boundary_partitions[partition_index]
+                      .partition.intervals.size())
+            return fail(error, relation_subcode::coplanar_overlay_invariant,
+                        "Component 07 coplanar arc parameter evidence is absent",
+                        relation_checkpoint::producer_verification);
+          const auto &partition = source.boundary_partitions[partition_index];
+          const auto &interval =
+              partition.partition.intervals[occurrence.interval_ordinal];
+          const std::array<std::uint64_t, 2> endpoints{{
+              interval.left_breakpoint, interval.right_breakpoint}};
+          for (std::size_t endpoint = 0; endpoint < endpoints.size(); ++endpoint) {
+            if (endpoints[endpoint] >= partition.partition.breakpoints.size())
+              return fail(error, relation_subcode::coplanar_overlay_invariant,
+                          "Component 07 coplanar endpoint parameter is malformed",
+                          relation_checkpoint::producer_verification);
+            const auto &breakpoint =
+                partition.partition.breakpoints[endpoints[endpoint]];
+            published.endpoint_nominal_bits[endpoint] =
+                to_bits(breakpoint.rounded_parameter);
+            published.endpoint_lower_bits[endpoint] =
+                to_bits(breakpoint.parameter.lower());
+            published.endpoint_upper_bits[endpoint] =
+                to_bits(breakpoint.parameter.upper());
+            published.endpoint_domains[endpoint] =
+                breakpoint.segment_endpoint_mask == 0
+                    ? parameter_domain_status::stable_interior
+                    : parameter_domain_status::stable_endpoint;
+          }
           published.forward_along_source_edge =
               occurrence.forward_along_source_edge;
           record.sheet_mask = static_cast<std::uint8_t>(
               record.sheet_mask | (std::uint8_t{1} << occurrence.polygon));
           record.occurrences.push_back(published);
         }
+        std::vector<relation_feature_key> source_edges;
+        for (const auto &occurrence : record.occurrences)
+          source_edges.push_back(occurrence.source_edge);
+        std::sort(source_edges.begin(), source_edges.end());
+        source_edges.erase(std::unique(source_edges.begin(), source_edges.end()),
+                           source_edges.end());
+        if (source_edges.size() > record.source_edge_pair.size())
+          return fail(error, relation_subcode::coplanar_overlay_invariant,
+                      "Component 07 coplanar arc has more than two source edges",
+                      relation_checkpoint::producer_verification);
+        record.source_edge_count = static_cast<std::uint8_t>(source_edges.size());
+        for (std::size_t edge = 0; edge < source_edges.size(); ++edge)
+          record.source_edge_pair[edge] = source_edges[edge];
         record.overlap_lineages.reserve(arc.overlap_lineages.size());
         for (const auto lineage : arc.overlap_lineages) {
           if (lineage.ordinal() >= edge_stage_->request_graph.requests.size() ||
@@ -3415,6 +3645,25 @@ private:
                         "Component 07 coplanar arc lineage is absent from final graph",
                         relation_checkpoint::canonical_id_and_reference_remap);
           record.overlap_lineages.push_back(published->id);
+        }
+        {
+          canonical_writer writer;
+          writer.u8(3);
+          encode_relation_request_key(writer, base.key);
+          writer.u8(static_cast<std::uint8_t>(record.kind));
+          for (const auto &edge : source_edges)
+            encode_relation_feature_key(writer, edge);
+          writer.u64(record.overlap_lineages.size());
+          for (const auto lineage : record.overlap_lineages)
+            encode_relation_request_key(
+                writer, graph_.requests[lineage.ordinal()].key);
+          writer.u64(coplanar_event_nodes_[record.start_node.ordinal()]
+                         .representative.ordinal());
+          writer.u64(coplanar_event_nodes_[record.end_node.ordinal()]
+                         .representative.ordinal());
+          record.arc_lineage =
+              relation_artifact_assembly_detail::semantic_lineage(
+                  std::move(writer));
         }
         arc_ids[local] = record.id;
         coplanar_oriented_arcs_.push_back(std::move(record));
@@ -3436,6 +3685,20 @@ private:
         record.sheet_mask = component.sheet_mask;
         record.closed = component.closed;
         record.distinct_sheet_occurrences = source.distinct_sheet_occurrences;
+        record.zero_measure =
+            record.kind == relation_coplanar_component_kind::isolated_point ||
+            record.kind == relation_coplanar_component_kind::boundary_segment;
+        const auto decision = decision_ids_.find(std::make_tuple(
+            base.key, symbolic_relation_subject_kind::coplanar_component,
+            component.id, base.key.first.operand));
+        if (decision == decision_ids_.end())
+          return fail(error, relation_subcode::missing_dependency,
+                      "Component 07 coplanar component ownership is absent",
+                      relation_checkpoint::symbolic_matrix_lookup);
+        record.half_open_owner =
+            decisions_[decision->second.ordinal()].half_open_owner;
+        if (component.id == 0)
+          coplanar_supports_.back().half_open_owner = record.half_open_owner;
         record.node_ids.reserve(component.node_ids.size());
         for (const auto local_node : component.node_ids) {
           if (local_node >= node_ids.size() ||
@@ -3453,6 +3716,23 @@ private:
                         "Component 07 coplanar component arc is out of range",
                         relation_checkpoint::producer_verification);
           record.arc_ids.push_back(arc_ids[local_arc]);
+        }
+        {
+          canonical_writer writer;
+          writer.u8(4);
+          encode_relation_request_key(writer, base.key);
+          writer.u8(static_cast<std::uint8_t>(record.kind));
+          writer.u8(record.sheet_mask);
+          writer.u64(record.node_ids.size());
+          for (const auto node : record.node_ids)
+            writer.u64(coplanar_event_nodes_[node.ordinal()]
+                           .representative.ordinal());
+          writer.u64(record.arc_ids.size());
+          for (const auto arc_id : record.arc_ids)
+            writer.u64(coplanar_oriented_arcs_[arc_id.ordinal()].arc_lineage);
+          record.component_lineage =
+              relation_artifact_assembly_detail::semantic_lineage(
+                  std::move(writer));
         }
         coplanar_overlap_components_.push_back(std::move(record));
       }
@@ -3993,8 +4273,12 @@ private:
         actual_facets.erase(
             std::unique(actual_facets.begin(), actual_facets.end()),
             actual_facets.end());
-        complete = complete && count >= 2 &&
-                   actual_facets == expected_facets &&
+        // A pure tangent group carries zero crossing, so the fan need not be
+        // fully covered by boundary-crossing events; only true boundary
+        // crossings require complete facet coverage for conservation.
+        complete = complete &&
+                   (tangent_group ||
+                    (count >= 2 && actual_facets == expected_facets)) &&
                    boundary_crossing_group != tangent_group;
       }
       if (!complete)
@@ -4746,6 +5030,11 @@ private:
         artifact.coplanar_oriented_arcs_.size();
     artifact.statistics_.coplanar_overlap_component_count =
         artifact.coplanar_overlap_components_.size();
+    artifact.statistics_.coplanar_support_count =
+        artifact.coplanar_supports_.size();
+    for (const auto &support : artifact.coplanar_supports_)
+      artifact.statistics_.coplanar_partition_coverage_count +=
+          support.partition_coverage.size();
     artifact.statistics_.symbolic_eligibility_count =
         artifact.symbolic_eligibility_.size();
     artifact.statistics_.symbolic_decision_count =
@@ -4777,6 +5066,7 @@ private:
         artifact.coplanar_event_nodes_.size() +
         artifact.coplanar_oriented_arcs_.size() +
         artifact.coplanar_overlap_components_.size() +
+        artifact.coplanar_supports_.size() +
         artifact.symbolic_decisions_.size() + artifact.crossings_.size() +
         artifact.event_seeds_.size() +
         artifact.transverse_carrier_memberships_.size() +
@@ -4994,6 +5284,7 @@ private:
   std::vector<relation_coplanar_oriented_arc_record> coplanar_oriented_arcs_;
   std::vector<relation_coplanar_overlap_component_record>
       coplanar_overlap_components_;
+  std::vector<relation_coplanar_support_record> coplanar_supports_;
   std::vector<symbolic_eligibility_record> eligibility_;
   std::vector<symbolic_relation_decision_record> decisions_;
   std::vector<relation_crossing_record> crossings_;

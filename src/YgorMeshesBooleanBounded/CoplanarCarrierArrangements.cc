@@ -43,25 +43,43 @@ bool valid_candidate_id(candidate_id id) noexcept {
 bool valid_occurrence_id(event_occurrence_id id) noexcept {
   return id.ordinal() != intersection_invalid_ordinal;
 }
-bool valid_construction_id(relation_construction_id id) noexcept {
-  return id.ordinal() != intersection_invalid_ordinal;
-}
-bool valid_interval_id(relation_interval_evidence_id id) noexcept {
-  return id.ordinal() != intersection_invalid_ordinal;
+template <class T>
+bool valid_parameter_endpoints(
+    const std::array<std::uint64_t, 2> &nominal_bits,
+    const std::array<std::uint64_t, 2> &lower_bits,
+    const std::array<std::uint64_t, 2> &upper_bits,
+    const std::array<parameter_domain_status, 2> &domains) noexcept {
+  using bits_type = floating_uint_t<T>;
+  for (std::size_t endpoint = 0; endpoint < 2; ++endpoint) {
+    if (domains[endpoint] == parameter_domain_status::outside ||
+        domains[endpoint] == parameter_domain_status::invalid)
+      return false;
+    const T nominal = from_bits<T>(static_cast<bits_type>(nominal_bits[endpoint]));
+    const T lower = from_bits<T>(static_cast<bits_type>(lower_bits[endpoint]));
+    const T upper = from_bits<T>(static_cast<bits_type>(upper_bits[endpoint]));
+    if (!finite_bits(nominal) || !finite_bits(lower) || !finite_bits(upper) ||
+        lower > nominal || nominal > upper || lower < T(0) || upper > T(1))
+      return false;
+  }
+  const T first_lower =
+      from_bits<T>(static_cast<bits_type>(lower_bits[0]));
+  const T first_upper =
+      from_bits<T>(static_cast<bits_type>(upper_bits[0]));
+  const T second_lower =
+      from_bits<T>(static_cast<bits_type>(lower_bits[1]));
+  const T second_upper =
+      from_bits<T>(static_cast<bits_type>(upper_bits[1]));
+  return first_upper <= second_lower || second_upper <= first_lower;
 }
 
-template <class T>
-bool valid_parameter_interval(std::uint64_t lower_bits,
-                              std::uint64_t upper_bits,
-                              parameter_domain_status domain) noexcept {
-  if (domain == parameter_domain_status::outside ||
-      domain == parameter_domain_status::invalid)
-    return false;
-  using bits_type = floating_uint_t<T>;
-  const T lower = from_bits<T>(static_cast<bits_type>(lower_bits));
-  const T upper = from_bits<T>(static_cast<bits_type>(upper_bits));
-  return finite_bits(lower) && finite_bits(upper) && lower <= upper &&
-         lower >= T(0) && upper <= T(1);
+bool valid_partition_coverage(
+    const coplanar_partition_coverage_commitment &coverage) noexcept {
+  return valid_relation_feature_key(coverage.source_edge) &&
+         coverage.source_edge.kind == relation_feature_kind::source_edge &&
+         coverage.polygon <= 1 && coverage.breakpoint_count >= 2 &&
+         coverage.complete_boundary_contact_set &&
+         coverage.triangle_reconciliation_complete &&
+         coverage.reserved16 == 0 && coverage.reserved32 == 0;
 }
 
 bounded_boolean_digest support_semantic_digest(
@@ -179,6 +197,12 @@ bool build_impl(
                              "Component 08 coplanar support duplicates provenance");
       return false;
     }
+    if (!proposals.front().designated_authority) {
+      error = coplanar_error(
+          intersection_subcode::overlap_carrier_invalid,
+          "Component 08 coplanar authority is not canonical provenance");
+      return false;
+    }
 
     coplanar_support_record record;
     record.id = coplanar_support_id{tables.supports.size()};
@@ -240,24 +264,23 @@ bool build_impl(
       support_carriers;
   for (auto proposal : sorted_carriers) {
     if (!valid_collinear_overlap_carrier_key(proposal.key) ||
-        !valid_construction_id(proposal.first_parameter_interval) ||
-        !valid_construction_id(proposal.second_parameter_interval) ||
-        !valid_interval_id(proposal.first_parameter_evidence) ||
-        !valid_interval_id(proposal.second_parameter_evidence) ||
-        !valid_parameter_interval<T>(proposal.first_lower_bits,
-                                     proposal.first_upper_bits,
-                                     proposal.first_domain) ||
-        !valid_parameter_interval<T>(proposal.second_lower_bits,
-                                     proposal.second_upper_bits,
-                                     proposal.second_domain) ||
+        !valid_parameter_endpoints<T>(
+            proposal.first_nominal_bits, proposal.first_lower_bits,
+            proposal.first_upper_bits, proposal.first_domains) ||
+        !valid_parameter_endpoints<T>(
+            proposal.second_nominal_bits, proposal.second_lower_bits,
+            proposal.second_upper_bits, proposal.second_domains) ||
         !valid_occurrence_id(proposal.start_occurrence) ||
         !valid_occurrence_id(proposal.end_occurrence) ||
         !valid_intersection_occurrence_key(proposal.start_occurrence_key) ||
         !valid_intersection_occurrence_key(proposal.end_occurrence_key) ||
-        !valid_relation_feature_key(proposal.start_source_vertex) ||
-        !valid_relation_feature_key(proposal.end_source_vertex) ||
-        proposal.start_source_vertex.kind != relation_feature_kind::source_vertex ||
-        proposal.end_source_vertex.kind != relation_feature_kind::source_vertex ||
+        (proposal.source_vertices_valid &&
+         (!valid_relation_feature_key(proposal.start_source_vertex) ||
+          !valid_relation_feature_key(proposal.end_source_vertex) ||
+          proposal.start_source_vertex.kind !=
+              relation_feature_kind::source_vertex ||
+          proposal.end_source_vertex.kind !=
+              relation_feature_kind::source_vertex)) ||
         !valid_relation_id(proposal.relation) ||
         !valid_candidate_id(proposal.candidate) ||
         !proposal.first_original_source_edge ||
@@ -310,14 +333,19 @@ bool build_impl(
     collinear_overlap_carrier_record record;
     record.id = collinear_overlap_carrier_id{tables.carriers.size()};
     record.key = proposal.key;
-    record.first_parameter_interval = proposal.first_parameter_interval;
-    record.second_parameter_interval = proposal.second_parameter_interval;
-    record.first_parameter_evidence = proposal.first_parameter_evidence;
-    record.second_parameter_evidence = proposal.second_parameter_evidence;
+    record.first_nominal_bits = proposal.first_nominal_bits;
+    record.first_lower_bits = proposal.first_lower_bits;
+    record.first_upper_bits = proposal.first_upper_bits;
+    record.first_domains = proposal.first_domains;
+    record.second_nominal_bits = proposal.second_nominal_bits;
+    record.second_lower_bits = proposal.second_lower_bits;
+    record.second_upper_bits = proposal.second_upper_bits;
+    record.second_domains = proposal.second_domains;
     record.start_occurrence = proposal.start_occurrence;
     record.end_occurrence = proposal.end_occurrence;
     record.start_source_vertex = proposal.start_source_vertex;
     record.end_source_vertex = proposal.end_source_vertex;
+    record.source_vertices_valid = proposal.source_vertices_valid;
     record.symbolic_owner = proposal.key.symbolic_owner;
     record.half_open_first = proposal.half_open_first;
     record.half_open_second = proposal.half_open_second;
@@ -452,10 +480,8 @@ bool build_impl(
       region_proposals;
   std::sort(sorted_regions.begin(), sorted_regions.end(), [](const auto &a,
                                                              const auto &b) {
-    return std::tie(a.support, a.component, a.first_triangle,
-                    a.second_triangle, a.classification, a.sheet_mask) <
-           std::tie(b.support, b.component, b.first_triangle,
-                    b.second_triangle, b.classification, b.sheet_mask);
+    return std::tie(a.support, a.component, a.classification, a.sheet_mask) <
+           std::tie(b.support, b.component, b.classification, b.sheet_mask);
   });
   std::map<coplanar_support_id, std::vector<coplanar_region_incidence_id>>
       support_regions;
@@ -466,15 +492,10 @@ bool build_impl(
         !(proposal.component.support == proposal.support) ||
         proposal.first_facet != proposal.support.first_facet ||
         proposal.second_facet != proposal.support.second_facet ||
-        !valid_relation_feature_key(proposal.first_triangle) ||
-        !valid_relation_feature_key(proposal.second_triangle) ||
-        proposal.first_triangle.kind != relation_feature_kind::source_triangle ||
-        proposal.second_triangle.kind != relation_feature_kind::source_triangle ||
-        proposal.first_triangle.operand != proposal.first_facet.operand ||
-        proposal.second_triangle.operand != proposal.second_facet.operand ||
         proposal.symbolic_owner != proposal.support.symbolic_owner ||
         proposal.sheet_mask != proposal.component.sheet_mask ||
         proposal.boundary_events.empty() ||
+        proposal.partition_coverage.empty() ||
         !classification_matches(proposal.classification, proposal.relation_status) ||
         !proposal.coverage_complete ||
         !proposal.internal_diagonals_coverage_only ||
@@ -495,15 +516,56 @@ bool build_impl(
     std::sort(proposal.boundary_events.begin(), proposal.boundary_events.end());
     std::sort(proposal.boundary_carriers.begin(),
               proposal.boundary_carriers.end());
-    std::sort(proposal.coverage_witnesses.begin(),
-              proposal.coverage_witnesses.end());
-    for (const auto &witness : proposal.coverage_witnesses) {
-      if (!valid_relation_feature_key(witness) ||
-          (witness.kind != relation_feature_kind::source_triangle &&
-           witness.kind != relation_feature_kind::facet_internal_diagonal)) {
+    std::sort(proposal.partition_coverage.begin(),
+              proposal.partition_coverage.end(), [](const auto &a, const auto &b) {
+                return std::tie(a.polygon, a.edge_ordinal, a.source_edge) <
+                       std::tie(b.polygon, b.edge_ordinal, b.source_edge);
+              });
+    if (std::adjacent_find(
+            proposal.partition_coverage.begin(),
+            proposal.partition_coverage.end(), [](const auto &a, const auto &b) {
+              return a.polygon == b.polygon &&
+                     a.edge_ordinal == b.edge_ordinal;
+            }) != proposal.partition_coverage.end()) {
+      error = coplanar_error(
+          intersection_subcode::overlap_carrier_invalid,
+          "Component 08 coplanar partition commitment is duplicated");
+      return false;
+    }
+    for (const auto &coverage : proposal.partition_coverage) {
+      if (!valid_partition_coverage(coverage) ||
+          coverage.source_edge.operand !=
+              (coverage.polygon == 0 ? proposal.first_facet.operand
+                                     : proposal.second_facet.operand)) {
         error = coplanar_error(
             intersection_subcode::overlap_carrier_invalid,
-            "Component 08 coplanar coverage witness is invalid");
+            "Component 08 coplanar partition commitment is invalid");
+        return false;
+      }
+    }
+    std::array<std::uint64_t, 2> expected_edge_counts{};
+    const auto &support_record = tables.supports[support_it->second.ordinal()];
+    for (std::uint64_t offset = 0;
+         offset < support_record.original_boundary_edges.count; ++offset) {
+      const auto &edge = tables.support_original_boundary_edge_index[
+          support_record.original_boundary_edges.begin + offset];
+      const auto polygon = edge.operand == proposal.first_facet.operand ? 0U : 1U;
+      ++expected_edge_counts[polygon];
+    }
+    if (proposal.partition_coverage.size() !=
+        expected_edge_counts[0] + expected_edge_counts[1]) {
+      error = coplanar_error(
+          intersection_subcode::overlap_carrier_invalid,
+          "Component 08 coplanar partition coverage is not exhaustive");
+      return false;
+    }
+    std::array<std::uint64_t, 2> next_ordinal{};
+    for (const auto &coverage : proposal.partition_coverage) {
+      if (coverage.edge_ordinal != next_ordinal[coverage.polygon]++ ||
+          coverage.edge_ordinal >= expected_edge_counts[coverage.polygon]) {
+        error = coplanar_error(
+            intersection_subcode::overlap_carrier_invalid,
+            "Component 08 coplanar partition ordinals are not exhaustive");
         return false;
       }
     }
@@ -513,8 +575,6 @@ bool build_impl(
     record.support = support_it->second;
     record.first_facet = proposal.first_facet;
     record.second_facet = proposal.second_facet;
-    record.first_triangle = proposal.first_triangle;
-    record.second_triangle = proposal.second_triangle;
     record.component = overlap_it->second;
     record.component_lineage = proposal.component.component_lineage;
     record.classification = proposal.classification;
@@ -541,12 +601,12 @@ bool build_impl(
       tables.region_boundary_carrier_index.push_back(carrier->second);
     }
     record.boundary_carriers.count = proposal.boundary_carriers.size();
-    record.coverage_witnesses.begin =
-        tables.region_coverage_witness_index.size();
-    tables.region_coverage_witness_index.insert(
-        tables.region_coverage_witness_index.end(),
-        proposal.coverage_witnesses.begin(), proposal.coverage_witnesses.end());
-    record.coverage_witnesses.count = proposal.coverage_witnesses.size();
+    record.partition_coverage.begin =
+        tables.region_partition_coverage_index.size();
+    tables.region_partition_coverage_index.insert(
+        tables.region_partition_coverage_index.end(),
+        proposal.partition_coverage.begin(), proposal.partition_coverage.end());
+    record.partition_coverage.count = proposal.partition_coverage.size();
     record.source_facet_semantic_digest = proposal.source_facet_semantic_digest;
     support_regions[record.support].push_back(record.id);
     tables.regions.push_back(record);
@@ -635,14 +695,21 @@ void encode_tables(canonical_writer &writer,
   for (const auto &record : tables.carriers) {
     writer.u64(record.id.ordinal());
     encode_collinear_overlap_carrier_key(writer, record.key);
-    writer.u64(record.first_parameter_interval.ordinal());
-    writer.u64(record.second_parameter_interval.ordinal());
-    writer.u64(record.first_parameter_evidence.ordinal());
-    writer.u64(record.second_parameter_evidence.ordinal());
+    for (const auto value : record.first_nominal_bits) writer.u64(value);
+    for (const auto value : record.first_lower_bits) writer.u64(value);
+    for (const auto value : record.first_upper_bits) writer.u64(value);
+    for (const auto value : record.first_domains)
+      writer.u8(static_cast<std::uint8_t>(value));
+    for (const auto value : record.second_nominal_bits) writer.u64(value);
+    for (const auto value : record.second_lower_bits) writer.u64(value);
+    for (const auto value : record.second_upper_bits) writer.u64(value);
+    for (const auto value : record.second_domains)
+      writer.u8(static_cast<std::uint8_t>(value));
     writer.u64(record.start_occurrence.ordinal());
     writer.u64(record.end_occurrence.ordinal());
     encode_relation_feature_key(writer, record.start_source_vertex);
     encode_relation_feature_key(writer, record.end_source_vertex);
+    writer.boolean(record.source_vertices_valid);
     writer.boolean(record.half_open_first);
     writer.boolean(record.half_open_second);
     writer.boolean(record.separate_sheet_required);
@@ -692,15 +759,24 @@ void encode_tables(canonical_writer &writer,
     writer.u64(record.boundary_events.count);
     writer.u64(record.boundary_carriers.begin);
     writer.u64(record.boundary_carriers.count);
-    writer.u64(record.coverage_witnesses.begin);
-    writer.u64(record.coverage_witnesses.count);
+    writer.u64(record.partition_coverage.begin);
+    writer.u64(record.partition_coverage.count);
     write_digest(writer, record.source_facet_semantic_digest);
   }
   ids(tables.region_boundary_event_index);
   ids(tables.region_boundary_carrier_index);
-  writer.u64(tables.region_coverage_witness_index.size());
-  for (const auto &feature : tables.region_coverage_witness_index)
-    encode_relation_feature_key(writer, feature);
+  writer.u64(tables.region_partition_coverage_index.size());
+  for (const auto &coverage : tables.region_partition_coverage_index) {
+    encode_relation_feature_key(writer, coverage.source_edge);
+    writer.u8(coverage.polygon);
+    writer.u64(coverage.edge_ordinal);
+    writer.u64(coverage.breakpoint_count);
+    writer.u64(coverage.interior_interval_count);
+    writer.u64(coverage.outside_interval_count);
+    writer.u64(coverage.original_edge_overlap_interval_count);
+    writer.boolean(coverage.complete_boundary_contact_set);
+    writer.boolean(coverage.triangle_reconciliation_complete);
+  }
 }
 
 } // namespace

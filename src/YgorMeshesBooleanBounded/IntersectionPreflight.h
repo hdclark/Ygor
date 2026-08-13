@@ -20,6 +20,11 @@ struct intersection_preflight_plan final {
   std::uint64_t source_edge_domain_count = 0;
   std::uint64_t source_triangle_count = 0;
   std::uint64_t ordering_certificate_count = 0;
+  std::uint64_t coplanar_support_count = 0;
+  std::uint64_t collinear_carrier_count = 0;
+  std::uint64_t coplanar_component_count = 0;
+  std::uint64_t coplanar_region_count = 0;
+  std::uint64_t coplanar_nested_index_count = 0;
   std::uint64_t canonical_byte_bound = 0;
 };
 
@@ -146,11 +151,41 @@ bool preflight_intersection_events(
              "Component 08 carrier count overflowed"))
       return false;
   }
-  plan.estimate.overlap_count =
-      static_cast<std::uint64_t>(relations.coplanar_overlap_components().size());
-  if (!add(static_cast<std::uint64_t>(relations.coplanar_oriented_arcs().size()),
-           plan.estimate.overlap_count,
-           "Component 08 overlap count overflowed"))
+  plan.coplanar_support_count = relations.coplanar_supports().size();
+  plan.coplanar_component_count =
+      relations.coplanar_overlap_components().size();
+  plan.coplanar_region_count = plan.coplanar_component_count;
+  for (const auto &arc : relations.coplanar_oriented_arcs())
+    if (arc.kind == relation_coplanar_arc_kind::shared_boundary &&
+        !add(1, plan.collinear_carrier_count,
+             "Component 08 collinear-carrier count overflowed"))
+      return false;
+  for (const auto &support : relations.coplanar_supports()) {
+    if (!add(support.partition_coverage.size(),
+             plan.coplanar_nested_index_count,
+             "Component 08 coplanar nested-index count overflowed"))
+      return false;
+    for (const auto &edges : support.original_boundary_edges)
+      if (!add(edges.size(), plan.coplanar_nested_index_count,
+               "Component 08 coplanar nested-index count overflowed"))
+        return false;
+  }
+  for (const auto &component : relations.coplanar_overlap_components())
+    if (!add(component.node_ids.size(), plan.coplanar_nested_index_count,
+             "Component 08 coplanar nested-index count overflowed") ||
+        !add(component.arc_ids.size(), plan.coplanar_nested_index_count,
+             "Component 08 coplanar nested-index count overflowed"))
+      return false;
+  if (!add(plan.coplanar_support_count, plan.estimate.carrier_count,
+            "Component 08 support count overflowed") ||
+      !add(plan.collinear_carrier_count, plan.estimate.carrier_count,
+            "Component 08 carrier count overflowed"))
+    return false;
+  plan.estimate.overlap_count = plan.collinear_carrier_count;
+  if (!add(plan.coplanar_component_count, plan.estimate.overlap_count,
+           "Component 08 overlap count overflowed") ||
+      !add(plan.coplanar_region_count, plan.estimate.overlap_count,
+           "Component 08 region count overflowed"))
     return false;
 
   plan.estimate.aggregate_count = plan.estimate.incidence_count;
@@ -237,12 +272,22 @@ bool preflight_intersection_events(
                           sizeof(carrier_cluster_record) +
                           sizeof(carrier_active_span_record),
                       "Component 08 carrier byte estimate overflowed") ||
-      !add_persistent(plan.estimate.overlap_count,
-                      sizeof(coplanar_support_record) +
-                          sizeof(collinear_overlap_carrier_record) +
-                          sizeof(coplanar_overlap_record) +
-                          sizeof(coplanar_region_incidence_record),
-                      "Component 08 overlap byte estimate overflowed") ||
+      !add_persistent(plan.coplanar_support_count,
+                       sizeof(coplanar_support_record),
+                       "Component 08 support byte estimate overflowed") ||
+      !add_persistent(plan.collinear_carrier_count,
+                       sizeof(collinear_overlap_carrier_record),
+                       "Component 08 collinear carrier byte estimate overflowed") ||
+      !add_persistent(plan.coplanar_component_count,
+                       sizeof(coplanar_overlap_record),
+                       "Component 08 component byte estimate overflowed") ||
+      !add_persistent(plan.coplanar_region_count,
+                       sizeof(coplanar_region_incidence_record),
+                       "Component 08 overlap byte estimate overflowed") ||
+      !add_persistent(plan.coplanar_nested_index_count,
+                       sizeof(coplanar_partition_coverage_commitment) +
+                           sizeof(std::uint64_t),
+                       "Component 08 coplanar nested-index byte estimate overflowed") ||
       !add_persistent(plan.estimate.aggregate_count,
                       sizeof(crossing_aggregate_record) +
                           sizeof(contact_aggregate_record),

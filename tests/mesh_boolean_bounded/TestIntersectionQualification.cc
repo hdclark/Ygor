@@ -2,6 +2,7 @@
 #include "qualification/ExactFloatImport.h"
 
 #include "YgorMeshesBooleanBounded/CanonicalBytes.h"
+#include "YgorMeshesBooleanBounded/CoplanarRelationAdapter.h"
 #include "YgorMeshesBooleanBounded/FloatingBits.h"
 #include "YgorMeshesBooleanBounded/EventIncidence.h"
 #include "YgorMeshesBooleanBounded/EventInterning.h"
@@ -39,6 +40,13 @@ struct relation_artifact_test_access final {
       if (construction.kind == relation_construction_kind::bounded_carrier)
         construction.geometric_lineage = 0;
   }
+
+  template <class T, class I>
+  static void invalidate_coplanar_coverage(
+      signed_feature_relations<T, I> &artifact) {
+    if (!artifact.coplanar_supports_.empty())
+      artifact.coplanar_supports_.front().complete_event_lineage = false;
+  }
 };
 
 } // namespace ygor::mesh_boolean::bounded
@@ -63,7 +71,33 @@ build_relations(broad_phase_tests::built_fixture &fixture) {
   auto outcome = bounded::build_signed_feature_relations(
       fixture.predecessor.context, *fixture.predecessor.precision,
       fixture.artifact, capabilities);
-  require(outcome.has_value(), "Component 08 qualification relation build failed");
+  if (!outcome.has_value()) {
+    std::string message =
+        std::string("Component 08 qualification relation build failed: ") +
+        outcome.error()->summary + " subcode=" +
+        std::to_string(outcome.error()->subcode) + " checkpoint=" +
+        std::to_string(outcome.error()->checkpoint);
+    for (std::size_t i = 0; i < outcome.error()->witness_count; ++i)
+      message += " witness[" + std::to_string(i) + "]=" +
+                 std::to_string(outcome.error()->witnesses[i]);
+    bounded::relation_preflight_plan plan;
+    bounded_boolean_error preflight_error;
+    if (bounded::preflight_relation_foundation(
+            *fixture.artifact, capabilities, plan, preflight_error))
+      message += " candidates=" + std::to_string(plan.candidate_count) +
+                 " initial_requests=" +
+                 std::to_string(plan.initial_request_upper_bound) +
+                 " requests=" + std::to_string(plan.request_upper_bound) +
+                 " dependencies=" +
+                 std::to_string(plan.dependency_upper_bound) +
+                 " intervals=" +
+                 std::to_string(plan.interval_evidence_upper_bound) +
+                 " persistent=" +
+                 std::to_string(plan.fixed_persistent_bytes) + " temporary=" +
+                 std::to_string(plan.fixed_temporary_bytes) + " work=" +
+                 std::to_string(plan.fixed_work_units);
+    throw std::runtime_error(message);
+  }
   return *outcome.value();
 }
 
@@ -94,6 +128,23 @@ stage_fixture transverse_stage_fixture(
   fixture.relations = build_relations(fixture.broad);
   require(!fixture.relations->event_seeds().empty(),
           "transverse Component 08 fixture lacks event lineage");
+  return fixture;
+}
+
+stage_fixture coplanar_stage_fixture(
+    bounded_execution_mode mode = bounded_execution_mode::serial_v1,
+    std::uint32_t workers = 1) {
+  stage_fixture fixture;
+  fixture.broad = broad_phase_tests::build(
+      broad_phase_tests::box(),
+      broad_phase_tests::box(1.0, 0.0, 0.0, 2.0, 1.0, 1.0),
+      bounded::source_triangulation_provider_kind::indexed_dependency_v1, true,
+      mode, workers);
+  fixture.relations = build_relations(fixture.broad);
+  require(!fixture.relations->coplanar_supports().empty() &&
+              !fixture.relations->coplanar_event_nodes().empty() &&
+              !fixture.relations->coplanar_overlap_components().empty(),
+          "coplanar Component 08 fixture lacks public handoff lineage");
   return fixture;
 }
 
@@ -912,6 +963,190 @@ void test_execution_determinism_and_fail_closed_gate() {
       resources, "fail-closed transverse lineage handoff leaked resources");
 }
 
+void test_coplanar_adapter_and_full_stage() {
+  std::vector<std::shared_ptr<const artifact_type>> artifacts;
+  for (const auto &setting :
+       std::array<std::pair<bounded_execution_mode, std::uint32_t>, 4>{{
+           {bounded_execution_mode::serial_v1, 1},
+           {bounded_execution_mode::deterministic_parallel_v1, 1},
+           {bounded_execution_mode::deterministic_parallel_v1, 2},
+           {bounded_execution_mode::deterministic_parallel_v1, 8},
+       }}) {
+    const auto fixture = coplanar_stage_fixture(setting.first, setting.second);
+    bounded::resource_manager resources(resource_policy::conservative_defaults());
+    artifacts.push_back(build_stage(
+        fixture, resources, stage_capabilities(fixture, resources)));
+  }
+  for (std::size_t i = 1; i < artifacts.size(); ++i)
+    require(artifacts[i]->canonical_bytes() == artifacts.front()->canonical_bytes() &&
+                artifacts[i]->digest() == artifacts.front()->digest(),
+            "coplanar Component 08 execution mode changed canonical output");
+  require(!artifacts.front()->coplanar_supports().empty() &&
+              !artifacts.front()->overlap_carriers().empty() &&
+              !artifacts.front()->coplanar_overlaps().empty() &&
+              !artifacts.front()->coplanar_region_incidence().empty(),
+           "nonempty Component 08 stage omitted coplanar support/component/region records");
+  bool opposite_direction = false;
+  for (const auto &carrier : artifacts.front()->overlap_carriers()) {
+    require(carrier.key.first_edge.kind ==
+                    bounded::relation_feature_kind::source_edge &&
+                carrier.key.second_edge.kind ==
+                    bounded::relation_feature_kind::source_edge &&
+                carrier.key.first_edge.operand != carrier.key.second_edge.operand &&
+                carrier.parameter_correspondence_verified &&
+                (carrier.zero_length ||
+                 carrier.start_occurrence != carrier.end_occurrence) &&
+                !(carrier.half_open_first && carrier.half_open_second),
+            "full-stage collinear carrier key/ownership is malformed");
+    opposite_direction = opposite_direction || carrier.key.opposite_direction;
+  }
+  require(opposite_direction,
+          "full-stage collinear fixture lacks opposite-direction ownership");
+
+  const auto fixture = coplanar_stage_fixture();
+  const bounded::signed_feature_relations_view<double, std::uint32_t> view(
+      *fixture.relations, fixture.relations->owner());
+  std::vector<bounded::normalized_event_seed_proposal> normalized;
+  bounded::event_interning_tables interning;
+  bounded_boolean_error error;
+  require(bounded::normalize_event_seed_records(
+              fixture.relations->event_seeds(),
+              fixture.relations->constructions(), normalized, error) &&
+              bounded::intern_normalized_event_seeds(normalized, interning, error),
+          "coplanar adapter fixture failed event interning");
+  std::vector<bounded::coplanar_support_proposal> supports;
+  std::vector<bounded::collinear_overlap_carrier_proposal> carriers;
+  std::vector<bounded::coplanar_overlap_component_proposal> components;
+  std::vector<bounded::coplanar_region_incidence_proposal> regions;
+  require(bounded::collect_component07_coplanar_arrangement_proposals(
+              view, interning, supports, carriers, components, regions, error) &&
+              !supports.empty() && !carriers.empty() && !components.empty() &&
+                  !regions.empty(),
+           "Component 07 public coplanar handoff did not adapt");
+  for (const auto &carrier : carriers) {
+    const auto first_start = qualification::import_exact(
+        bounded::from_bits<double>(carrier.first_nominal_bits[0]));
+    const auto first_end = qualification::import_exact(
+        bounded::from_bits<double>(carrier.first_nominal_bits[1]));
+    const auto second_start = qualification::import_exact(
+        bounded::from_bits<double>(carrier.second_nominal_bits[0]));
+    const auto second_end = qualification::import_exact(
+        bounded::from_bits<double>(carrier.second_nominal_bits[1]));
+    const auto first_order = first_start.value.compare(first_end.value);
+    const auto second_order = second_start.value.compare(second_end.value);
+    require(carrier.parameter_correspondence_verified &&
+                (carrier.exact_zero_length !=
+                 carrier.definitely_positive_length) &&
+                (carrier.exact_zero_length
+                     ? first_order == 0 && second_order == 0
+                     : first_order != 0 && second_order != 0) &&
+                (carrier.key.opposite_direction
+                     ? first_order == -second_order
+                     : first_order == second_order) &&
+                carrier.start_occurrence_key ==
+                    interning.occurrences[carrier.start_occurrence.ordinal()].key &&
+                carrier.end_occurrence_key ==
+                    interning.occurrences[carrier.end_occurrence.ordinal()].key,
+            "coplanar adapter omitted exact endpoint correspondence evidence");
+  }
+  auto permuted_supports = supports;
+  auto permuted_carriers = carriers;
+  auto permuted_components = components;
+  auto permuted_regions = regions;
+  std::reverse(permuted_supports.begin(), permuted_supports.end());
+  std::reverse(permuted_carriers.begin(), permuted_carriers.end());
+  std::reverse(permuted_components.begin(), permuted_components.end());
+  std::reverse(permuted_regions.begin(), permuted_regions.end());
+  require(bounded::verify_component07_coplanar_arrangement_proposals(
+              view, interning, permuted_supports, permuted_carriers,
+              permuted_components, permuted_regions, error),
+          "coplanar adapter verification is proposal-order dependent");
+  auto mutated_regions = regions;
+  mutated_regions.front().partition_coverage.front().breakpoint_count += 1;
+  require(!bounded::verify_component07_coplanar_arrangement_proposals(
+              view, interning, supports, carriers, components, mutated_regions,
+              error) &&
+              error.subcode == static_cast<std::uint32_t>(
+                  bounded::intersection_subcode::verifier_rejection),
+           "coplanar adapter verifier accepted mutated partition coverage");
+  if (!carriers.empty()) {
+    const auto rejected_carrier = [&](auto mutation, const char *message) {
+      auto mutated = carriers;
+      mutation(mutated.front());
+      require(!bounded::verify_component07_coplanar_arrangement_proposals(
+                  view, interning, supports, mutated, components, regions,
+                  error),
+              message);
+    };
+    rejected_carrier(
+        [](auto &carrier) {
+          carrier.key.opposite_direction = !carrier.key.opposite_direction;
+        },
+        "coplanar adapter verifier accepted mutated direction");
+    rejected_carrier(
+        [](auto &carrier) { carrier.first_lower_bits[0] ^= 1U; },
+        "coplanar adapter verifier accepted mutated endpoint bounds");
+    rejected_carrier(
+        [](auto &carrier) {
+          carrier.half_open_first = !carrier.half_open_first;
+        },
+        "coplanar adapter verifier accepted mutated half-open owner");
+    rejected_carrier(
+        [](auto &carrier) { ++carrier.key.first_edge.primary; },
+        "coplanar adapter verifier accepted mutated source edge");
+    rejected_carrier(
+        [](auto &carrier) { ++carrier.key.overlap_lineage; },
+        "coplanar adapter verifier accepted mutated overlap lineage");
+    rejected_carrier(
+        [](auto &carrier) {
+          carrier.exact_zero_length = !carrier.exact_zero_length;
+          carrier.definitely_positive_length =
+              !carrier.definitely_positive_length;
+        },
+        "coplanar adapter verifier accepted mutated length evidence");
+  }
+  auto mutated_supports = supports;
+  mutated_supports.front().designated_authority =
+      !mutated_supports.front().designated_authority;
+  require(!bounded::verify_component07_coplanar_arrangement_proposals(
+              view, interning, mutated_supports, carriers, components, regions,
+              error),
+          "coplanar adapter verifier accepted mutated authority");
+  mutated_regions = regions;
+  mutated_regions.front().classification =
+      bounded::coplanar_region_classification::point_contact;
+  require(!bounded::verify_component07_coplanar_arrangement_proposals(
+              view, interning, supports, carriers, components, mutated_regions,
+              error),
+          "coplanar adapter verifier accepted mutated classification");
+  mutated_regions = regions;
+  mutated_regions.front().source_facet_semantic_digest.bytes[0] ^= 1U;
+  require(!bounded::verify_component07_coplanar_arrangement_proposals(
+              view, interning, supports, carriers, components, mutated_regions,
+              error),
+          "coplanar adapter verifier accepted mutated semantic digest");
+  mutated_regions = regions;
+  mutated_regions.front().partition_coverage.pop_back();
+  require(!bounded::verify_component07_coplanar_arrangement_proposals(
+              view, interning, supports, carriers, components, mutated_regions,
+              error),
+          "coplanar adapter verifier accepted deleted partition coverage");
+
+  auto malformed = std::make_shared<relation_type>(*fixture.relations);
+  bounded::relation_artifact_test_access::invalidate_coplanar_coverage(*malformed);
+  std::shared_ptr<const relation_type> malformed_input = malformed;
+  bounded::resource_manager resources(resource_policy::conservative_defaults());
+  auto rejected = bounded::build_canonical_intersection_complex(
+      fixture.broad.predecessor.context, *fixture.broad.predecessor.precision,
+      malformed_input, stage_capabilities(fixture, resources));
+  require(!rejected.has_value() &&
+              rejected.error()->checkpoint == static_cast<std::uint32_t>(
+                  bounded::intersection_checkpoint::coplanar_carriers),
+          "incomplete public coplanar handoff did not fail closed");
+  require_no_live_resources(resources,
+                            "coplanar adapter rejection leaked resources");
+}
+
 std::uint64_t arrangement_storage_bytes(
     const bounded::source_edge_arrangement_tables &tables) {
   return sizeof(tables) +
@@ -1000,6 +1235,7 @@ int main(int argc, char **argv) {
     if (suite == "all" || suite == "concurrency") {
       test_nonempty_transverse_stage_publishes();
       test_execution_determinism_and_fail_closed_gate();
+      test_coplanar_adapter_and_full_stage();
     }
     if (suite == "all" || suite == "structural")
       test_structural_performance();

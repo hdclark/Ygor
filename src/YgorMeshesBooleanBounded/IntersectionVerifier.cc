@@ -5,6 +5,7 @@
 #include "EventIncidence.h"
 #include "EventInterning.h"
 #include "EventNormalization.h"
+#include "FloatingBits.h"
 #include "IntersectionAggregation.h"
 #include "IntersectionDescriptors.h"
 #include "Sha256.h"
@@ -15,6 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <limits>
+#include <map>
 #include <utility>
 #include <vector>
 
@@ -364,8 +366,8 @@ coplanar_carrier_arrangement_tables project_coplanar(const Artifact &artifact) {
       artifact.coplanar_region_boundary_event_index();
   out.region_boundary_carrier_index =
       artifact.coplanar_region_boundary_carrier_index();
-  out.region_coverage_witness_index =
-      artifact.coplanar_region_coverage_witness_index();
+  out.region_partition_coverage_index =
+      artifact.coplanar_region_partition_coverage_index();
   return out;
 }
 
@@ -1094,8 +1096,24 @@ bool audit_coplanar(
   const auto relation_count = relations.relations().size();
   const auto candidate_count = relations.candidate_dispositions().size();
   const auto component_count = relations.coplanar_overlap_components().size();
+  std::map<std::uint64_t, const relation_coplanar_support_record *>
+      predecessor_supports;
+  for (const auto &support : relations.coplanar_supports())
+    if (!predecessor_supports.emplace(support.support_lineage, &support).second) {
+      error = verifier_error(intersection_subcode::overlap_carrier_invalid,
+                             "Component 08 predecessor support lineage collides");
+      return false;
+    }
   for (const auto &support : artifact.coplanar_supports()) {
+    const auto predecessor = predecessor_supports.find(support.support_lineage);
     if (!valid_coplanar_support_key(support.key) ||
+        predecessor == predecessor_supports.end() ||
+        predecessor->second->support_facets[0] != support.first_facet ||
+        predecessor->second->support_facets[1] != support.second_facet ||
+        (predecessor->second->orientation ==
+             relation_coplanar_orientation::opposite) !=
+            support.opposite_orientation ||
+        predecessor->second->half_open_owner != support.symbolic_owner ||
         support.key.first_facet != support.first_facet ||
         support.key.second_facet != support.second_facet ||
         support.key.support_lineage != support.support_lineage ||
@@ -1143,15 +1161,23 @@ bool audit_coplanar(
   }
 
   for (const auto &carrier : artifact.overlap_carriers()) {
+    const relation_coplanar_oriented_arc_record *arc = nullptr;
+    for (const auto &candidate : relations.coplanar_oriented_arcs())
+      if (candidate.arc_lineage == carrier.key.overlap_lineage) {
+        if (arc) {
+          error = verifier_error(intersection_subcode::overlap_carrier_invalid,
+                                 "Component 08 predecessor arc lineage collides");
+          return false;
+        }
+        arc = &candidate;
+      }
     if (!valid_collinear_overlap_carrier_key(carrier.key) ||
+        !arc || arc->kind != relation_coplanar_arc_kind::shared_boundary ||
+        arc->occurrences.size() != 2 ||
         carrier.key.first_edge.kind != relation_feature_kind::source_edge ||
         carrier.key.second_edge.kind != relation_feature_kind::source_edge ||
         carrier.start_occurrence.ordinal() >= artifact.occurrences().size() ||
         carrier.end_occurrence.ordinal() >= artifact.occurrences().size() ||
-        carrier.first_parameter_evidence.ordinal() >=
-            relations.interval_evidence().size() ||
-        carrier.second_parameter_evidence.ordinal() >=
-            relations.interval_evidence().size() ||
         carrier.symbolic_owner != carrier.key.symbolic_owner ||
         !carrier.parameter_correspondence_verified ||
         carrier.schema_version != contract_versions::intersection_overlap_schema ||
@@ -1164,6 +1190,69 @@ bool audit_coplanar(
         !valid_range(carrier.descriptors, artifact.descriptors().size())) {
       error = verifier_error(intersection_subcode::overlap_carrier_invalid,
                              "Component 08 verifier rejected overlap carrier");
+      return false;
+    }
+    const relation_coplanar_arc_occurrence_record *first = nullptr;
+    const relation_coplanar_arc_occurrence_record *second = nullptr;
+    for (const auto &occurrence : arc->occurrences) {
+      if (occurrence.source_edge == carrier.key.first_edge)
+        first = &occurrence;
+      if (occurrence.source_edge == carrier.key.second_edge)
+        second = &occurrence;
+    }
+    if (!first || !second ||
+        carrier.key.opposite_direction !=
+            (first->forward_along_source_edge !=
+             second->forward_along_source_edge)) {
+      error = verifier_error(intersection_subcode::overlap_carrier_invalid,
+                             "Component 08 overlap direction does not reconstruct");
+      return false;
+    }
+    const auto match_parameters = [&](const auto &occurrence,
+                                      const auto &nominal, const auto &lower,
+                                      const auto &upper, const auto &domains) {
+      std::array<std::size_t, 2> index{{0, 1}};
+      const bool canonical_forward = occurrence.start_node == arc->start_node;
+      if (canonical_forward != occurrence.forward_along_source_edge)
+        std::swap(index[0], index[1]);
+      for (std::size_t endpoint = 0; endpoint < 2; ++endpoint) {
+        const auto source = index[endpoint];
+        if (nominal[endpoint] != occurrence.endpoint_nominal_bits[source] ||
+            lower[endpoint] != occurrence.endpoint_lower_bits[source] ||
+            upper[endpoint] != occurrence.endpoint_upper_bits[source] ||
+            domains[endpoint] != occurrence.endpoint_domains[source])
+          return false;
+      }
+      return true;
+    };
+    if (!match_parameters(*first, carrier.first_nominal_bits,
+                          carrier.first_lower_bits, carrier.first_upper_bits,
+                          carrier.first_domains) ||
+        !match_parameters(*second, carrier.second_nominal_bits,
+                          carrier.second_lower_bits, carrier.second_upper_bits,
+                          carrier.second_domains)) {
+      error = verifier_error(intersection_subcode::overlap_carrier_invalid,
+                             "Component 08 overlap parameters do not reconstruct");
+      return false;
+    }
+    using bits_type = floating_uint_t<T>;
+    const T first_upper = from_bits<T>(
+        static_cast<bits_type>(carrier.first_upper_bits[0]));
+    const T second_lower = from_bits<T>(
+        static_cast<bits_type>(carrier.first_lower_bits[1]));
+    const T first_lower = from_bits<T>(
+        static_cast<bits_type>(carrier.first_lower_bits[0]));
+    const T second_upper = from_bits<T>(
+        static_cast<bits_type>(carrier.first_upper_bits[1]));
+    const bool exact_zero =
+        carrier.first_lower_bits[0] == carrier.first_upper_bits[0] &&
+        carrier.first_lower_bits[1] == carrier.first_upper_bits[1] &&
+        carrier.first_lower_bits[0] == carrier.first_lower_bits[1];
+    if (carrier.zero_length != exact_zero ||
+        (!exact_zero && !(first_upper < second_lower ||
+                          second_upper < first_lower))) {
+      error = verifier_error(intersection_subcode::overlap_carrier_invalid,
+                             "Component 08 overlap length evidence does not reconstruct");
       return false;
     }
     if (carrier.zero_length &&
@@ -1201,8 +1290,8 @@ bool audit_coplanar(
     if (predecessor.kind != overlap.kind ||
         predecessor.sheet_mask != overlap.sheet_mask ||
         predecessor.closed != overlap.closed ||
-        predecessor.distinct_sheet_occurrences !=
-            overlap.distinct_sheet_occurrences) {
+        overlap.distinct_sheet_occurrences !=
+            (predecessor.distinct_sheet_occurrences && overlap.sheet_mask == 3)) {
       error = verifier_error(intersection_subcode::overlap_carrier_invalid,
                              "Component 08 overlap disagrees with Component 07 lineage");
       return false;
@@ -1214,8 +1303,6 @@ bool audit_coplanar(
         region.component.ordinal() >= artifact.coplanar_overlaps().size() ||
         region.first_facet.kind != relation_feature_kind::source_facet ||
         region.second_facet.kind != relation_feature_kind::source_facet ||
-        region.first_triangle.kind != relation_feature_kind::source_triangle ||
-        region.second_triangle.kind != relation_feature_kind::source_triangle ||
         region.sheet_mask == 0 || !region.coverage_complete ||
         region.schema_version != contract_versions::intersection_overlap_schema ||
         region.reserved8 != 0 || region.reserved16 != 0 ||
@@ -1223,24 +1310,52 @@ bool audit_coplanar(
                      artifact.coplanar_region_boundary_event_index().size()) ||
         !valid_range(region.boundary_carriers,
                      artifact.coplanar_region_boundary_carrier_index().size()) ||
-        !valid_range(region.coverage_witnesses,
-                     artifact.coplanar_region_coverage_witness_index().size())) {
+        !valid_range(region.partition_coverage,
+                     artifact.coplanar_region_partition_coverage_index().size())) {
       error = verifier_error(intersection_subcode::overlap_carrier_invalid,
                              "Component 08 verifier rejected coplanar region incidence");
       return false;
     }
-    for (std::uint64_t j = 0; j < region.coverage_witnesses.count; ++j) {
-      const auto &feature = artifact.coplanar_region_coverage_witness_index()[
-          region.coverage_witnesses.begin + j];
-      if (!valid_relation_feature_key(feature, false)) {
+    for (std::uint64_t j = 0; j < region.partition_coverage.count; ++j) {
+      const auto &coverage = artifact.coplanar_region_partition_coverage_index()[
+          region.partition_coverage.begin + j];
+      if (!valid_relation_feature_key(coverage.source_edge, false) ||
+          coverage.source_edge.kind != relation_feature_kind::source_edge ||
+          coverage.polygon > 1 || !coverage.complete_boundary_contact_set ||
+          !coverage.triangle_reconciliation_complete ||
+          coverage.reserved16 != 0 || coverage.reserved32 != 0) {
         error = verifier_error(intersection_subcode::unrelated_feature_incidence,
-                               "Component 08 region coverage witness is malformed");
+                               "Component 08 region partition commitment is malformed");
         return false;
       }
-      if (feature.kind == relation_feature_kind::facet_internal_diagonal &&
-          !region.internal_diagonal_coverage_only) {
-        error = verifier_error(intersection_subcode::internal_diagonal_public_ownership,
-                               "Component 08 internal diagonal escaped coverage-only role");
+    }
+    const auto &support = artifact.coplanar_supports()[region.support.ordinal()];
+    const auto predecessor = predecessor_supports.find(support.support_lineage);
+    if (predecessor == predecessor_supports.end() ||
+        region.partition_coverage.count !=
+            predecessor->second->partition_coverage.size()) {
+      error = verifier_error(intersection_subcode::overlap_carrier_invalid,
+                             "Component 08 region coverage is not exhaustive");
+      return false;
+    }
+    for (std::uint64_t j = 0; j < region.partition_coverage.count; ++j) {
+      const auto &actual = artifact.coplanar_region_partition_coverage_index()[
+          region.partition_coverage.begin + j];
+      const auto &expected = predecessor->second->partition_coverage[j];
+      if (actual.source_edge != expected.source_edge ||
+          actual.polygon != expected.polygon ||
+          actual.edge_ordinal != expected.edge_ordinal ||
+          actual.breakpoint_count != expected.breakpoint_count ||
+          actual.interior_interval_count != expected.interior_interval_count ||
+          actual.outside_interval_count != expected.outside_interval_count ||
+          actual.original_edge_overlap_interval_count !=
+              expected.original_edge_overlap_interval_count ||
+          actual.complete_boundary_contact_set !=
+              expected.complete_boundary_contact_set ||
+          actual.triangle_reconciliation_complete !=
+              expected.triangle_reconciliation_complete) {
+        error = verifier_error(intersection_subcode::overlap_carrier_invalid,
+                               "Component 08 region coverage disagrees with Component 07");
         return false;
       }
     }

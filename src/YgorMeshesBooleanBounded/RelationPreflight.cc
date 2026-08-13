@@ -2,7 +2,9 @@
 #include "RelationPreflight.h"
 
 #include <algorithm>
+#include <array>
 #include <limits>
+#include <vector>
 
 namespace ygor::mesh_boolean::bounded {
 
@@ -49,6 +51,9 @@ bool preflight_relation_foundation(
   std::uint64_t boundary_pair_requests = 0;
   std::uint64_t linear_boundary_evidence = 0;
   std::uint64_t facet_pair_requests = 0;
+  // Candidate triangles repeatedly discover the same canonical source-facet
+  // pair. Plan 07 closes that pair once and retains candidates as consumers.
+  std::vector<std::array<std::uint64_t, 5>> facet_pair_closures;
   const auto boundary_size = [](const auto &operand, std::uint64_t source_facet,
                                 std::uint64_t &size) {
     for (const auto &facet : operand->facet_groups())
@@ -109,15 +114,15 @@ bool preflight_relation_foundation(
         error.witness_count = 2;
         return false;
       }
+      facet_pair_closures.push_back(
+          {{edge_a ? 0U : 1U, incident_facets[i], triangle.source_facet,
+            boundary, opposite_boundary}});
     }
     std::uint64_t local_pairs = 0, local_linear = 0;
     if (!checked_multiply(opposite_boundary, incident_boundary, local_pairs) ||
         !checked_add(opposite_boundary, incident_boundary, local_linear) ||
-        !checked_add(boundary_pair_requests, local_pairs,
-                     boundary_pair_requests) ||
-        !checked_add(linear_boundary_evidence, local_linear,
-                     linear_boundary_evidence) ||
-        !checked_add(facet_pair_requests, static_cast<std::uint64_t>(incident_count),
+        !checked_add(facet_pair_requests,
+                     static_cast<std::uint64_t>(incident_count),
                      facet_pair_requests)) {
       error = relation_error(relation_subcode::count_overflow,
                              bounded_boolean_error_category::index_overflow,
@@ -130,6 +135,29 @@ bool preflight_relation_foundation(
     if (local_pairs > plan.maximum_candidate_boundary_pairs) {
       plan.maximum_candidate_boundary_pairs = local_pairs;
       plan.maximum_candidate_boundary_witness = ordinal;
+    }
+  }
+
+  std::sort(facet_pair_closures.begin(), facet_pair_closures.end());
+  facet_pair_closures.erase(
+      std::unique(facet_pair_closures.begin(), facet_pair_closures.end()),
+      facet_pair_closures.end());
+  facet_pair_requests = facet_pair_closures.size();
+  for (const auto &closure : facet_pair_closures) {
+    std::uint64_t local_pairs = 0;
+    std::uint64_t local_linear = 0;
+    if (!checked_multiply(closure[3], closure[4], local_pairs) ||
+        !checked_add(closure[3], closure[4], local_linear) ||
+        !checked_add(boundary_pair_requests, local_pairs,
+                     boundary_pair_requests) ||
+        !checked_add(linear_boundary_evidence, local_linear,
+                     linear_boundary_evidence)) {
+      error = relation_error(
+          relation_subcode::count_overflow,
+          bounded_boolean_error_category::index_overflow,
+          "Component 07 canonical facet-pair accounting overflow",
+          relation_checkpoint::count_representability_preflight);
+      return false;
     }
   }
 

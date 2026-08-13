@@ -447,8 +447,13 @@ classify_source_edge_relation(
 
   paired_parameter_source<T> start_source;
   paired_parameter_source<T> end_source;
-  if (exact_parameter_at(b_min->evidence, T(0)) ||
-      b_min->evidence.enclosure.upper() < T(0)) {
+  if (exact_parameter_at(b_min->evidence, T(0))) {
+    start_source.first = *zero.value();
+    start_source.second =
+        same_orientation ? *zero.value() : *one.value();
+    start_source.point = &first.start;
+    start_source.accepted_source_vertex = true;
+  } else if (b_min->evidence.enclosure.upper() < T(0)) {
     start_source.first = *zero.value();
     start_source.second = *r0.value();
     start_source.point = &first.start;
@@ -466,8 +471,13 @@ classify_source_edge_relation(
             "Component 07 collinear overlap start is unresolved"));
   }
 
-  if (exact_parameter_at(b_max->evidence, T(1)) ||
-      b_max->evidence.enclosure.lower() > T(1)) {
+  if (exact_parameter_at(b_max->evidence, T(1))) {
+    end_source.first = *one.value();
+    end_source.second =
+        same_orientation ? *one.value() : *zero.value();
+    end_source.point = &first.end;
+    end_source.accepted_source_vertex = true;
+  } else if (b_max->evidence.enclosure.lower() > T(1)) {
     end_source.first = *one.value();
     end_source.second = *r1.value();
     end_source.point = &first.end;

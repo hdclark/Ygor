@@ -139,19 +139,17 @@ collinear_overlap_carrier_proposal carrier_proposal(
     bool zero_length = false) {
   collinear_overlap_carrier_proposal proposal;
   proposal.key = key;
-  proposal.first_parameter_interval = relation_construction_id{100 + slot};
-  proposal.second_parameter_interval = relation_construction_id{200 + slot};
-  proposal.first_parameter_evidence = relation_interval_evidence_id{300 + slot};
-  proposal.second_parameter_evidence = relation_interval_evidence_id{400 + slot};
   const double lower = zero_length ? 0.5 : 0.25;
   const double upper = zero_length ? 0.5 : 0.75;
-  proposal.first_lower_bits = to_bits(lower);
-  proposal.first_upper_bits = to_bits(upper);
-  proposal.second_lower_bits = to_bits(lower);
-  proposal.second_upper_bits = to_bits(upper);
-  proposal.first_domain = zero_length ? parameter_domain_status::stable_interior
-                                      : parameter_domain_status::stable_interior;
-  proposal.second_domain = proposal.first_domain;
+  proposal.first_nominal_bits = {to_bits(lower), to_bits(upper)};
+  proposal.first_lower_bits = proposal.first_nominal_bits;
+  proposal.first_upper_bits = proposal.first_nominal_bits;
+  proposal.second_nominal_bits = proposal.first_nominal_bits;
+  proposal.second_lower_bits = proposal.second_nominal_bits;
+  proposal.second_upper_bits = proposal.second_nominal_bits;
+  proposal.first_domains = {parameter_domain_status::stable_interior,
+                            parameter_domain_status::stable_interior};
+  proposal.second_domains = proposal.first_domains;
   proposal.start_occurrence = start;
   proposal.end_occurrence = end;
   proposal.start_occurrence_key = occurrence(start.ordinal());
@@ -162,7 +160,8 @@ collinear_overlap_carrier_proposal carrier_proposal(
                                    ? proposal.start_source_vertex
                                    : feature(operand_id::b,
                                              relation_feature_kind::source_vertex,
-                                             2 + slot);
+                                              2 + slot);
+  proposal.source_vertices_valid = true;
   proposal.relation = feature_relation_id{500 + slot};
   proposal.candidate = candidate_id{600 + slot};
   proposal.source_provenance = {
@@ -231,21 +230,34 @@ coplanar_region_incidence_proposal region_proposal(
   proposal.component = component.key;
   proposal.first_facet = support.key.first_facet;
   proposal.second_facet = support.key.second_facet;
-  proposal.first_triangle =
-      feature(operand_id::a, relation_feature_kind::source_triangle, 31, 3);
-  proposal.second_triangle =
-      feature(operand_id::b, relation_feature_kind::source_triangle, 71, 7);
   proposal.classification = classification;
   proposal.relation_status = status;
   proposal.symbolic_owner = support.key.symbolic_owner;
   proposal.sheet_mask = component.key.sheet_mask;
   proposal.boundary_events = std::move(events);
   proposal.boundary_carriers = std::move(carriers);
-  proposal.coverage_witnesses = {
-      proposal.first_triangle,
-      feature(operand_id::a, relation_feature_kind::facet_internal_diagonal,
-              91, 3),
-      proposal.second_triangle};
+  coplanar_partition_coverage_commitment first_coverage;
+  first_coverage.source_edge =
+      feature(operand_id::a, relation_feature_kind::source_edge, 10);
+  first_coverage.polygon = 0;
+  first_coverage.breakpoint_count = 2;
+  first_coverage.interior_interval_count = 1;
+  first_coverage.complete_boundary_contact_set = true;
+  first_coverage.triangle_reconciliation_complete = true;
+  auto second_coverage = first_coverage;
+  auto first_coverage_next = first_coverage;
+  first_coverage_next.source_edge =
+      feature(operand_id::a, relation_feature_kind::source_edge, 11);
+  first_coverage_next.edge_ordinal = 1;
+  second_coverage.source_edge =
+      feature(operand_id::b, relation_feature_kind::source_edge, 20);
+  second_coverage.polygon = 1;
+  auto second_coverage_next = second_coverage;
+  second_coverage_next.source_edge =
+      feature(operand_id::b, relation_feature_kind::source_edge, 21);
+  second_coverage_next.edge_ordinal = 1;
+  proposal.partition_coverage = {first_coverage, first_coverage_next,
+                                 second_coverage, second_coverage_next};
   proposal.source_facet_semantic_digest = combined_digest(support);
   proposal.coverage_complete = true;
   proposal.internal_diagonals_coverage_only = true;

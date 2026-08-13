@@ -302,8 +302,8 @@ bool valid_intersection_inputs(
                        coplanar.region_boundary_event_index.size()) ||
         !checked_range(region.boundary_carriers,
                        coplanar.region_boundary_carrier_index.size()) ||
-        !checked_range(region.coverage_witnesses,
-                       coplanar.region_coverage_witness_index.size()))
+        !checked_range(region.partition_coverage,
+                       coplanar.region_partition_coverage_index.size()))
       return false;
 
   if (!dense_ids(aggregates.crossing) || !dense_ids(aggregates.contact))
@@ -619,14 +619,19 @@ bool same_coplanar_support(const coplanar_support_record &a,
 bool same_overlap_carrier(const collinear_overlap_carrier_record &a,
                           const collinear_overlap_carrier_record &b) noexcept {
   return a.id == b.id && a.key == b.key &&
-         a.first_parameter_interval == b.first_parameter_interval &&
-         a.second_parameter_interval == b.second_parameter_interval &&
-         a.first_parameter_evidence == b.first_parameter_evidence &&
-         a.second_parameter_evidence == b.second_parameter_evidence &&
+         a.first_nominal_bits == b.first_nominal_bits &&
+         a.first_lower_bits == b.first_lower_bits &&
+         a.first_upper_bits == b.first_upper_bits &&
+         a.first_domains == b.first_domains &&
+         a.second_nominal_bits == b.second_nominal_bits &&
+         a.second_lower_bits == b.second_lower_bits &&
+         a.second_upper_bits == b.second_upper_bits &&
+         a.second_domains == b.second_domains &&
          a.start_occurrence == b.start_occurrence &&
          a.end_occurrence == b.end_occurrence &&
          a.start_source_vertex == b.start_source_vertex &&
          a.end_source_vertex == b.end_source_vertex &&
+         a.source_vertices_valid == b.source_vertices_valid &&
          a.symbolic_owner == b.symbolic_owner &&
          a.half_open_first == b.half_open_first &&
          a.half_open_second == b.half_open_second &&
@@ -660,8 +665,6 @@ bool same_region(const coplanar_region_incidence_record &a,
                  const coplanar_region_incidence_record &b) noexcept {
   return a.id == b.id && a.support == b.support &&
          a.first_facet == b.first_facet && a.second_facet == b.second_facet &&
-         a.first_triangle == b.first_triangle &&
-         a.second_triangle == b.second_triangle &&
          a.component == b.component &&
          a.component_lineage == b.component_lineage &&
          a.classification == b.classification &&
@@ -673,7 +676,7 @@ bool same_region(const coplanar_region_incidence_record &a,
          a.reserved8 == b.reserved8 &&
          same_range(a.boundary_events, b.boundary_events) &&
          same_range(a.boundary_carriers, b.boundary_carriers) &&
-         same_range(a.coverage_witnesses, b.coverage_witnesses) &&
+         same_range(a.partition_coverage, b.partition_coverage) &&
          a.source_facet_semantic_digest == b.source_facet_semantic_digest &&
          a.schema_version == b.schema_version && a.reserved16 == b.reserved16;
 }
@@ -919,8 +922,8 @@ public:
         coplanar.region_boundary_event_index;
     out.coplanar_region_boundary_carrier_index_ =
         coplanar.region_boundary_carrier_index;
-    out.coplanar_region_coverage_witness_index_ =
-        coplanar.region_coverage_witness_index;
+    out.coplanar_region_partition_coverage_index_ =
+        coplanar.region_partition_coverage_index;
 
     out.crossing_aggregates_ = aggregates.crossing;
     out.crossing_aggregate_members_ = aggregates.crossing_members;
@@ -979,7 +982,9 @@ intersection_statistics make_statistics(
   statistics.carrier_cluster_count = transverse.clusters.size();
   statistics.carrier_span_count = transverse.spans.size();
   statistics.coplanar_support_count = coplanar.supports.size();
-  statistics.overlap_count = coplanar.overlaps.size();
+  statistics.overlap_count = coplanar.carriers.size() +
+                             coplanar.overlaps.size() +
+                             coplanar.regions.size();
   statistics.aggregate_count =
       aggregates.crossing.size() + aggregates.contact.size();
   statistics.descriptor_count = descriptors.records.size();
@@ -1062,7 +1067,7 @@ intersection_statistics make_statistics(
   YGOR_ADD_BYTES(coplanar.regions);
   YGOR_ADD_BYTES(coplanar.region_boundary_event_index);
   YGOR_ADD_BYTES(coplanar.region_boundary_carrier_index);
-  YGOR_ADD_BYTES(coplanar.region_coverage_witness_index);
+  YGOR_ADD_BYTES(coplanar.region_partition_coverage_index);
   YGOR_ADD_BYTES(aggregates.crossing);
   YGOR_ADD_BYTES(aggregates.crossing_members);
   YGOR_ADD_BYTES(aggregates.facet_subtotals);
@@ -1203,8 +1208,8 @@ bool verify_projection(
                      coplanar.region_boundary_event_index);
   YGOR_SAME_ACCESSOR(coplanar_region_boundary_carrier_index,
                      coplanar.region_boundary_carrier_index);
-  YGOR_SAME_ACCESSOR(coplanar_region_coverage_witness_index,
-                     coplanar.region_coverage_witness_index);
+  YGOR_SAME_ACCESSOR(coplanar_region_partition_coverage_index,
+                     coplanar.region_partition_coverage_index);
   YGOR_SAME_ACCESSOR(crossing_aggregate_members,
                      aggregates.crossing_members);
   YGOR_SAME_ACCESSOR(crossing_facet_subtotal_members,
