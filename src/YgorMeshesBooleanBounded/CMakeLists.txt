@@ -29,6 +29,7 @@ ygor_apply_mesh_boolean_strict_fp(ygor_exact_float_expansion_core)
 
 add_library(ygor_mesh_boolean_bounded_strict
     BoundedOperations.cc
+    Cancellation.cc
     ConservativeBounds.cc
     ConstructionConditioning.cc
     DirectedRounding.cc
@@ -127,7 +128,6 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/"
 # The public facade uses Ygor's out-of-line mesh/math API. Keep it in ygor while
 # the strict provider above remains independently linkable and dependency-minimal.
 add_library(ygor_mesh_boolean_bounded_facade OBJECT
-    Cancellation.cc
     YgorMeshesBooleanBounded.cc)
 set_property(TARGET ygor_mesh_boolean_bounded_facade PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(ygor_mesh_boolean_bounded_facade PRIVATE

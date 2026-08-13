@@ -82,11 +82,15 @@ stage_fixture empty_stage_fixture(
   return fixture;
 }
 
-stage_fixture transverse_stage_fixture() {
+stage_fixture transverse_stage_fixture(
+    bounded_execution_mode mode = bounded_execution_mode::serial_v1,
+    std::uint32_t workers = 1) {
   stage_fixture fixture;
   fixture.broad = broad_phase_tests::build(
       broad_phase_tests::box(),
-      broad_phase_tests::box(0.5, 0.5, 0.5, 1.5, 1.5, 1.5));
+      broad_phase_tests::box(0.5, 0.5, 0.5, 1.5, 1.5, 1.5),
+      bounded::source_triangulation_provider_kind::indexed_dependency_v1, true,
+      mode, workers);
   fixture.relations = build_relations(fixture.broad);
   require(!fixture.relations->event_seeds().empty(),
           "transverse Component 08 fixture lacks event lineage");
@@ -666,6 +670,55 @@ void test_cancellation_matrix() {
           "retry after Component 08 cancellation matrix is not byte-identical");
 }
 
+void test_nonempty_transverse_stage_publishes() {
+  std::vector<std::shared_ptr<const artifact_type>> artifacts;
+  for (const auto &setting :
+       std::array<std::pair<bounded_execution_mode, std::uint32_t>, 4>{{
+           {bounded_execution_mode::serial_v1, 1},
+           {bounded_execution_mode::deterministic_parallel_v1, 1},
+           {bounded_execution_mode::deterministic_parallel_v1, 2},
+           {bounded_execution_mode::deterministic_parallel_v1, 8},
+       }}) {
+    const auto fixture =
+        transverse_stage_fixture(setting.first, setting.second);
+    bounded::resource_manager resources(resource_policy::conservative_defaults());
+    artifacts.push_back(build_stage(
+        fixture, resources, stage_capabilities(fixture, resources)));
+  }
+  for (std::size_t i = 1; i < artifacts.size(); ++i)
+    require(artifacts[i]->canonical_bytes() == artifacts.front()->canonical_bytes() &&
+                artifacts[i]->digest() == artifacts.front()->digest(),
+            "nonempty Component 08 execution mode or worker count changed semantics");
+
+  const auto &statistics = artifacts.front()->statistics();
+  require(statistics.seed_count != 0 && statistics.event_count != 0 &&
+              statistics.occurrence_count != 0,
+          "nonempty Component 08 stage published no event/occurrence lineage");
+  require(statistics.event_count == statistics.seed_count &&
+              statistics.occurrence_count == statistics.seed_count,
+          "nonempty Component 08 stage did not intern one event and occurrence per seed");
+  require(statistics.source_edge_membership_count == statistics.seed_count,
+          "nonempty Component 08 stage lost the per-seed source-edge membership");
+  require(statistics.transverse_carrier_count != 0 &&
+              statistics.carrier_membership_count != 0 &&
+              statistics.carrier_span_count != 0,
+          "nonempty Component 08 stage published no transverse carrier lineage");
+  require(statistics.descriptor_count != 0,
+          "nonempty Component 08 stage published no cut/contact descriptors");
+  require(!artifacts.front()->events().empty() &&
+              !artifacts.front()->occurrences().empty() &&
+              !artifacts.front()->seed_bindings().empty(),
+          "nonempty Component 08 stage published empty canonical event tables");
+  require(!artifacts.front()->transverse_carriers().empty(),
+          "nonempty Component 08 stage published empty transverse carrier table");
+  for (const auto &event : artifacts.front()->events())
+    require(event.point.kind ==
+                    bounded::bounded_point_reference_kind::constructed_point ||
+                event.point.kind ==
+                    bounded::bounded_point_reference_kind::source_point,
+            "nonempty Component 08 stage published an event without one shared authoritative point");
+}
+
 void test_execution_determinism_and_fail_closed_gate() {
   std::vector<std::shared_ptr<const artifact_type>> artifacts;
   for (const auto &setting :
@@ -944,8 +997,10 @@ int main(int argc, char **argv) {
       test_resource_boundaries();
     if (suite == "all" || suite == "cancellation")
       test_cancellation_matrix();
-    if (suite == "all" || suite == "concurrency")
+    if (suite == "all" || suite == "concurrency") {
+      test_nonempty_transverse_stage_publishes();
       test_execution_determinism_and_fail_closed_gate();
+    }
     if (suite == "all" || suite == "structural")
       test_structural_performance();
     std::cout << "Component 08 qualification suite passed: " << suite << '\n';

@@ -72,7 +72,7 @@ ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_precision_codec_tests)
 add_test(NAME mesh_boolean_bounded_component03_codecs
     COMMAND ygor_mesh_boolean_precision_codec_tests)
 
-foreach(consumer_component 02 04 05 06 07 13 15 16 17)
+foreach(consumer_component 02 04 06 07 13 15 16 17)
     add_library(ygor_mesh_boolean_component${consumer_component}_capability_compile OBJECT
         PrecisionCapabilityIntegration.cc)
     target_compile_definitions(

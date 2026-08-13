@@ -60,34 +60,49 @@ distinct occurrences.  Persistent table storage is checked to grow with
 published records rather than an unbounded global geometry grid or coordinate
 cache.
 
-## Current fail-closed integration boundary
+## Non-empty transverse publication
 
-The stage driver publishes fully verified empty/no-intersection complexes and
-source-topology descriptors.  The Component 07 source-edge adapter now binds
-each event seed through its authoritative construction-scoped interval-evidence
-range, preserves canonical evidence/relation lineage, and publishes direct
-canonical contribution and incident-facet-use ranges.  A zero arithmetic trace
-root is accepted only when the immutable canonical interval-evidence identity
-provides the ordering lineage; no coordinate-derived fallback is permitted.
+After the Component 07a-07f lineage work, the frozen Component 07 carrier
+construction now publishes a nonzero `geometric_lineage`, and the Component 08
+transverse adapter consumes it directly.  The overlapping-box fixture is driven
+through the complete transactional stage: seed normalization, event/occurrence
+interning, authoritative-point attachment, incidence publication, source-edge
+arrangements, transverse carrier grouping/orientation, bounded carrier
+membership ordering, relation-supported active spans, member-preserving
+aggregation, and cut/contact descriptor derivation.  The stage then
+canonicalizes, encodes, and independently verifies the resulting
+`canonical_intersection_complex` before committing.
 
-The overlapping-box fixture is required to pass source-edge proposal ingestion
-and then enter the Component 07 facet/facet carrier adapter.  The adapter validates
-the verified predecessor stage, canonical facet-pair request, detailed transverse
-support, authoritative bounded-carrier construction, candidate witnesses,
-residual disposition, and precision evidence before constructing any Component 08
-carrier key.  The current predecessor artifact then fails closed at checkpoint 14
-with `transverse_carrier_invalid` because its carrier construction publishes a zero
-`geometric_lineage`, while the frozen Component 08 carrier key requires a nonzero
-lineage.  No hash, dense-ID surrogate, or coordinate-derived identity is invented.
-Qualification also rejects missing and ambiguous source-edge evidence inside the
-authoritative construction range and proves that matching evidence outside that
-range cannot authorize a membership.  No partial carrier proposal or event
-registry is published and every reservation is released.
+`test_nonempty_transverse_stage_publishes` runs that fixture under serial and
+parallel (one, two, and eight worker) execution profiles and requires
+byte-identical canonical bytes and digests, one interned event and occurrence per
+seed, one source-edge membership per seed, non-empty transverse carrier/span
+tables, non-empty cut/contact descriptors, and one shared authoritative point
+reference per event.  The still-frozen fail-closed gate remains separately
+verified: clearing the Component 07 carrier `geometric_lineage` must reject at
+checkpoint `transverse_carriers` with `transverse_carrier_invalid` and no leaked
+reservations.
 
-After Component 07 supplies the missing immutable carrier lineage, the next
-fail-closed boundary is the Plan 07 section 15.5 bounded carrier membership
-parameter and source-facet-region handoff already required by the Component 08
-stage.  Component 08 does not project retained point coordinates onto the carrier
-as a fallback.  The coplanar adapter, non-empty exact/metamorphic qualification,
-and final bounded Boolean pipeline integration remain gated until those
-predecessor contracts exist.
+## Remaining fail-closed boundary: coplanar arrangements
+
+The coplanar proposal ingestion (`build_coplanar`) is still fail-closed.  When
+the Component 07 artifact carries coplanar lineage (coincident facets, coplanar
+event nodes, oriented arcs, or overlap components) the stage rejects at
+checkpoint `coplanar_carriers` with `membership_incomplete` rather than welding
+or approximating coplanar relations.  The collinear-overlap and coplanar-support
+arrangement machinery (`build_coplanar_carrier_arrangements`) is implemented and
+independently tested against synthetic proposals; only the Component 07 record
+adapter is deferred.
+
+The coplanar adapter remains gated on the predecessor contract, not on
+Component 08 machinery.  Component 07 currently returns typed failures for
+coplanar and contact fixtures before Component 08 runs: full-face overlap and
+partial coplanar overlap exceed the conservative `persistent_bytes` reservation
+(the coplanar request/dependency upper bounds reach ~1.36M requests and ~18M
+dependencies for two face-touching boxes), while vertex- and edge-touching
+fixtures are rejected with unresolved half-open sweep ordering and source-facet
+boundary ownership.  Component 08 therefore cannot consume valid coplanar
+lineage yet.  Component 08 does not project retained point coordinates onto a
+carrier or invent coplanar supports as a fallback; the coplanar adapter and
+non-empty coplanar qualification are integrated only after Component 07
+publishes bounded coplanar lineage for these degenerate cases.
