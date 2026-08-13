@@ -256,6 +256,28 @@ struct contract_versions final {
     static constexpr std::uint16_t classification_codec = 1;
     static constexpr std::uint16_t classification_verifier = 1;
 
+    // Component 10 Boolean selection and occurrence accounting.
+    static constexpr std::uint16_t selection_artifact_schema = 1;
+    static constexpr std::uint16_t selection_provider = 1;
+    static constexpr std::uint16_t selection_truth_provider = 1;
+    static constexpr std::uint16_t selection_coincidence_provider = 1;
+    static constexpr std::uint16_t selection_retained_incidence_provider = 1;
+    static constexpr std::uint16_t selection_edge_occurrence_provider = 1;
+    static constexpr std::uint16_t selection_vertex_occurrence_provider = 1;
+    static constexpr std::uint16_t selection_feasibility_provider = 1;
+    static constexpr std::uint16_t selection_disposition_schema = 1;
+    static constexpr std::uint16_t selection_side_tuple_schema = 1;
+    static constexpr std::uint16_t selection_sheet_cell_schema = 1;
+    static constexpr std::uint16_t selection_retained_use_schema = 1;
+    static constexpr std::uint16_t selection_incidence_schema = 1;
+    static constexpr std::uint16_t selection_continuation_schema = 1;
+    static constexpr std::uint16_t selection_edge_occurrence_schema = 1;
+    static constexpr std::uint16_t selection_surface_occurrence_descriptor_schema = 1;
+    static constexpr std::uint16_t selection_vertex_occurrence_schema = 1;
+    static constexpr std::uint16_t selection_carrier_balance_schema = 1;
+    static constexpr std::uint16_t selection_codec = 1;
+    static constexpr std::uint16_t selection_verifier = 1;
+
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;
     static constexpr std::uint16_t shell_semantics = shell_semantics_provider;
@@ -268,7 +290,7 @@ enum class stage_id : std::uint16_t {
     source_triangulation_a = 25, source_triangulation_b = 26,
     canonical_halfedge_a = 27, canonical_halfedge_b = 28,
     broad_phase = 29, relation_kernel = 30, intersection_registry = 31,
-    classification = 32,
+    classification = 32, selection = 33,
 };
 enum class precision_checkpoint : std::uint32_t {
     pending_context_validation = 1, source_bit_scan = 2, non_finite_rejection = 3,

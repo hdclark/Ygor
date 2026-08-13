@@ -465,3 +465,21 @@ foreach(classification_suite
     add_test(NAME mesh_boolean_bounded_component09_${classification_suite}
         COMMAND ygor_mesh_boolean_classification_tests ${classification_suite})
 endforeach()
+
+add_executable(ygor_mesh_boolean_selection_tests
+    TestSelectionMain.cc
+    SelectionFixtures.cc
+    ClassificationFixtures.cc
+    BroadPhaseFixtures.cc
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_include_directories(ygor_mesh_boolean_selection_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_selection_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_selection_tests)
+foreach(selection_suite
+        truth disjoint containment occupancy coincidence edge_vertex canonical mutation)
+    add_test(NAME mesh_boolean_bounded_component10_${selection_suite}
+        COMMAND ygor_mesh_boolean_selection_tests ${selection_suite})
+endforeach()

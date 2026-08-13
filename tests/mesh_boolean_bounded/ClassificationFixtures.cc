@@ -13,12 +13,10 @@ std::string diagnostic(const bounded_boolean_error &error) {
 classification_fixture build_classification_fixture(const mesh_type &a,
                                                     const mesh_type &b,
                                                     boolean_operation operation) {
-  (void)operation; // Classification is operation-neutral in V1; the pipeline is
-                   // built with the fixture's intersection context.
   classification_fixture fixture;
   fixture.broad = broad_phase_tests::build(
       a, b, bounded::source_triangulation_provider_kind::indexed_dependency_v1,
-      true, bounded_execution_mode::serial_v1, 1);
+      true, bounded_execution_mode::serial_v1, 1, operation);
 
   bounded::resource_manager resources(resource_policy::conservative_defaults());
   bounded::relation_capabilities relation_caps;

@@ -49,7 +49,14 @@ enum class resource_kind : std::uint8_t {
     classification_union_proposals=83,classification_quotient_edges=84,
     classification_seed_queries=85,classification_propagation_assignments=86,
     classification_side_labels=87,classification_shell_contributions=88,
-    classification_verifier_evidence=89,count=90
+    classification_verifier_evidence=89,
+    selection_dispositions=90,selection_side_tuples=91,selection_sheet_cells=92,
+    selection_owner_decisions=93,selection_multiplicity=94,selection_incidences=95,
+    selection_continuations=96,selection_edge_occurrences=97,
+    selection_vertex_occurrences=98,selection_local_ports=99,
+    selection_local_arcs=100,selection_carrier_balance=101,
+    selection_feasibility=102,selection_verifier_evidence=103,
+    count=104
 };
 struct resource_counter { std::uint64_t hard=0,advisory=0,reserved=0,committed=0,peak_live=0,cumulative=0; };
 class resource_manager;
