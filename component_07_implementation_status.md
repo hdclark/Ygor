@@ -1079,6 +1079,56 @@ boundary deterministically:
 - the dependency-closure cancellation path now reports its correct checkpoint
   rather than the initial-grouping checkpoint.
 
+## Completed qualification-gap remediation
+
+Component 7f closes post-implementation audit item 8 and the remaining Plan 07
+Section 24 and 26 qualification obligations:
+
+- the exact-rational oracle is no longer concentrated on source-edge/source-edge
+  relations. `RelationExactOracle.h` now publishes an independent
+  `classify_facet_facet_exact` / `exact_facet_facet_record_agrees` oracle that
+  re-derives transverse, parallel-separated, coplanar-same, and
+  coplanar-opposite support classifications, plus coplanarity/orientation
+  evidence presence, from the stored support points with no producer grouping,
+  formula dispatch, or rounded-predicate control flow. `TestRelationExactOracle`
+  unit-tests all four classifications over hand-auditable integer support points
+  and then verifies every compute-once edge/edge and facet/facet relation in the
+  transverse-overlap fixture (which also exercises coplanar containment), while
+  coincident equal shells are required to fail closed with a typed error, never
+  an internal invariant;
+- a templated `relation_type_matrix` fixture builder exercises the complete
+  `float`/`double` x `uint32_t`/`uint64_t` artifact matrix. Each profile builds a
+  non-empty overlapping-box relation artifact, cross-checks serial versus
+  deterministic-parallel canonical bytes and digests, and independently
+  re-verifies every compute-once source-edge and source-facet relation against
+  the exact oracle;
+- deterministic-parallel coverage now forces alternate schedules and worker
+  counts (1, 2, and 7) and requires byte-identical canonical artifacts and an
+  identical primary failure for a typed coincident-sheet failure;
+- independent source-fan crossing conservation is verified directly from the
+  published `relation_crossing_record` table: every group is fan-resolved and
+  locally conservative, its membership and ordinals are complete, its total is
+  `-1`/`0`/`+1`, exactly one numeric owner carries a nonzero total, and symbolic
+  crossing is carried on at most one canonical occurrence;
+- production-path selection-boundary instrumentation asserts the independent
+  verifier's `selection_boundary_checked` evidence, that every published
+  symbolic decision and event-seed disposition is one of the four non-final
+  classification/ownership/occurrence/eligibility consequences, and that
+  symbolic decisions never change nominal geometry;
+- a durable deterministic fuzz campaign runs ten fixtures across serial and
+  deterministic-parallel schedules, requires success parity and byte-identical
+  artifacts or an identical typed primary failure, and qualifies a
+  deterministic shrinker that reduces the witness while preserving the failure
+  category; and
+- `GoldenRelationsV1.h` commits the complete canonical artifact digest for the
+  canonical overlapping-box golden fixture. `TestRelationExactOracle` requires
+  byte-identical canonical output across independent rebuilds, asserts the
+  committed golden digest, and proves decode-by-rebuild reproduces the golden
+  bytes.
+
+The complete eighteen-test strict Component 07 CTest matrix passes, together
+with the sixteen Component 06 predecessor tests.
+
 ## Prior Component 07 completion claim
 
 The incremental implementation work reported Component 07 complete against the

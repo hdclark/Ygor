@@ -122,3 +122,49 @@ ygor_apply_mesh_boolean_strict_fp(
     ygor_mesh_boolean_relation_qualification_tests)
 add_test(NAME mesh_boolean_bounded_component07_qualification
     COMMAND ygor_mesh_boolean_relation_qualification_tests)
+
+add_executable(ygor_mesh_boolean_relation_exact_oracle_tests
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/TestRelationExactOracle.cc"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/BroadPhaseFixtures.cc"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/MinimalPublicMeshCarriers.cc"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/qualification/ExactUnsignedInteger.cc"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/qualification/ExactInteger.cc"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/qualification/ExactRational.cc"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/qualification/ExactFloatImport.cc"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/qualification/ExactGeometryOracle.cc"
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_include_directories(
+    ygor_mesh_boolean_relation_exact_oracle_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_BINARY_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded")
+target_link_libraries(
+    ygor_mesh_boolean_relation_exact_oracle_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(
+    ygor_mesh_boolean_relation_exact_oracle_tests)
+add_test(NAME mesh_boolean_bounded_component07_exact_oracle
+    COMMAND ygor_mesh_boolean_relation_exact_oracle_tests)
+
+add_executable(ygor_mesh_boolean_relation_type_index_matrix_tests
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/TestRelationTypeIndexMatrix.cc"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/RelationTypeMatrixCarriers.cc"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/qualification/ExactUnsignedInteger.cc"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/qualification/ExactInteger.cc"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/qualification/ExactRational.cc"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/qualification/ExactFloatImport.cc"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded/qualification/ExactGeometryOracle.cc"
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_include_directories(
+    ygor_mesh_boolean_relation_type_index_matrix_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_BINARY_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/tests/mesh_boolean_bounded")
+target_link_libraries(
+    ygor_mesh_boolean_relation_type_index_matrix_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(
+    ygor_mesh_boolean_relation_type_index_matrix_tests)
+add_test(NAME mesh_boolean_bounded_component07_type_index_matrix
+    COMMAND ygor_mesh_boolean_relation_type_index_matrix_tests)
+

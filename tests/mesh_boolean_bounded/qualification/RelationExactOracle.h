@@ -2,6 +2,7 @@
 
 #include "ExactFloatImport.h"
 #include "ExactGeometryOracle.h"
+#include "YgorMeshesBooleanBounded/FacetFacetRelations.h"
 #include "YgorMeshesBooleanBounded/SourceEdgeRelationTypes.h"
 
 #include <array>
@@ -255,6 +256,90 @@ bool exact_source_edge_record_agrees(
       failure = "exact source-edge point escapes the published enclosure";
       return false;
     }
+  }
+  return true;
+}
+
+// ---------------------------------------------------------------------------
+// Independent exact oracle for canonical source-facet/source-facet support
+// relations.  It re-derives parallelism, coplanarity, and orientation from the
+// stored support points using exact rational arithmetic, sharing no producer
+// grouping, formula dispatch, or rounded-predicate control flow with
+// Component 07.  It proves the published support classification is the unique
+// algebraic answer over the stored nominal bits.
+// ---------------------------------------------------------------------------
+
+struct ExactFacetFacetClassification final {
+  bounded::source_facet_support_relation_class support =
+      bounded::source_facet_support_relation_class::transverse;
+  bool coplanar = false;
+  bool same_orientation = false;
+};
+
+template <class T>
+ExactPoint3 exact_support_point(const bounded::bounded_geometry_snapshot3<T> &point) {
+  using namespace relation_exact_oracle_detail;
+  return {import_scalar(point.rounded[0]), import_scalar(point.rounded[1]),
+          import_scalar(point.rounded[2])};
+}
+
+template <class T>
+ExactFacetFacetClassification classify_facet_facet_exact(
+    const bounded::source_facet_source_facet_relation_record<T> &record) {
+  using namespace relation_exact_oracle_detail;
+  const auto p0 = exact_support_point(record.support_points[0][0]);
+  const auto p1 = exact_support_point(record.support_points[0][1]);
+  const auto p2 = exact_support_point(record.support_points[0][2]);
+  const auto q0 = exact_support_point(record.support_points[1][0]);
+  const auto q1 = exact_support_point(record.support_points[1][1]);
+  const auto q2 = exact_support_point(record.support_points[1][2]);
+  const auto n_a = cross(subtract(p1, p0), subtract(p2, p0));
+  const auto n_b = cross(subtract(q1, q0), subtract(q2, q0));
+
+  ExactFacetFacetClassification result;
+  if (!zero_vector(cross(n_a, n_b))) {
+    result.support = bounded::source_facet_support_relation_class::transverse;
+    return result;
+  }
+  const auto coplanarity = dot(n_a, subtract(q0, p0));
+  if (!coplanarity.is_zero()) {
+    result.support =
+        bounded::source_facet_support_relation_class::parallel_separated;
+    return result;
+  }
+  const auto orientation = dot(n_a, n_b).sign();
+  result.coplanar = true;
+  result.same_orientation = orientation >= 0;
+  if (orientation >= 0) {
+    result.support =
+        bounded::source_facet_support_relation_class::coplanar_same_orientation;
+  } else {
+    result.support = bounded::source_facet_support_relation_class::
+        coplanar_opposite_orientation;
+  }
+  return result;
+}
+
+template <class T>
+bool exact_facet_facet_record_agrees(
+    const bounded::source_facet_source_facet_relation_record<T> &record,
+    std::string &failure) {
+  const auto exact = classify_facet_facet_exact(record);
+  if (exact.support != record.classification) {
+    failure = "exact source-facet support classification disagrees with Component 07";
+    return false;
+  }
+  const bool exact_coplanar = exact.coplanar;
+  const bool exact_parallel =
+      exact.support == bounded::source_facet_support_relation_class::parallel_separated ||
+      exact_coplanar;
+  if (record.has_coplanarity_truth != exact_parallel) {
+    failure = "exact source-facet coplanarity evidence disagrees with Component 07";
+    return false;
+  }
+  if (record.has_orientation_truth != exact_coplanar) {
+    failure = "exact source-facet orientation evidence disagrees with Component 07";
+    return false;
   }
   return true;
 }
