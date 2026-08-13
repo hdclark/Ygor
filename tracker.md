@@ -14,7 +14,7 @@
 - [x] Component 7f: complete exact-oracle, type/index, internal-diagonal, fan-conservation, scheduling, selection-boundary, fuzz/shrinking, and golden-artifact qualification.
 - [x] Component 8: canonical event registry and shared construction lineage.
 - [x] Component 8 coplanar/collinear arrangement adapter (gated on Component 07 bounded coplanar lineage for coplanar/contact fixtures).
-- [ ] Component 9: connectivity and winding classification.
+- [x] Component 9: connectivity and winding classification.
 - [ ] Component 10: Boolean selection and topological occurrence accounting.
 - [ ] Component 11: paired output edges and polygonal face cycles.
 - [ ] Component 12: degeneracy-tolerant triangulation.

@@ -105,7 +105,11 @@ add_library(ygor_mesh_boolean_bounded_strict
     RelationReplay.cc
     RelationCandidateEvidenceVerifier.cc
     RelationVerifier.cc
-    ToleranceBudget.cc)
+    ToleranceBudget.cc
+    BoundedShellQuery.cc
+    Classification.cc
+    ClassificationCodec.cc
+    ClassificationVerifier.cc)
 set_property(TARGET ygor_mesh_boolean_bounded_strict PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(ygor_mesh_boolean_bounded_strict PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>

@@ -233,6 +233,29 @@ struct contract_versions final {
     static constexpr std::uint16_t intersection_exhaustive_evidence_schema = 1;
     static constexpr std::uint16_t intersection_cancellation_observer = 1;
 
+    // Component 09 connectivity and winding classification.
+    static constexpr std::uint16_t classification_artifact_schema = 1;
+    static constexpr std::uint16_t classification_provider = 1;
+    static constexpr std::uint16_t triangle_arrangement_provider = 1;
+    static constexpr std::uint16_t facet_atom_provider = 1;
+    static constexpr std::uint16_t adjacency_provider = 1;
+    static constexpr std::uint16_t grouping_provider = 1;
+    static constexpr std::uint16_t quotient_provider = 1;
+    static constexpr std::uint16_t atom_witness_provider = 1;
+    static constexpr std::uint16_t shell_query_provider = 1;
+    static constexpr std::uint16_t shell_query_direction_policy = 1;
+    static constexpr std::uint16_t propagation_provider = 1;
+    static constexpr std::uint16_t symbolic_side_provider = 1;
+    static constexpr std::uint16_t atom_domain_schema = 1;
+    static constexpr std::uint16_t local_arrangement_schema = 1;
+    static constexpr std::uint16_t classification_adjacency_schema = 1;
+    static constexpr std::uint16_t classification_group_schema = 1;
+    static constexpr std::uint16_t classification_quotient_schema = 1;
+    static constexpr std::uint16_t classification_seed_query_schema = 1;
+    static constexpr std::uint16_t classification_side_label_schema = 1;
+    static constexpr std::uint16_t classification_codec = 1;
+    static constexpr std::uint16_t classification_verifier = 1;
+
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;
     static constexpr std::uint16_t shell_semantics = shell_semantics_provider;
@@ -245,6 +268,7 @@ enum class stage_id : std::uint16_t {
     source_triangulation_a = 25, source_triangulation_b = 26,
     canonical_halfedge_a = 27, canonical_halfedge_b = 28,
     broad_phase = 29, relation_kernel = 30, intersection_registry = 31,
+    classification = 32,
 };
 enum class precision_checkpoint : std::uint32_t {
     pending_context_validation = 1, source_bit_scan = 2, non_finite_rejection = 3,

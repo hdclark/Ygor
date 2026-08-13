@@ -43,7 +43,13 @@ enum class resource_kind : std::uint8_t {
     relation_seed_records=72,relation_disposition_records=73,
     relation_canonical_workspace=74,relation_private_buffers=75,
     relation_codec_evidence=76,relation_verifier_evidence=77,
-    relation_persistent_artifact=78,count=79
+    relation_persistent_artifact=78,
+    classification_atoms=79,classification_sectors=80,
+    classification_occurrences=81,classification_adjacency=82,
+    classification_union_proposals=83,classification_quotient_edges=84,
+    classification_seed_queries=85,classification_propagation_assignments=86,
+    classification_side_labels=87,classification_shell_contributions=88,
+    classification_verifier_evidence=89,count=90
 };
 struct resource_counter { std::uint64_t hard=0,advisory=0,reserved=0,committed=0,peak_live=0,cumulative=0; };
 class resource_manager;
