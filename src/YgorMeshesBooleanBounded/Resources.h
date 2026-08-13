@@ -53,10 +53,20 @@ enum class resource_kind : std::uint8_t {
     selection_dispositions=90,selection_side_tuples=91,selection_sheet_cells=92,
     selection_owner_decisions=93,selection_multiplicity=94,selection_incidences=95,
     selection_continuations=96,selection_edge_occurrences=97,
-    selection_vertex_occurrences=98,selection_local_ports=99,
+    selection_vertex_occurrences=98,    selection_local_ports=99,
     selection_local_arcs=100,selection_carrier_balance=101,
     selection_feasibility=102,selection_verifier_evidence=103,
-    count=104
+    output_topology_incidence_audits=104,output_topology_zero_measure=105,
+    output_topology_coordinates=106,output_topology_vertex_occurrences=107,
+    output_topology_regions=108,output_topology_region_members=109,
+    output_topology_continuations=110,output_topology_darts=111,
+    output_topology_pairs=112,output_topology_halfedges=113,
+    output_topology_endpoint_fans=114,output_topology_successors=115,
+    output_topology_cycles=116,output_topology_cycle_refs=117,
+    output_topology_contours=118,output_topology_witnesses=119,
+    output_topology_admissibility=120,output_topology_vertex_links=121,
+    output_topology_carrier_audits=122,output_topology_verifier_evidence=123,
+    count=124
 };
 struct resource_counter { std::uint64_t hard=0,advisory=0,reserved=0,committed=0,peak_live=0,cumulative=0; };
 class resource_manager;

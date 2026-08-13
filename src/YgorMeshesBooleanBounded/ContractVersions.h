@@ -278,6 +278,29 @@ struct contract_versions final {
     static constexpr std::uint16_t selection_codec = 1;
     static constexpr std::uint16_t selection_verifier = 1;
 
+    // Component 11 paired output edges and face-cycle construction.
+    static constexpr std::uint16_t output_topology_artifact_schema = 1;
+    static constexpr std::uint16_t output_topology_provider = 1;
+    static constexpr std::uint16_t output_topology_incidence_audit_schema = 1;
+    static constexpr std::uint16_t output_topology_zero_measure_schema = 1;
+    static constexpr std::uint16_t output_topology_vertex_occurrence_schema = 1;
+    static constexpr std::uint16_t output_topology_coordinate_reference_schema = 1;
+    static constexpr std::uint16_t output_topology_region_schema = 1;
+    static constexpr std::uint16_t output_topology_continuation_schema = 1;
+    static constexpr std::uint16_t output_topology_boundary_dart_schema = 1;
+    static constexpr std::uint16_t output_topology_paired_edge_schema = 1;
+    static constexpr std::uint16_t output_topology_halfedge_schema = 1;
+    static constexpr std::uint16_t output_topology_endpoint_fan_schema = 1;
+    static constexpr std::uint16_t output_topology_successor_schema = 1;
+    static constexpr std::uint16_t output_topology_cycle_schema = 1;
+    static constexpr std::uint16_t output_topology_contour_schema = 1;
+    static constexpr std::uint16_t output_topology_witness_schema = 1;
+    static constexpr std::uint16_t output_topology_admissibility_schema = 1;
+    static constexpr std::uint16_t output_topology_vertex_link_schema = 1;
+    static constexpr std::uint16_t output_topology_carrier_balance_schema = 1;
+    static constexpr std::uint16_t output_topology_codec = 1;
+    static constexpr std::uint16_t output_topology_verifier = 1;
+
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;
     static constexpr std::uint16_t shell_semantics = shell_semantics_provider;
@@ -290,7 +313,7 @@ enum class stage_id : std::uint16_t {
     source_triangulation_a = 25, source_triangulation_b = 26,
     canonical_halfedge_a = 27, canonical_halfedge_b = 28,
     broad_phase = 29, relation_kernel = 30, intersection_registry = 31,
-    classification = 32, selection = 33,
+    classification = 32, selection = 33, output_topology = 34,
 };
 enum class precision_checkpoint : std::uint32_t {
     pending_context_validation = 1, source_bit_scan = 2, non_finite_rejection = 3,
