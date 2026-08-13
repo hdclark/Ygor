@@ -172,8 +172,12 @@ bool node_occurrence(const signed_feature_relations_view<T, I> &relations,
     const bool vertex_match = std::binary_search(
         source_vertices.begin(), source_vertices.end(),
         binding.accepted_source_vertex);
+    // The overlay relation's own seed is the node occurrence; its facet-pair
+    // key does not name a source edge or vertex, so the feature match is only
+    // required for request-lineage (boundary edge) bindings.
     if ((!request_match && !overlay_match) ||
-        (!edge_match && !vertex_match && !source_edges.empty()))
+        (!overlay_match && !edge_match && !vertex_match &&
+         !source_edges.empty()))
       continue;
     matches.push_back(binding.occurrence);
   }
@@ -391,8 +395,17 @@ bool collect_component07_coplanar_arrangement_proposals(
       proposal.key.second_edge = second->source_edge;
       proposal.key.coplanar_support_lineage = source.support_lineage;
       proposal.key.overlap_lineage = arc.arc_lineage;
-      proposal.key.opposite_direction =
-          first->forward_along_source_edge != second->forward_along_source_edge;
+      // A shared-boundary arc occurrence may traverse the arc in either node
+      // order. The opposite-direction relation must compare the parameter
+      // direction along the arc's canonical start->end traversal, so account
+      // for each occurrence's node reversal as well as its forward flag.
+      const bool first_reversed =
+          (first->start_node == arc.start_node) !=
+          first->forward_along_source_edge;
+      const bool second_reversed =
+          (second->start_node == arc.start_node) !=
+          second->forward_along_source_edge;
+      proposal.key.opposite_direction = first_reversed != second_reversed;
       proposal.key.symbolic_owner = source.half_open_owner;
       coplanar_relation_adapter_detail::orient_endpoints(
           *first, arc.start_node, proposal.first_nominal_bits,

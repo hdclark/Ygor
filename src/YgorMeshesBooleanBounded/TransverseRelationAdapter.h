@@ -334,7 +334,13 @@ bool collect_component07_transverse_membership_proposals(
                  candidate.point_construction == record.point_construction;
         });
     proposal.exact_equal_eligible = shared_point_count > 1;
-    proposal.cluster_eligible = shared_point_count > 1;
+    // Tangent memberships carry no winding transition; members whose bounded
+    // carrier intervals overlap are co-located on the shared carrier and may be
+    // grouped by the unresolved-overlap cluster rule even when they name
+    // distinct point constructions.
+    proposal.cluster_eligible =
+        shared_point_count > 1 ||
+        record.transition == relation_carrier_transition::tangent;
     proposal.transition = record.transition;
     proposal.half_open_owner = record.half_open_owner;
     proposal.numeric_owner = record.numeric_owner;

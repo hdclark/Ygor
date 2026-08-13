@@ -128,10 +128,21 @@ bool decode_parameter(const source_edge_membership_proposal &proposal,
       proposal.domain == parameter_domain_status::outside ||
       proposal.domain == parameter_domain_status::invalid)
     return false;
-  const auto lower = from_bits<T>(
+  auto lower = from_bits<T>(
       static_cast<floating_uint_t<T>>(proposal.lower_bits));
-  const auto upper = from_bits<T>(
+  auto upper = from_bits<T>(
       static_cast<floating_uint_t<T>>(proposal.upper_bits));
+  // Exact endpoint evidence certifies the nominal parameter as exactly zero or
+  // one; the bounded enclosure may overshoot the unit domain by a rounding
+  // margin from the division that produced it. Clamp those certified endpoints
+  // back into the source-edge domain rather than rejecting otherwise
+  // authoritative evidence.
+  if (proposal.exact_zero == exact_relation_status::exact_zero &&
+      finite_numeric_less(lower, T(0)))
+    lower = T(0);
+  if (proposal.exact_one == exact_relation_status::exact_zero &&
+      finite_numeric_less(T(1), upper))
+    upper = T(1);
   const auto interval = finite_interval<T>::create(lower, upper);
   if (!interval || finite_numeric_less(lower, T(0)) ||
       finite_numeric_less(T(1), upper))
@@ -228,6 +239,7 @@ bool equal_tables(const source_edge_arrangement_tables &a,
 bool collect_source_edge_membership_proposals(
     const std::vector<relation_event_seed_record> &seeds,
     const std::vector<relation_construction_record> &constructions,
+    const std::vector<relation_construction_ledger_record> &construction_ledger,
     const std::vector<relation_interval_evidence_record> &interval_evidence,
     const event_interning_tables &interning,
     const event_incidence_tables &incidence,
@@ -259,7 +271,10 @@ bool collect_source_edge_membership_proposals(
     if (construction.id != seed.construction ||
         !checked_range(construction.interval_evidence_begin,
                        construction.interval_evidence_count,
-                       interval_evidence.size())) {
+                       interval_evidence.size()) ||
+        !checked_range(seed.construction_ledger_begin,
+                       seed.construction_ledger_count,
+                       construction_ledger.size())) {
       error = arrangement_error(
           intersection_subcode::membership_incomplete,
           "Component 08 source-edge construction authority is malformed",
@@ -298,30 +313,65 @@ bool collect_source_edge_membership_proposals(
                                   intersection_checkpoint::source_edge_membership_proposals);
         return false;
       }
+      // The authoritative bounded parameter is owned by the seed's own
+      // Component 07 relation and is scoped to the construction's authority.
+      // A collinear-overlap endpoint or an accepted source-vertex construction
+      // is shared by several relations; the construction record's own
+      // interval-evidence range names only the canonical producer relation,
+      // while consumer relations publish their endpoint evidence in separate
+      // construction-ledger entries. The canonical seed therefore reads the
+      // construction's own range and a consumer seed reads its ledger entry,
+      // so each seed selects its own relation's parameter without admitting
+      // unrelated global evidence or a second copy of the authority.
       const relation_interval_evidence_record *parameter = nullptr;
-      const auto evidence_end = construction.interval_evidence_begin +
-                                construction.interval_evidence_count;
-      for (std::uint64_t evidence_ordinal =
-               construction.interval_evidence_begin;
-           evidence_ordinal < evidence_end; ++evidence_ordinal) {
-        const auto &candidate = interval_evidence[evidence_ordinal];
-        if (candidate.id.ordinal() != evidence_ordinal) {
+      const auto scan_range = [&](std::uint64_t begin,
+                                  std::uint64_t count) -> bool {
+        if (!checked_range(begin, count, interval_evidence.size())) {
           error = arrangement_error(
               intersection_subcode::parameter_invalid,
-              "Component 08 source-edge parameter ID is not canonical",
+              "Component 08 source-edge evidence range is malformed",
               intersection_checkpoint::source_edge_membership_proposals);
           return false;
         }
-        if (candidate.source_relation == seed.source_relation &&
-            candidate.kind == kind &&
-            candidate.occurrence == seed.key.occurrence) {
-          if (parameter != nullptr) {
-            error = arrangement_error(intersection_subcode::parameter_invalid,
-                                      "Component 08 source-edge parameter is ambiguous",
-                                      intersection_checkpoint::source_edge_membership_proposals);
+        for (std::uint64_t evidence_ordinal = begin;
+             evidence_ordinal < begin + count; ++evidence_ordinal) {
+          const auto &candidate = interval_evidence[evidence_ordinal];
+          if (candidate.id.ordinal() != evidence_ordinal) {
+            error = arrangement_error(
+                intersection_subcode::parameter_invalid,
+                "Component 08 source-edge parameter ID is not canonical",
+                intersection_checkpoint::source_edge_membership_proposals);
             return false;
           }
-          parameter = &candidate;
+          if (candidate.source_relation == seed.source_relation &&
+              candidate.kind == kind &&
+              candidate.occurrence == seed.key.occurrence) {
+            if (parameter != nullptr && parameter != &candidate) {
+              error = arrangement_error(
+                  intersection_subcode::parameter_invalid,
+                  "Component 08 source-edge parameter is ambiguous",
+                  intersection_checkpoint::source_edge_membership_proposals);
+              return false;
+            }
+            parameter = &candidate;
+          }
+        }
+        return true;
+      };
+      if (construction.source_relation == seed.source_relation) {
+        if (!scan_range(construction.interval_evidence_begin,
+                        construction.interval_evidence_count))
+          return false;
+      } else {
+        for (std::uint64_t ledger_offset = 0;
+             ledger_offset < seed.construction_ledger_count; ++ledger_offset) {
+          const auto &entry = construction_ledger[seed.construction_ledger_begin +
+                                                  ledger_offset];
+          if (entry.source_relation != seed.source_relation)
+            continue;
+          if (!scan_range(entry.interval_evidence_begin,
+                          entry.interval_evidence_count))
+            return false;
         }
       }
       const auto parameter_lineage =
@@ -453,8 +503,6 @@ bool build_source_edge_arrangements(
       if (proposals[i].key.source_edge == domain.source_edge)
         local.push_back(i);
 
-    const ordering_certificate_id invalid_certificate{
-        intersection_invalid_ordinal};
     std::vector<bounded_ordering_member> ordering_members;
     ordering_members.reserve(local.size());
     for (std::size_t i = 0; i < local.size(); ++i) {
@@ -473,6 +521,12 @@ bool build_source_edge_arrangements(
       member.exact_equal_eligible = proposal.exact_equal_eligible;
       member.unresolved_cluster_eligible = proposal.cluster_eligible;
       member.topology_interchangeable = proposal.cluster_eligible;
+      member.exact_endpoint =
+          proposal.exact_zero == exact_relation_status::exact_zero
+              ? static_cast<std::uint8_t>(1)
+              : proposal.exact_one == exact_relation_status::exact_zero
+                    ? static_cast<std::uint8_t>(2)
+                    : static_cast<std::uint8_t>(0);
       ordering_members.push_back(member);
     }
 
@@ -486,17 +540,14 @@ bool build_source_edge_arrangements(
       return false;
     sequence.comparison_count = ordering.comparison_count;
 
-    const std::uint64_t certificate_base =
-        tables.ordering_certificates.size();
-    for (auto certificate : ordering.certificates) {
-      certificate.id = ordering_certificate_id{
-          certificate_base + certificate.id.ordinal()};
-      tables.ordering_certificates.push_back(certificate);
-    }
-    const auto pair_certificate =
+    // Resolve pair certificates by the ordering's local certificate ordinal.
+    // Only certificates referenced by a published cluster or membership are
+    // retained; the remaining all-pairs clique certificates are ordering
+    // verification evidence that must not become orphaned artifact records.
+    const auto pair_certificate_local =
         [&](std::size_t first, std::size_t second,
             intersection_order_disposition required) {
-          ordering_certificate_id best{intersection_invalid_ordinal};
+          std::uint64_t best = intersection_invalid_ordinal;
           for (const auto &pair : ordering.pair_certificates) {
             intersection_order_disposition disposition =
                 intersection_order_disposition::invalid;
@@ -519,10 +570,8 @@ bool build_source_edge_arrangements(
               continue;
             }
             if (disposition == required) {
-              const ordering_certificate_id candidate{
-                  certificate_base + pair.certificate.ordinal()};
-              if (best.ordinal() == intersection_invalid_ordinal ||
-                  candidate < best)
+              const auto candidate = pair.certificate.ordinal();
+              if (best == intersection_invalid_ordinal || candidate < best)
                 best = candidate;
             }
           }
@@ -546,6 +595,7 @@ bool build_source_edge_arrangements(
     sequence.memberships.begin = tables.membership_sequence_index.size();
     std::vector<source_edge_cluster_id> ordered_cluster_ids;
     std::vector<std::size_t> ordered_group_indices;
+    std::vector<std::uint64_t> referenced_local;
     for (std::size_t group_index = 0; group_index < groups.size();
          ++group_index) {
       const auto &group = groups[group_index];
@@ -585,17 +635,19 @@ bool build_source_edge_arrangements(
       cluster.member_occurrences.count =
           tables.cluster_occurrence_index.size() -
           cluster.member_occurrences.begin;
-      const auto equivalence_certificate =
+      const auto equivalence_local =
           group.size() > 1
-              ? pair_certificate(
+              ? pair_certificate_local(
                     group[0], group[1],
                     ordering.clusters[group_index].equivalence ==
                             intersection_cluster_equivalence::
                                 lineage_authorized_unresolved
                         ? intersection_order_disposition::unresolved_overlap
                         : intersection_order_disposition::exact_equal)
-              : invalid_certificate;
-      cluster.ordering_certificate = equivalence_certificate;
+              : intersection_invalid_ordinal;
+      cluster.ordering_certificate = ordering_certificate_id{equivalence_local};
+      if (equivalence_local != intersection_invalid_ordinal)
+        referenced_local.push_back(equivalence_local);
       cluster.membership_ids.begin = tables.cluster_membership_index.size();
       for (const auto member : group) {
         const auto &proposal = proposals[local[member]];
@@ -612,7 +664,7 @@ bool build_source_edge_arrangements(
         record.internal_diagonal_discovery =
             proposal.internal_diagonal_discovery;
         record.bookkeeping_only = proposal.bookkeeping_only;
-        record.ordering_certificate = equivalence_certificate;
+        record.ordering_certificate = ordering_certificate_id{equivalence_local};
         tables.memberships.push_back(record);
         tables.membership_sequence_index.push_back(record.id);
         tables.cluster_membership_index.push_back(record.id);
@@ -630,30 +682,30 @@ bool build_source_edge_arrangements(
         tables.sequence_cluster_index.size() - sequence.clusters.begin;
     sequence.memberships.count =
         tables.membership_sequence_index.size() - sequence.memberships.begin;
-    std::vector<ordering_certificate_id> adjacency_certificates;
+    std::vector<std::uint64_t> adjacency_local;
     if (ordered_cluster_ids.size() > 1)
-      adjacency_certificates.reserve(ordered_cluster_ids.size() - 1);
+      adjacency_local.reserve(ordered_cluster_ids.size() - 1);
     for (std::size_t i = 1; i < ordered_cluster_ids.size(); ++i) {
       const auto &left_group = groups[ordered_group_indices[i - 1]];
       const auto &right_group = groups[ordered_group_indices[i]];
-      ordering_certificate_id certificate = invalid_certificate;
+      std::uint64_t certificate = intersection_invalid_ordinal;
       for (const auto left : left_group)
         for (const auto right : right_group) {
-          const auto candidate = pair_certificate(
+          const auto candidate = pair_certificate_local(
               left, right, intersection_order_disposition::definitely_before);
-          if (candidate.ordinal() != intersection_invalid_ordinal &&
-              (certificate.ordinal() == intersection_invalid_ordinal ||
+          if (candidate != intersection_invalid_ordinal &&
+              (certificate == intersection_invalid_ordinal ||
                candidate < certificate))
             certificate = candidate;
         }
-      if (certificate.ordinal() == intersection_invalid_ordinal) {
+      if (certificate == intersection_invalid_ordinal) {
         error = arrangement_error(
             intersection_subcode::unresolved_topology_order,
             "Component 08 adjacent source-edge clusters lack precedence evidence",
             intersection_checkpoint::source_edge_ordering);
         return false;
       }
-      adjacency_certificates.push_back(certificate);
+      adjacency_local.push_back(certificate);
     }
     for (std::size_t i = 0; i < ordered_cluster_ids.size(); ++i) {
       auto &cluster = tables.clusters[ordered_cluster_ids[i].ordinal()];
@@ -663,10 +715,14 @@ bool build_source_edge_arrangements(
         cluster.successor = ordered_cluster_ids[i + 1];
       if (cluster.ordering_certificate.ordinal() ==
           intersection_invalid_ordinal) {
-        if (i != 0)
-          cluster.ordering_certificate = adjacency_certificates[i - 1];
-        else if (!adjacency_certificates.empty())
-          cluster.ordering_certificate = adjacency_certificates.front();
+        const auto adjacent =
+            i != 0
+                ? adjacency_local[i - 1]
+                : (!adjacency_local.empty() ? adjacency_local.front()
+                                            : intersection_invalid_ordinal);
+        cluster.ordering_certificate = ordering_certificate_id{adjacent};
+        if (adjacent != intersection_invalid_ordinal)
+          referenced_local.push_back(adjacent);
       }
       const auto membership_range = cluster.membership_ids;
       for (std::uint64_t offset = 0; offset < membership_range.count; ++offset) {
@@ -676,6 +732,41 @@ bool build_source_edge_arrangements(
         if (membership.ordering_certificate.ordinal() ==
             intersection_invalid_ordinal)
           membership.ordering_certificate = cluster.ordering_certificate;
+      }
+    }
+
+    // Publish only the referenced certificates, in ascending local order, with
+    // contiguous global IDs.
+    std::sort(referenced_local.begin(), referenced_local.end());
+    referenced_local.erase(
+        std::unique(referenced_local.begin(), referenced_local.end()),
+        referenced_local.end());
+    const std::uint64_t certificate_base =
+        tables.ordering_certificates.size();
+    for (std::uint64_t index = 0; index < referenced_local.size(); ++index) {
+      auto certificate = ordering.certificates[referenced_local[index]];
+      certificate.id = ordering_certificate_id{certificate_base + index};
+      tables.ordering_certificates.push_back(certificate);
+    }
+    const auto remap_certificate = [&](ordering_certificate_id id) {
+      if (id.ordinal() == intersection_invalid_ordinal)
+        return id;
+      const auto found = std::lower_bound(
+          referenced_local.begin(), referenced_local.end(), id.ordinal());
+      return ordering_certificate_id{
+          certificate_base +
+          static_cast<std::uint64_t>(found - referenced_local.begin())};
+    };
+    for (const auto &cluster_id : ordered_cluster_ids) {
+      auto &cluster = tables.clusters[cluster_id.ordinal()];
+      cluster.ordering_certificate =
+          remap_certificate(cluster.ordering_certificate);
+      const auto membership_range = cluster.membership_ids;
+      for (std::uint64_t offset = 0; offset < membership_range.count; ++offset) {
+        auto &membership = tables.memberships[tables.cluster_membership_index[
+            membership_range.begin + offset].ordinal()];
+        membership.ordering_certificate =
+            remap_certificate(membership.ordering_certificate);
       }
     }
 
@@ -766,6 +857,24 @@ bool build_source_edge_arrangements(
       return false;
     }
   }
+
+  // Publish memberships in canonical complete-key order. The cluster/sequence
+  // indexes reference memberships by ID, so reassign the dense IDs after the
+  // sort.
+  std::vector<std::uint64_t> membership_remap(tables.memberships.size());
+  std::vector<source_edge_membership_record> sorted_memberships =
+      tables.memberships;
+  std::sort(sorted_memberships.begin(), sorted_memberships.end(),
+            [](const auto &a, const auto &b) { return a.key < b.key; });
+  for (std::size_t i = 0; i < sorted_memberships.size(); ++i) {
+    membership_remap[sorted_memberships[i].id.ordinal()] = i;
+    sorted_memberships[i].id = source_edge_membership_id{i};
+  }
+  tables.memberships = std::move(sorted_memberships);
+  for (auto &id : tables.membership_sequence_index)
+    id = source_edge_membership_id{membership_remap[id.ordinal()]};
+  for (auto &id : tables.cluster_membership_index)
+    id = source_edge_membership_id{membership_remap[id.ordinal()]};
   return true;
 }
 

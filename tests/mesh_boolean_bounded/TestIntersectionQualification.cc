@@ -811,6 +811,7 @@ void test_execution_determinism_and_fail_closed_gate() {
   require(bounded::collect_source_edge_membership_proposals(
               transverse.relations->event_seeds(),
               transverse.relations->constructions(),
+              transverse.relations->construction_ledger(),
               transverse.relations->interval_evidence(), interning, incidence,
               memberships, adapter_error),
           "Component 07 source-edge lineage did not adapt into memberships");
@@ -873,7 +874,8 @@ void test_execution_determinism_and_fail_closed_gate() {
   unrelated_evidence[unrelated].domain = authoritative.domain;
   require(bounded::collect_source_edge_membership_proposals(
               transverse.relations->event_seeds(),
-              transverse.relations->constructions(), unrelated_evidence,
+              transverse.relations->constructions(),
+              transverse.relations->construction_ledger(), unrelated_evidence,
               interning, incidence, memberships, adapter_error),
           "unrelated global evidence escaped construction-scoped authority");
 
@@ -882,6 +884,7 @@ void test_execution_determinism_and_fail_closed_gate() {
       .interval_evidence_count = 0;
   require(!bounded::collect_source_edge_membership_proposals(
               transverse.relations->event_seeds(), missing_constructions,
+              transverse.relations->construction_ledger(),
               transverse.relations->interval_evidence(), interning, incidence,
               memberships, adapter_error) &&
               adapter_error.subcode == static_cast<std::uint32_t>(
@@ -910,7 +913,8 @@ void test_execution_determinism_and_fail_closed_gate() {
   duplicate.exact_one = authoritative.exact_one;
   require(!bounded::collect_source_edge_membership_proposals(
               transverse.relations->event_seeds(),
-              transverse.relations->constructions(), ambiguous_evidence,
+              transverse.relations->constructions(),
+              transverse.relations->construction_ledger(), ambiguous_evidence,
               interning, incidence, memberships, adapter_error) &&
               adapter_error.subcode == static_cast<std::uint32_t>(
                   bounded::intersection_subcode::parameter_invalid),

@@ -95,8 +95,12 @@ intersection_order_disposition compare_members(
   const bool identical_bounds =
       to_bits(first_interval.lower()) == to_bits(second_interval.lower()) &&
       to_bits(first_interval.upper()) == to_bits(second_interval.upper());
-  if (identical_bounds && first.exact_equal_eligible &&
-      second.exact_equal_eligible && first.exact_evidence_lineage != 0 &&
+  const bool same_exact_endpoint =
+      first.exact_endpoint != 0 &&
+      first.exact_endpoint == second.exact_endpoint;
+  if ((identical_bounds || same_exact_endpoint) &&
+      first.exact_equal_eligible && second.exact_equal_eligible &&
+      first.exact_evidence_lineage != 0 &&
       second.exact_evidence_lineage != 0)
     return intersection_order_disposition::exact_equal;
 
@@ -125,8 +129,12 @@ intersection_order_disposition verify_compare_members(
   const bool exact_bounds =
       to_bits(first_interval.lower()) == to_bits(second_interval.lower()) &&
       to_bits(first_interval.upper()) == to_bits(second_interval.upper());
-  if (exact_bounds && first.exact_equal_eligible &&
-      second.exact_equal_eligible && first.exact_evidence_lineage != 0 &&
+  const bool same_exact_endpoint =
+      first.exact_endpoint != 0 &&
+      first.exact_endpoint == second.exact_endpoint;
+  if ((exact_bounds || same_exact_endpoint) &&
+      first.exact_equal_eligible && second.exact_equal_eligible &&
+      first.exact_evidence_lineage != 0 &&
       second.exact_evidence_lineage != 0)
     return intersection_order_disposition::exact_equal;
 

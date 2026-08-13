@@ -349,7 +349,8 @@ private:
             intersection_checkpoint::source_edge_membership_proposals) ||
         !collect_source_edge_membership_proposals(
             relations_.event_seeds(), relations_.constructions(),
-            relations_.interval_evidence(), interning_, incidence_, source_memberships_, error_))
+            relations_.construction_ledger(), relations_.interval_evidence(),
+            interning_, incidence_, source_memberships_, error_))
       return false;
     if (!check_cancel(intersection_checkpoint::source_edge_ordering) ||
         !build_source_edge_arrangements<T>(domains_, source_memberships_,

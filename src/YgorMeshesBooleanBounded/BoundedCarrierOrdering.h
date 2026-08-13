@@ -24,6 +24,10 @@ struct bounded_ordering_member final {
   bool exact_equal_eligible = false;
   bool unresolved_cluster_eligible = false;
   bool topology_interchangeable = false;
+  // Exact endpoint side: 0 = interior, 1 = certified exact zero, 2 = certified
+  // exact one. Two members with the same nonzero side are provably equal even
+  // when their bounded enclosures differ by a rounding margin.
+  std::uint8_t exact_endpoint = 0;
   std::uint8_t reserved8 = 0;
 };
 

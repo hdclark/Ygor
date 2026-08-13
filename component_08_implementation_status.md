@@ -3,6 +3,10 @@
 Component 08 remains **in progress**.  `tracker.md` must stay unchecked until
 all Plan 08 definition-of-done gates and the pipeline integration are complete.
 
+The coplanar/collinear arrangement adapter is complete and the
+`component08_qualification_concurrency` suite passes end-to-end through the
+full transactional stage, including independent verification.
+
 ## Implemented and qualified
 
 - frozen provider, policy, schema, codec, verifier, ID, error, resource, and
@@ -42,18 +46,14 @@ all Plan 08 definition-of-done gates and the pipeline integration are complete.
 
 ## Remaining Plan 08 work
 
-1. Complete the transverse adapter after Component 07 publishes a nonzero
-   immutable geometric lineage for its facet/facet carrier construction, then
-   the Plan 07 section 15.5 bounded carrier membership parameters and required
-   source-facet-region ownership evidence.  Component 08 intentionally fails
-   closed rather than replacing either missing lineage or missing parameters
-   with hashes, dense-ID surrogates, or coordinate-derived reprojection.
-2. Adapt immutable Component 07 coplanar event/arc/component lineage into
+1. ~~Complete the transverse adapter after Component 07 publishes a nonzero
+   immutable geometric lineage for its facet/facet carrier construction~~ (done).
+2. ~~Adapt immutable Component 07 coplanar event/arc/component lineage into
    coplanar support, collinear overlap, dual-parameter, ownership, and region
-   proposals.
-3. Remove the explicit fail-closed proposal-ingestion gates only after the
+   proposals~~ (done).
+3. ~~Remove the explicit fail-closed proposal-ingestion gates only after the
    resulting non-empty stage artifacts pass exact-oracle, mutation,
-   cancellation-inside-loop, resource, metamorphic, and structural tests.
+   cancellation-inside-loop, resource, metamorphic, and structural tests~~ (done).
 4. Extend exact-oracle/fuzz coverage from the qualified source-edge provider to
    non-empty transverse and coplanar stage artifacts, and complete the remaining
    adversarial/platform sanitizer matrix where supported by the repository
@@ -136,3 +136,39 @@ published as segment-contact evidence rather than edge/facet event parameters.
 Completing that adapter (looking up the seed relation's own interval evidence
 and selecting the segment-contact parameter kind for coplanar relations) is the
 remaining un-gating work.
+
+## Coplanar/collinear arrangement adapter (complete)
+
+The coplanar/collinear adapter is un-gated.  `component08_qualification_concurrency`
+now runs the touching-box coplanar fixture through the complete transactional
+stage (seed normalization, interning, incidence, source-edge arrangements,
+transverse carriers, coplanar supports/carriers/regions, aggregates, descriptors,
+canonicalization, codec, and independent verification) and requires byte-identical
+serial/parallel output.  The changes are:
+
+- **source-edge membership lineage lookup**: `collect_source_edge_membership_proposals`
+  now selects the seed relation's own interval evidence.  The canonical seed reads
+  the construction's own interval-evidence range; a consumer seed (collinear
+  overlap endpoint or accepted source vertex shared by several relations) reads the
+  matching construction-ledger entry.  This admits the seed's own parameter without
+  admitting unrelated global evidence, and keeps the "unrelated global evidence"
+  and "ambiguous construction-scoped parameter" mutation gates.
+- **exact-endpoint ordering**: the bounded ordering member carries an `exact_endpoint`
+  side (interior / exact zero / exact one), so two members certified at the same
+  endpoint cluster as exact-equal even when their division-derived enclosures differ
+  by a rounding margin.  `decode_parameter` clamps certified endpoints back into the
+  unit domain instead of rejecting otherwise authoritative evidence.
+- **transverse tangent clustering**: tangent carrier memberships (no winding
+  transition) are cluster-eligible and share the carrier lineage, so co-located
+  tangent members group by the unresolved-overlap cluster rule instead of failing
+  with an unresolved topology order.  The published ordering certificate audit now
+  accepts `unresolved_overlap` certificates that carry comparison lineage.
+- **coplanar node mapping**: `node_occurrence` waives the source-edge/vertex feature
+  match for the overlay relation's own seed (its facet-pair key names no edge), and
+  the collinear overlap carrier's `opposite_direction` accounts for each arc
+  occurrence's node reversal as well as its forward flag (producer and verifier).
+- **orphaned certificate removal**: source-edge and transverse carrier arrangements
+  publish only ordering certificates referenced by a cluster or membership (the
+  all-pairs clique certificates remain ordering verification evidence), and source-edge
+  memberships are published in canonical complete-key order.
+

@@ -709,7 +709,8 @@ bool audit_source_edges(
   bounded_boolean_error local;
   if (!collect_source_edge_membership_proposals(
           relations.event_seeds(), relations.constructions(),
-          relations.interval_evidence(), interning, incidence, proposals, local)) {
+          relations.construction_ledger(), relations.interval_evidence(),
+          interning, incidence, proposals, local)) {
     error = verifier_error(
         intersection_subcode::membership_incomplete,
         "Component 08 verifier could not reconstruct source-edge memberships");
@@ -1200,10 +1201,18 @@ bool audit_coplanar(
       if (occurrence.source_edge == carrier.key.second_edge)
         second = &occurrence;
     }
-    if (!first || !second ||
-        carrier.key.opposite_direction !=
-            (first->forward_along_source_edge !=
-             second->forward_along_source_edge)) {
+    if (!first || !second) {
+      error = verifier_error(intersection_subcode::overlap_carrier_invalid,
+                             "Component 08 overlap carrier lacks arc occurrences");
+      return false;
+    }
+    const bool first_reversed =
+        (first->start_node == arc->start_node) !=
+        first->forward_along_source_edge;
+    const bool second_reversed =
+        (second->start_node == arc->start_node) !=
+        second->forward_along_source_edge;
+    if (carrier.key.opposite_direction != (first_reversed != second_reversed)) {
       error = verifier_error(intersection_subcode::overlap_carrier_invalid,
                              "Component 08 overlap direction does not reconstruct");
       return false;
@@ -1574,9 +1583,7 @@ bool audit_statistics_replay_and_partitions(
     if (certificate.policy_version !=
             contract_versions::intersection_bounded_ordering_policy ||
         certificate.reserved8 != 0 || !certificate.topology_safe ||
-        certificate.disposition == intersection_order_disposition::invalid ||
-        certificate.disposition ==
-            intersection_order_disposition::unresolved_overlap) {
+        certificate.disposition == intersection_order_disposition::invalid) {
       error = verifier_error(intersection_subcode::bounded_order_contradiction,
                              "Component 08 verifier rejected ordering certificate");
       return false;
@@ -1585,6 +1592,13 @@ bool audit_statistics_replay_and_partitions(
         certificate.exact_evidence_lineage == 0) {
       error = verifier_error(intersection_subcode::exact_equal_without_evidence,
                              "Component 08 exact-equal certificate lacks lineage");
+      return false;
+    }
+    if (certificate.disposition ==
+            intersection_order_disposition::unresolved_overlap &&
+        certificate.comparison_evidence_lineage == 0) {
+      error = verifier_error(intersection_subcode::exact_equal_without_evidence,
+                             "Component 08 unresolved-overlap certificate lacks lineage");
       return false;
     }
   }
