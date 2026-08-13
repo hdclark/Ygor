@@ -1802,18 +1802,14 @@ private:
                       relation_checkpoint::source_facet_region_evaluation);
         const auto &source = edge_stage_->relations[base.ordinal];
         for (std::uint32_t i = 0; i < source.parameter_count; ++i) {
-          std::uint32_t occurrence = 0;
-          if (!next_interval_occurrence(
-                  relation_interval_evidence_kind::source_edge_first_parameter,
-                  interval_counters, occurrence, error) ||
-              !add_parameter_evidence(
+          // The parameter occurrence matches the event-seed occurrence for
+          // source-edge memberships: the point index within the relation.
+          const std::uint32_t occurrence = i;
+          if (!add_parameter_evidence(
                   base,
                   relation_interval_evidence_kind::source_edge_first_parameter,
                   occurrence, source.first_parameters[i], dependencies,
                   closure, error) ||
-              !next_interval_occurrence(
-                  relation_interval_evidence_kind::source_edge_second_parameter,
-                  interval_counters, occurrence, error) ||
               !add_parameter_evidence(
                   base,
                   relation_interval_evidence_kind::source_edge_second_parameter,
@@ -1858,15 +1854,24 @@ private:
                       "Component 07 family-04 edge/facet relation is out of range",
                       relation_checkpoint::source_facet_region_evaluation);
         const auto &source = edge_facet_stage_->relations[base.ordinal];
-        for (const auto &event : source.events) {
+        for (std::size_t local_event = 0; local_event < source.events.size();
+             ++local_event) {
+          if (local_event > std::numeric_limits<std::uint32_t>::max())
+            return fail(error, relation_subcode::count_overflow,
+                        "Component 07 family-04 edge/facet local event overflow",
+                        relation_checkpoint::count_representability_preflight);
+          const auto &event = source.events[local_event];
+          // The parameter occurrence matches the event-seed occurrence for
+          // source-edge memberships: the canonical event occurrence.
           std::uint32_t parameter_occurrence = 0;
+          if (!canonical_event_occurrence(
+                  base, static_cast<std::uint32_t>(local_event),
+                  parameter_occurrence, error))
+            return false;
           std::uint32_t residual_occurrence = 0;
           std::uint32_t support_occurrence = 0;
           std::uint32_t region_occurrence = 0;
-          if (!next_interval_occurrence(
-                  relation_interval_evidence_kind::edge_facet_event_parameter,
-                  interval_counters, parameter_occurrence, error) ||
-              !add_parameter_evidence(
+          if (!add_parameter_evidence(
                   base,
                   relation_interval_evidence_kind::edge_facet_event_parameter,
                   parameter_occurrence, event.parameter, dependencies,
@@ -2615,7 +2620,7 @@ private:
             add_symbolic_descriptor(
                 base, rule_key,
                 symbolic_relation_subject_kind::event_occurrence, occurrence,
-                static_cast<std::uint32_t>(local_event), &authority_record.key,
+                occurrence, &authority_record.key,
                 &multiplicity);
           }
         }
@@ -2689,10 +2694,20 @@ private:
             incidence.push_back(sheet_occurrence_feature(
                 facet, static_cast<std::uint32_t>(occurrence.polygon)));
           }
-          const auto witness_geometry = geometry_from_projected(
+          auto witness_geometry = geometry_from_projected(
               node.representative, source.facets[0].dropped_axis,
               authority_record.precedence ==
                   relation_construction_precedence::accepted_source_vertex);
+          if (authority_record.geometry.lineage == 0) {
+            authority_record.geometry.lineage =
+                relation_stable_lineage(authority_record.key, 0x72U);
+            witness_geometry.lineage = authority_record.geometry.lineage;
+          }
+          if (authority_record.geometry.provenance == 0) {
+            authority_record.geometry.provenance =
+                relation_stable_lineage(authority_record.key, 0x73U);
+            witness_geometry.provenance = authority_record.geometry.provenance;
+          }
           if (!append_use(
                   base, authority_record, witness_geometry, node.certificate,
                   relation_construction_precedence::coplanar_overlap_endpoint,
@@ -4063,15 +4078,26 @@ private:
         break;
       const auto &source = edge_facet_stage_->relations[base->ordinal];
       const source_edge_facet_event_record<T> *event = nullptr;
-      for (const auto &candidate : source.events)
-        if (candidate.occurrence == descriptor.occurrence) {
+      for (std::size_t local = 0; local < source.events.size(); ++local) {
+        if (local > std::numeric_limits<std::uint32_t>::max())
+          break;
+        std::uint32_t candidate_occurrence = 0;
+        bounded_boolean_error occurrence_error;
+        if (!canonical_event_occurrence(
+                *base, static_cast<std::uint32_t>(local), candidate_occurrence,
+                occurrence_error)) {
+          error = occurrence_error;
+          return false;
+        }
+        if (candidate_occurrence == descriptor.occurrence) {
           if (event)
             return fail(error,
                         relation_subcode::incompatible_duplicate_request,
                         "Component 07 symbolic edge/facet occurrence is duplicated",
                         relation_checkpoint::symbolic_eligibility);
-          event = &candidate;
+          event = &source.events[local];
         }
+      }
       if (!event)
         break;
       if (event->region.classification ==

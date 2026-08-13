@@ -2408,17 +2408,11 @@ bool verify_signed_feature_relations(
       const auto &source =
           artifact.source_edge_stage_->relations[request->id.ordinal()];
       for (std::uint32_t i = 0; i < source.parameter_count; ++i) {
-        std::uint32_t occurrence = 0;
-        if (!next_interval(
-                relation_interval_evidence_kind::source_edge_first_parameter,
-                interval_counters, occurrence) ||
-            !append_parameter(
+        const std::uint32_t occurrence = i;
+        if (!append_parameter(
                 base, relation.id,
                 relation_interval_evidence_kind::source_edge_first_parameter,
                 occurrence, source.first_parameters[i]) ||
-            !next_interval(
-                relation_interval_evidence_kind::source_edge_second_parameter,
-                interval_counters, occurrence) ||
             !append_parameter(
                 base, relation.id,
                 relation_interval_evidence_kind::source_edge_second_parameter,
@@ -2464,12 +2458,17 @@ bool verify_signed_feature_relations(
                     "Component 07 family-04 edge/facet source is absent");
       const auto &source = artifact.source_edge_facet_stage_->relations[
           request->id.ordinal()];
-      for (const auto &event : source.events) {
+      for (std::size_t local_event = 0; local_event < source.events.size();
+           ++local_event) {
+        if (local_event > std::numeric_limits<std::uint32_t>::max())
+          return fail(relation_subcode::count_overflow,
+                      "Component 07 family-04 edge/facet local event overflow");
+        const auto &event = source.events[local_event];
         std::uint32_t parameter_occurrence = 0, residual_occurrence = 0;
         std::uint32_t support_occurrence = 0, region_occurrence = 0;
-        if (!next_interval(
-                relation_interval_evidence_kind::edge_facet_event_parameter,
-                interval_counters, parameter_occurrence) ||
+        if (!canonical_event_occurrence(
+                request->id, static_cast<std::uint32_t>(local_event),
+                parameter_occurrence) ||
             !append_parameter(
                 base, relation.id,
                 relation_interval_evidence_kind::edge_facet_event_parameter,
@@ -2973,16 +2972,28 @@ bool verify_signed_feature_relations(
       verifier_construction_authority<T> authority;
       if (!verifier_overlay_node_authority(
               *artifact.candidates_, *artifact.source_edge_stage_,
-              descriptor.key, source, node, authority) ||
-          !append_expected_use(
+              descriptor.key, source, node, authority))
+        return fail(relation_subcode::verifier_rejection,
+                    "Component 07 overlay construction authority does not reconstruct");
+      auto witness = verifier_geometry_from_projected(
+          node.representative, source.facets[0].dropped_axis,
+          authority.precedence ==
+              relation_construction_precedence::accepted_source_vertex);
+      if (authority.geometry.lineage == 0) {
+        authority.geometry.lineage =
+            relation_stable_lineage(authority.key, 0x72U);
+        witness.lineage = authority.geometry.lineage;
+      }
+      if (authority.geometry.provenance == 0) {
+        authority.geometry.provenance =
+            relation_stable_lineage(authority.key, 0x73U);
+        witness.provenance = authority.geometry.provenance;
+      }
+      if (!append_expected_use(
               descriptor.key, authority,
               relation_construction_precedence::coplanar_overlap_endpoint,
-              verifier_geometry_from_projected(
-                  node.representative, source.facets[0].dropped_axis,
-                   authority.precedence ==
-                       relation_construction_precedence::accepted_source_vertex),
-               node.certificate,
-               static_cast<std::uint32_t>(node.id)))
+              witness, node.certificate,
+              static_cast<std::uint32_t>(node.id)))
         return fail(relation_subcode::verifier_rejection,
                     "Component 07 overlay construction authority does not reconstruct");
     }
@@ -4206,7 +4217,7 @@ bool verify_signed_feature_relations(
         return fail(relation_subcode::missing_dependency,
                     "Component 07 symbolic edge relation decision is absent");
     } else {
-      for (std::size_t point = 0; point < source.points.size(); ++point)
+      for (std::size_t point = 0; point < source.point_count; ++point)
         if (!require_symbolic(
                 request.key,
                 symbolic_relation_subject_kind::event_occurrence, point,
@@ -4400,8 +4411,12 @@ bool verify_signed_feature_relations(
       actual_facets.erase(
           std::unique(actual_facets.begin(), actual_facets.end()),
           actual_facets.end());
-      complete = complete && count >= 2 &&
-                 actual_facets == expected_facets &&
+      // A pure tangent group carries zero crossing, so the fan need not be
+      // fully covered by boundary-crossing events; only true boundary
+      // crossings require complete facet coverage for conservation.
+      complete = complete &&
+                 (tangent_group ||
+                  (count >= 2 && actual_facets == expected_facets)) &&
                  boundary_crossing_group != tangent_group;
     }
     if (!complete)

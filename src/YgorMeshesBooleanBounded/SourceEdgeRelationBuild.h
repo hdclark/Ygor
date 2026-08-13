@@ -241,7 +241,9 @@ classify_source_edge_relation(
         candidate, first, second, *first_parameter.value(),
         *second_parameter.value(), residual_boundary, accepted_source_vertex,
         first_endpoint, second_endpoint, owner,
-        denominator.value()->uncertainty_enclosure);
+        accepted_source_vertex
+            ? finite_interval<T>::singleton(T(1))
+            : denominator.value()->uncertainty_enclosure);
     if (!construction.has_value())
       return boolean_outcome<source_edge_relation_record<T>>::failure(
           *construction.error());

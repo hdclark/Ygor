@@ -95,3 +95,44 @@ certificate inconsistency (`duplicate_authoritative_producer`,
 still fail closed, but currently as an internal invariant rather than the
 required typed geometric/resource failure; this is the remaining gate before
 the coplanar adapter can be un-gated.
+
+## Component 07 coplanar/contact lineage hardening (complete)
+
+The construction-authority and downstream-consistency bugs that kept
+equal/coincident sheets failing as internal invariants are now fixed, so
+Component 07 publishes bounded coplanar lineage for coplanar/contact fixtures:
+
+- the nonparallel source-edge point construction now issues a canonical
+  `source_import` certificate (singleton denominator) for accepted source
+  vertices, so several source edges meeting at one vertex publish byte-identical
+  authority certificates instead of edge-pair-specific denominators;
+- the edge/facet symbolic descriptor now stores the canonical event occurrence
+  (rather than the local event index) as both the subject ordinal and the
+  occurrence discriminator, and the producer resolves symbolic eligibility from
+  the canonical occurrence instead of the local event occurrence field;
+- the independent verifier's symbolic edge population check iterates
+  `point_count` instead of the fixed `points` array size, so single-point
+  relations no longer demand a second symbolic decision;
+- the verifier's source-fan completeness check now admits pure tangent groups
+  (zero net crossing) without requiring complete facet coverage, matching the
+  producer's documented conservation rule;
+- coplanar overlap-endpoint constructions now publish a deterministic geometric
+  lineage and provenance (derived from the canonical construction key) in both
+  the producer and the verifier; and
+- family-04 interval evidence for source-edge and edge/facet event parameters
+  now uses the event-seed occurrence (the relation-local point index for
+  source edges, the canonical event occurrence for edge/facet events) instead
+  of a per-kind publication counter, so source-edge membership lookup matches
+  the published parameter.
+
+`component07_exact_oracle`, `component07_type_index_matrix`, and the
+coincident-sheet portions of `component08_qualification_concurrency` now pass;
+the committed golden relation digest was re-captured from the corrected
+canonical bytes.  The remaining `component08_qualification_concurrency` failure
+is the coplanar/collinear source-edge membership: collinear overlap endpoints
+share a source-vertex/carrier construction whose authoritative interval
+evidence belongs to a different relation, and coplanar relation parameters are
+published as segment-contact evidence rather than edge/facet event parameters.
+Completing that adapter (looking up the seed relation's own interval evidence
+and selecting the segment-contact parameter kind for coplanar relations) is the
+remaining un-gating work.
