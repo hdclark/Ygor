@@ -1105,6 +1105,11 @@ Section 24 and 26 qualification obligations:
 - deterministic-parallel coverage now forces alternate schedules and worker
   counts (1, 2, and 7) and requires byte-identical canonical artifacts and an
   identical primary failure for a typed coincident-sheet failure;
+- internal-diagonal triangle-local reconciliation is exercised directly: every
+  candidate publishes a complete reconciliation record, every internal diagonal
+  maps to a public source-facet composite while retaining no source-feature,
+  symbolic-contact, classification-barrier, or retained-surface ownership, and
+  the reconciliation population matches the published statistics;
 - independent source-fan crossing conservation is verified directly from the
   published `relation_crossing_record` table: every group is fan-resolved and
   locally conservative, its membership and ordinals are complete, its total is

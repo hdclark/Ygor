@@ -149,6 +149,44 @@ void test_alternate_schedules_and_merges() {
 }
 
 // ---------------------------------------------------------------------------
+// Internal-diagonal triangle-local reconciliation.
+// ---------------------------------------------------------------------------
+
+void test_internal_diagonal_reconciliation() {
+  auto a = rtm::typed_box<double, std::uint32_t>(0, 0, 0, 1, 1, 1);
+  auto b = rtm::typed_box<double, std::uint32_t>(0.25, 0.25, 1.0, 0.75, 0.75,
+                                                 2.0);
+  auto fixture = rtm::build_typed<double, std::uint32_t>(
+      a, b, bounded_execution_mode::serial_v1, 1);
+  const auto attempt = rtm::build_typed_relation(fixture);
+  require(attempt.success,
+          "internal-diagonal fixture publishes an artifact");
+
+  const auto &reconciliations = attempt.artifact->triangle_local_reconciliation();
+  require(reconciliations.size() ==
+              attempt.artifact->statistics().triangle_local_reconciliation_count,
+          "triangle-local reconciliation covers the complete published population");
+  std::size_t internal_diagonals = 0;
+  for (const auto &record : reconciliations) {
+    require(record.complete,
+            "every candidate retains complete triangle-local authority evidence");
+    if (!record.internal_diagonal)
+      continue;
+    ++internal_diagonals;
+    require(record.disposition ==
+                bounded::triangle_local_reconciliation_disposition::
+                    mapped_to_public_composite &&
+                !record.source_feature_owner &&
+                !record.symbolic_contact_owner &&
+                !record.classification_barrier &&
+                !record.retained_surface_feature,
+            "internal diagonals reconcile to source-facet semantics without ownership");
+  }
+  require(internal_diagonals != 0,
+          "qualification fixture exercises internal-diagonal reconciliation");
+}
+
+// ---------------------------------------------------------------------------
 // Independent source-fan crossing conservation.
 // ---------------------------------------------------------------------------
 
@@ -356,6 +394,7 @@ int main() {
   try {
     test_type_index_matrix();
     test_alternate_schedules_and_merges();
+    test_internal_diagonal_reconciliation();
     test_fan_conservation();
     test_selection_boundary();
     test_fuzz_and_shrink();
