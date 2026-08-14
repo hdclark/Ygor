@@ -76,7 +76,10 @@ enum class resource_kind : std::uint8_t {
     cleanup_triangle_slots=139,cleanup_component_records=140,
     cleanup_obligation_records=141,cleanup_action_records=142,
     cleanup_verifier_records=143,
-    count=144
+    output_assembly_components=144,output_assembly_maps=145,
+    output_assembly_reports=146,output_assembly_provenance=147,
+    output_assembly_verifier_records=148,
+    count=149
 };
 struct resource_counter { std::uint64_t hard=0,advisory=0,reserved=0,committed=0,peak_live=0,cumulative=0; };
 class resource_manager;

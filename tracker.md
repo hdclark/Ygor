@@ -19,7 +19,7 @@
 - [x] Component 11: paired output edges and polygonal face cycles.
 - [x] Component 12: degeneracy-tolerant triangulation.
 - [x] Component 13: budgeted cleanup and simplification.
-- [ ] Component 14: output assembly and canonical serialization.
+- [x] Component 14: output assembly and canonical serialization.
 - [ ] Component 15: full independent final verification and replay diagnostics.
 - [ ] Component 17: performance optimization and deterministic concurrency.
 - [ ] Component 16: full qualification matrix and release report.

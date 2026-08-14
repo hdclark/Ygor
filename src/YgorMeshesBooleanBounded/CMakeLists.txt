@@ -156,8 +156,16 @@ install(DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/"
 
 # The public facade uses Ygor's out-of-line mesh/math API. Keep it in ygor while
 # the strict provider above remains independently linkable and dependency-minimal.
+# Component 14 (output assembly) builds the public fv_surface_mesh carrier and is
+# therefore compiled here, next to the existing facade, rather than in the strict
+# provider target.
 add_library(ygor_mesh_boolean_bounded_facade OBJECT
-    YgorMeshesBooleanBounded.cc)
+    YgorMeshesBooleanBounded.cc
+    OutputAssembly.cc
+    OutputAssemblyTypes.cc
+    AssembledOutputCandidate.cc
+    OutputAssemblyCodec.cc
+    OutputAssemblyVerifier.cc)
 set_property(TARGET ygor_mesh_boolean_bounded_facade PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(ygor_mesh_boolean_bounded_facade PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/.."

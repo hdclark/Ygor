@@ -342,6 +342,22 @@ struct contract_versions final {
     static constexpr std::uint16_t cleanup_codec = 1;
     static constexpr std::uint16_t cleanup_verifier = 1;
 
+    // Component 14 output assembly and canonical serialization.
+    static constexpr std::uint16_t output_assembly_artifact_schema = 1;
+    static constexpr std::uint16_t output_assembly_provider = 1;
+    static constexpr std::uint16_t output_assembly_public_adapter = 1;
+    static constexpr std::uint16_t output_assembly_graph_schema = 1;
+    static constexpr std::uint16_t output_assembly_refinement_schema = 1;
+    static constexpr std::uint16_t output_assembly_automorphism_schema = 1;
+    static constexpr std::uint16_t output_assembly_ordering_schema = 1;
+    static constexpr std::uint16_t output_assembly_permutation_schema = 1;
+    static constexpr std::uint16_t output_assembly_public_topology_schema = 1;
+    static constexpr std::uint16_t output_assembly_map_schema = 1;
+    static constexpr std::uint16_t output_assembly_report_schema = 1;
+    static constexpr std::uint16_t output_assembly_provenance_schema = 1;
+    static constexpr std::uint16_t output_assembly_codec = 1;
+    static constexpr std::uint16_t output_assembly_verifier = 1;
+
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;
     static constexpr std::uint16_t shell_semantics = shell_semantics_provider;
