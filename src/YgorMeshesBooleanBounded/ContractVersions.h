@@ -321,6 +321,27 @@ struct contract_versions final {
     static constexpr std::uint16_t output_triangulation_codec = 2;
     static constexpr std::uint16_t output_triangulation_verifier = 2;
 
+    // Component 13 budgeted cleanup and topological simplification.
+    static constexpr std::uint16_t cleanup_artifact_schema = 1;
+    static constexpr std::uint16_t cleanup_provider = 1;
+    static constexpr std::uint16_t cleanup_mutable_complex_schema = 1;
+    static constexpr std::uint16_t cleanup_obligation_schema = 1;
+    static constexpr std::uint16_t cleanup_candidate_schema = 1;
+    static constexpr std::uint16_t cleanup_scheduler_schema = 1;
+    static constexpr std::uint16_t cleanup_patch_schema = 1;
+    static constexpr std::uint16_t cleanup_link_schema = 1;
+    static constexpr std::uint16_t cleanup_split_schema = 1;
+    static constexpr std::uint16_t cleanup_collapse_schema = 1;
+    static constexpr std::uint16_t cleanup_retriangulation_schema = 1;
+    static constexpr std::uint16_t cleanup_coordinate_schema = 1;
+    static constexpr std::uint16_t cleanup_intersection_schema = 1;
+    static constexpr std::uint16_t cleanup_budget_schema = 1;
+    static constexpr std::uint16_t cleanup_topology_effect_schema = 1;
+    static constexpr std::uint16_t cleanup_certificate_schema = 1;
+    static constexpr std::uint16_t cleanup_canonicalization_schema = 1;
+    static constexpr std::uint16_t cleanup_codec = 1;
+    static constexpr std::uint16_t cleanup_verifier = 1;
+
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;
     static constexpr std::uint16_t shell_semantics = shell_semantics_provider;

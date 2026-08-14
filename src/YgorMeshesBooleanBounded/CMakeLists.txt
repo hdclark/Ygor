@@ -129,7 +129,12 @@ add_library(ygor_mesh_boolean_bounded_strict
     OutputTriangulationTypes.cc
     TriangulatedOutputComplex.cc
     TriangulationCodec.cc
-    TriangulationVerifier.cc)
+    TriangulationVerifier.cc
+    MeshCleanup.cc
+    CleanupTypes.cc
+    CleanedTriangleManifold.cc
+    CleanupCodec.cc
+    CleanupVerifier.cc)
 set_property(TARGET ygor_mesh_boolean_bounded_strict PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(ygor_mesh_boolean_bounded_strict PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>
