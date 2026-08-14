@@ -108,6 +108,11 @@ bool known(qualification_report_decision v) noexcept {
   return static_cast<unsigned>(v) <=
          static_cast<unsigned>(qualification_report_decision::revoked);
 }
+bool known(qualification_defect_kind v) noexcept {
+  return static_cast<unsigned>(v) <=
+         static_cast<unsigned>(
+             qualification_defect_kind::material_platform_defect);
+}
 bool known(qualification_report_section_kind v) noexcept {
   return static_cast<unsigned>(v) <
          static_cast<unsigned>(qualification_report_section_kind::count);
@@ -1654,6 +1659,118 @@ make_qualification_evidence_binding(
   } catch (...) {
     return qerror(product_error_code::internal_invariant_error,
                   "qualification_evidence.exception");
+  }
+}
+
+bool qualification_report_authorizes_promotion(
+    const qualification_human_report &r) noexcept {
+  if (!validate_qualification_human_report(r).has_value())
+    return false;
+  return r.decision == qualification_report_decision::qualified &&
+         r.blocking_issue_count == 0 && r.false_success_count == 0;
+}
+
+namespace {
+
+const char *defect_name(qualification_defect_kind d) noexcept {
+  switch (d) {
+  case qualification_defect_kind::false_success:
+    return "false_success";
+  case qualification_defect_kind::unexplained_disagreement:
+    return "unexplained_disagreement";
+  case qualification_defect_kind::schema_incompatibility:
+    return "schema_incompatibility";
+  case qualification_defect_kind::material_platform_defect:
+    return "material_platform_defect";
+  }
+  return "unknown";
+}
+
+qualification_report_decision defect_decision(
+    qualification_defect_kind d) noexcept {
+  switch (d) {
+  case qualification_defect_kind::false_success:
+  case qualification_defect_kind::unexplained_disagreement:
+    return qualification_report_decision::revoked;
+  case qualification_defect_kind::schema_incompatibility:
+  case qualification_defect_kind::material_platform_defect:
+    return qualification_report_decision::candidate;
+  }
+  return qualification_report_decision::candidate;
+}
+
+} // namespace
+
+product_status_or<qualification_human_report>
+make_qualification_demotion_report(const qualification_human_report &prior,
+                                   const qualification_revocation &reason) {
+  try {
+    auto prior_valid = validate_qualification_human_report(prior);
+    if (!prior_valid.has_value())
+      return prior_valid.error();
+    if (prior.decision != qualification_report_decision::qualified)
+      return qerror(product_error_code::qualification_policy_violation,
+                    "qualification_demotion.not_qualified");
+    if (!known(reason.defect) || !valid_text(reason.reviewer) ||
+        !valid_text(reason.rationale) || digest_zero(reason.evidence_digest))
+      return qerror(product_error_code::qualification_policy_violation,
+                    "qualification_demotion.reason");
+
+    qualification_human_report demoted = prior;
+    demoted.decision = defect_decision(reason.defect);
+    demoted.claim_scope =
+        "demotion of " + prior.claim_scope + " after " +
+        defect_name(reason.defect) + " discovery";
+    const bool is_false_success =
+        reason.defect == qualification_defect_kind::false_success;
+    demoted.false_success_count =
+        is_false_success ? std::max<std::uint64_t>(
+                               1, prior.false_success_count)
+                         : prior.false_success_count;
+    demoted.blocking_issue_count =
+        std::max<std::uint64_t>(1, prior.blocking_issue_count);
+
+    const std::string detail =
+        "defect=" + std::string(defect_name(reason.defect)) +
+        "; reviewer=" + reason.reviewer + "; " + reason.rationale;
+
+    for (auto &section : demoted.sections) {
+      if (section.kind == qualification_report_section_kind::promotion_decisions) {
+        section.lines = {
+            "The previously qualified profile is demoted or revoked.",
+            "Defect: " + std::string(defect_name(reason.defect)),
+            "Reviewer: " + reason.reviewer,
+            "Rationale: " + reason.rationale,
+            "Evidence digest: " + reason.evidence_digest.hex(),
+            "Qualified-default selection must remain fail-closed until the "
+            "defect is resolved and the profile is re-qualified."};
+      } else if (reason.defect ==
+                         qualification_defect_kind::unexplained_disagreement &&
+                 section.kind ==
+                     qualification_report_section_kind::disagreements) {
+        section.lines = {
+            "A previously unexplained producer/verifier or backend "
+            "disagreement invalidates the qualified claim.",
+            detail};
+      } else if (is_false_success &&
+                 section.kind ==
+                     qualification_report_section_kind::outcomes) {
+        section.lines = {
+            "A false success was discovered after qualification, invalidating "
+            "the qualified claim.",
+            detail};
+      }
+    }
+
+    return make_qualification_human_report(std::move(demoted));
+  } catch (const std::bad_alloc &) {
+    return qerror(product_error_code::resource_limit,
+                  "qualification_demotion.allocation");
+  } catch (const std::exception &x) {
+    auto error = qerror(product_error_code::qualification_policy_violation,
+                        "qualification_demotion.make");
+    error.detail = x.what();
+    return error;
   }
 }
 

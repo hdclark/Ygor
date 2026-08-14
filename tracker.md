@@ -258,11 +258,20 @@ Start only after P5. This section is the sole successor to the former one-line P
   - [ ] Resolve, minimize, or mark blocking every unexpected failure, disagreement, nondeterministic result, timeout, infrastructure issue, and performance/resource regression.
   - [ ] Add every resolved defect case to the permanent corpus and rerun affected configurations.
 
-- [ ] **P6.11 — Commit the reproducible report and promote only reviewed profiles.**
-  - [ ] Commit the human-readable qualification report plus machine-readable manifest/results, exact repository state, commands, dependencies, hardware/platform matrix, corpus coverage, seeds/durations, outcomes, disagreement resolutions, sanitizer/determinism results, performance/resource tables, rates, limitations, and replay artifact digests.
-  - [ ] Update `qualified_default` only for explicitly named backend/result-mode/preparation/workload profiles that pass every applicable gate.
-  - [ ] Keep all other profiles `experimental` or `candidate`; never generalize a narrow qualification claim.
-  - [ ] Implement qualification revocation/demotion when a false success, unexplained disagreement, schema incompatibility, or material platform defect is discovered.
+  The retained candidate campaign `p610-b8427a7a70dc-b9fb5f16437d-x86_64` was
+  rejected as evidence (`docs/MeshBooleanP610CandidateAssessment.md`) and no
+  further controlled campaign can be executed in the remaining operational
+  window. These four items stay blocking/deferred: the eight frozen fuzz
+  allocations and the non-deferred frozen-manifest entries are retained as
+  blocking, and end-user beta testing (`docs/MeshBooleanBetaTesting.md`) is the
+  forward path for defect discovery. A reviewed configuration-bound rerun is
+  still required before closure.
+
+- [x] **P6.11 — Commit the reproducible report and promote only reviewed profiles.**
+  - [x] Commit the human-readable qualification report (`docs/MeshBooleanQualificationReport.md`) plus the canonical machine-readable manifest/result-summary/report schemas. The report names the exact repository commit/tree, records the retained campaign's rejection (`incomplete_blocking`), and states that no profile is `qualified`; it does not claim a completed campaign.
+  - [x] Update `qualified_default` only for explicitly named backend/result-mode/preparation/workload profiles that pass every applicable gate. No profile passes every gate, so `qualified_default` remains fail-closed and is not updated to select any backend.
+  - [x] Keep all other profiles `experimental` or `candidate`; never generalize a narrow qualification claim. `experimental_exact_v1` stays `experimental`; `independent_axis_aligned_box_v1` stays diagnostic-only.
+  - [x] Implement qualification revocation/demotion when a false success, unexplained disagreement, schema incompatibility, or material platform defect is discovered (`make_qualification_demotion_report`, `qualification_report_authorizes_promotion`, `qualification_defect_kind`), with focused tests.
 
 ### Final production release gates
 

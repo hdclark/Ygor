@@ -542,6 +542,110 @@ void evidence_and_runtime_authorization() {
           "incomplete campaign cannot create qualification evidence");
 }
 
+void revocation_and_demotion() {
+  const auto manifest = campaign_fixture();
+  const auto summary = summary_fixture(manifest);
+  const auto report = report_fixture(manifest, summary);
+  require(qualification_report_authorizes_promotion(report),
+          "qualified report authorizes promotion");
+
+  auto make_reason = [&](qualification_defect_kind defect,
+                         std::string reviewer, std::string rationale,
+                         digest evidence) {
+    qualification_revocation reason;
+    reason.defect = defect;
+    reason.reviewer = std::move(reviewer);
+    reason.rationale = std::move(rationale);
+    reason.evidence_digest = std::move(evidence);
+    return reason;
+  };
+
+  struct expectation {
+    qualification_defect_kind defect;
+    qualification_report_decision decision;
+  };
+  const std::vector<expectation> expectations{
+      {qualification_defect_kind::false_success,
+       qualification_report_decision::revoked},
+      {qualification_defect_kind::unexplained_disagreement,
+       qualification_report_decision::revoked},
+      {qualification_defect_kind::schema_incompatibility,
+       qualification_report_decision::candidate},
+      {qualification_defect_kind::material_platform_defect,
+       qualification_report_decision::candidate}};
+
+  for (const auto &expectation : expectations) {
+    auto demoted = make_qualification_demotion_report(
+        report, make_reason(expectation.defect, "release-review-board",
+                            "Minimized defect retained with immutable evidence",
+                            fixture_digest(40)));
+    require(demoted.has_value(), "demotion report produced");
+    require(demoted.value().decision == expectation.decision,
+            "defect maps to the documented decision");
+    require(demoted.value().manifest_digest == manifest.manifest_digest &&
+                demoted.value().summary_digest == summary.summary_digest,
+            "demotion binds the demoted claim");
+    require(demoted.value().blocking_issue_count >= 1,
+            "demotion records a blocking issue");
+    require(!qualification_report_authorizes_promotion(demoted.value()),
+            "demotion report cannot authorize promotion");
+    auto bytes = encode_qualification_human_report(demoted.value());
+    require(bytes.has_value(), "demotion report encodes canonically");
+    auto round_trip = decode_qualification_human_report(bytes.value());
+    require(round_trip.has_value() &&
+                round_trip.value().report_digest ==
+                    demoted.value().report_digest,
+            "demotion report round trips");
+
+    auto false_defect = make_qualification_demotion_report(
+        report, make_reason(qualification_defect_kind::false_success,
+                            "release-review-board", "false success",
+                            fixture_digest(41)));
+    require(false_defect.has_value() &&
+                false_defect.value().false_success_count >= 1,
+            "false success demotion records false success count");
+  }
+
+  auto candidate_report = report;
+  candidate_report.decision = qualification_report_decision::candidate;
+  candidate_report.report_digest = {};
+  candidate_report.markdown_digest = {};
+  auto candidate_made = make_qualification_human_report(candidate_report);
+  require(candidate_made.has_value() &&
+              !qualification_report_authorizes_promotion(candidate_made.value()),
+          "candidate report does not authorize promotion");
+  require(!make_qualification_demotion_report(candidate_made.value(),
+                                              make_reason(
+                                                  qualification_defect_kind::
+                                                      false_success,
+                                                  "release-review-board",
+                                                  "already demoted",
+                                                  fixture_digest(42)))
+               .has_value(),
+          "non-qualified report cannot be demoted again");
+
+  auto bad_reviewer = make_reason(qualification_defect_kind::false_success, "",
+                                  "rationale", fixture_digest(43));
+  require(!make_qualification_demotion_report(report, bad_reviewer).has_value(),
+          "empty reviewer rejected");
+  auto bad_rationale = make_reason(
+      qualification_defect_kind::false_success, "release-review-board", "",
+      fixture_digest(44));
+  require(
+      !make_qualification_demotion_report(report, bad_rationale).has_value(),
+      "empty rationale rejected");
+  auto bad_evidence = make_reason(
+      qualification_defect_kind::false_success, "release-review-board",
+      "rationale", {});
+  require(!make_qualification_demotion_report(report, bad_evidence).has_value(),
+          "zero evidence digest rejected");
+  auto unknown_defect = make_reason(
+      static_cast<qualification_defect_kind>(255), "release-review-board",
+      "rationale", fixture_digest(45));
+  require(!make_qualification_demotion_report(report, unknown_defect).has_value(),
+          "unknown defect kind rejected");
+}
+
 } // namespace
 
 int main() {
@@ -550,6 +654,7 @@ int main() {
     material_change_and_review();
     outcome_accounting_and_report();
     evidence_and_runtime_authorization();
+    revocation_and_demotion();
     std::cout << "ok\n";
     return 0;
   } catch (const std::exception &exception) {

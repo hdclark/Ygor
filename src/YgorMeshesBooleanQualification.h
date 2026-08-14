@@ -79,6 +79,15 @@ enum class qualification_report_decision : std::uint8_t {
   revoked
 };
 
+// A defect discovered after a profile was qualified. Each kind maps to a
+// revocation or demotion action under `make_qualification_demotion_report`.
+enum class qualification_defect_kind : std::uint8_t {
+  false_success,
+  unexplained_disagreement,
+  schema_incompatibility,
+  material_platform_defect
+};
+
 enum class qualification_report_section_kind : std::uint8_t {
   executive_result,
   repository_and_commands,
@@ -351,6 +360,14 @@ struct qualification_human_report {
   digest report_digest;
 };
 
+struct qualification_revocation {
+  qualification_defect_kind defect =
+      qualification_defect_kind::false_success;
+  std::string reviewer;
+  std::string rationale;
+  digest evidence_digest;
+};
+
 struct qualification_decode_limits {
   std::uint64_t max_record_bytes = 64ULL * 1024ULL * 1024ULL;
   std::uint64_t max_string_bytes = 4ULL * 1024ULL * 1024ULL;
@@ -410,6 +427,25 @@ make_qualification_evidence_binding(
     const qualification_campaign_manifest &,
     const qualification_result_summary &,
     const qualification_human_report &) noexcept;
+
+// A report authorizes qualified-default promotion only when its decision is
+// `qualified` and it carries no blocking or false-success outcome. Revocation
+// and demotion reports can therefore never authorize promotion.
+bool qualification_report_authorizes_promotion(
+    const qualification_human_report &) noexcept;
+
+// Demotes or revokes a previously qualified profile in response to a newly
+// discovered defect. `prior` must be a valid `qualified` report. A
+// `false_success` or `unexplained_disagreement` produces a `revoked` decision;
+// a `schema_incompatibility` or `material_platform_defect` moves the profile
+// back to `candidate`. The returned report carries the defect rationale,
+// reviewer, and evidence digest in its promotion section and, because its
+// decision is no longer `qualified`, can never rebuild a valid qualification
+// evidence binding. Callers keep `qualified_default` fail-closed by dropping or
+// replacing the prior evidence binding with this report's outcome.
+product_status_or<qualification_human_report>
+make_qualification_demotion_report(const qualification_human_report &prior,
+                                   const qualification_revocation &reason);
 
 } // namespace mesh_boolean
 } // namespace ygor
