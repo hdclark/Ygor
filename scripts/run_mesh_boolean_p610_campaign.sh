@@ -759,18 +759,17 @@ run_nondeferred_frozen_manifest() {
   local command="${P610_NONDEFERRED_CAMPAIGN_COMMAND:-}"
   local artifact_dir="${OUTPUT_DIR}/artifacts/nondeferred-frozen-manifest"
   local nondeferred_build_dir="${WORK_DIR}/build-gcc-current-debug"
-  if [[ -z "$command" ]]; then
-    if [[ "$AVAILABLE_TOOLCHAIN" -eq 1 ]]; then
-      # Re-enable the non-deferred frozen manifest with the in-tree dispatcher
-      # rather than requiring an external controlled-infrastructure command.
-      command="$REPO_ROOT/scripts/run_p610_nondeferred_inventory.sh"
-    else
-      append_anomaly missing_configuration "$step_id" 0 \
-        "set P610_NONDEFERRED_CAMPAIGN_COMMAND to execute the actual frozen non-deferred candidate inventory; checker-only CTest runs are not campaign evidence" \
-        "environment.txt" ""
-      write_status "$step_id" blocked 0 127 ""
-      return 1
-    fi
+  if [[ "$AVAILABLE_TOOLCHAIN" -eq 1 ]]; then
+    # Available-toolchain mode is self-contained: always use the in-tree
+    # dispatcher rather than an external controlled-infrastructure command,
+    # even if a stale P610_NONDEFERRED_CAMPAIGN_COMMAND is present.
+    command="$REPO_ROOT/scripts/run_p610_nondeferred_inventory.sh"
+  elif [[ -z "$command" ]]; then
+    append_anomaly missing_configuration "$step_id" 0 \
+      "set P610_NONDEFERRED_CAMPAIGN_COMMAND to execute the actual frozen non-deferred candidate inventory; checker-only CTest runs are not campaign evidence" \
+      "environment.txt" ""
+    write_status "$step_id" blocked 0 127 ""
+    return 1
   fi
   mkdir -p "$artifact_dir"
   if ! run_step "$step_id" test "$MAX_ATTEMPTS" "$STEP_TIMEOUT_SECONDS" \

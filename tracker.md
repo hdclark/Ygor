@@ -309,15 +309,46 @@ Start only after P5. This section is the sole successor to the former one-line P
     stays fail-closed. Record the outcome honestly in the report.
 
   **4. Known blocking finding to resolve first:** the existing Release build and
-  a fresh rebuild both fail `MeshBoolean.PerformanceBaselines` `B0`-`B8` with
-  `frozen canonical output identity`. All counters match the frozen values
-  (e.g. B0 `canonical_bytes=60486`, `output_vertices=16`, `output_faces=24`)
-  but the `output` stage semantic digest drifted from the frozen
+  a fresh Debug build both fail `MeshBoolean.PerformanceBaselines` `B0`-`B8`
+  with `frozen canonical output identity` (reproduced in the running
+  available-toolchain campaign's `gcc-current-debug` and `gcc-current-release`
+  contracts steps). All counters match the frozen values (e.g. B0
+  `canonical_bytes=60486`, `output_vertices=16`, `output_faces=24`) but the
+  `output` stage semantic digest drifted from the frozen
   `21cbe88be34183af2a4a1dbcbea815f9` to `0cffa01f0f8f4af4966790098976fb10`.
-  Determine whether this is benign schema drift (re-freeze the baseline after
-  review) or a genuine output regression; either way record it as an anomaly
-  and resolve it under the item below before closure. This is exactly the kind
-  of issue the limited campaign is meant to surface.
+  Root-cause narrowing: the semantic-digest domain tag (`YGB CAN 12`,
+  `src/YgorMeshesBooleanOutput.cc:1656`) and the byte count are unchanged since
+  the baselines were re-frozen at P12 (`8539c7b`), so the canonical-bytes
+  *content* changed (ordering/encoding), not the topology. The only
+  output-path files changed after P12 are `YgorMeshesBooleanOutput.cc` /
+  realization / selection touched by `b9e373b` (P2.1 strict operand
+  preparation), `24e47fa` (P3.3 certified approximate), and `0e6d7fe` (P5.2
+  one-call service). Determine whether that canonicalization change is intended
+  (re-freeze the baseline after review) or a real regression (revert/minimize),
+  and record it as an anomaly and resolve it under the item below before
+  closure. This is exactly the kind of issue the limited campaign is meant to
+  surface.
+
+  **5. Instrumented-build resource finding:** the `--jobs 32` available-toolchain
+  run builds the plain Debug and Release profiles cleanly, but the
+  `gcc-current-asan-ubsan` and `gcc-current-libstdcxx-debug` Debug builds both
+  fail compiling `YgorMath.cc` with `g++: fatal error: Terminated signal
+  terminated program cc1plus`. This is host resource pressure (ASan+UBSan and
+  `_GLIBCXX_DEBUG` instrumentation multiply per-translation-unit memory while
+  32 units compile concurrently), not an engine defect. Lower `--jobs` (e.g. 4)
+  for the instrumented profiles or run them on a host with more memory before
+  treating their fuzz allocations as executed; the corresponding
+  `gcc-asan-ubsan-*` fuzz allocations are therefore not executable on this host
+  until the profile build succeeds.
+
+  **6. Clang link finding:** the Clang 7.0.1 libstdc++ profiles fail at link
+  time with `undefined reference to ygor::mesh_boolean::exact_point3::~exact_point3()`
+  (`Test_MeshesBooleanInputTopologyProperties`, and later binaries). This is a
+  real compiler/library compatibility defect on the available Clang 7.0.1
+  toolchain, so the Clang profiles (and the `clang-asan-ubsan-*` fuzz
+  allocations) are not executable on this host until the destructor/linkage
+  issue is fixed or a newer Clang is used. Record it as an anomaly and resolve
+  under the item below.
 
   The retained candidate campaign `p610-b8427a7a70dc-b9fb5f16437d-x86_64` was
   rejected as evidence (`docs/MeshBooleanP610CandidateAssessment.md`) and is
