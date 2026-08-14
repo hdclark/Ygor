@@ -60,6 +60,43 @@ P6.10 candidate checker plus representative end-to-end, metamorphic, and fuzz
 targets under current GCC and Clang Debug profiles. The full non-smoke campaign
 continues to build and execute the complete frozen inventory.
 
+## Run the available-toolchain limited campaign
+
+When only the toolchain already present on the invocation host is needed, run
+the campaign in `--available-toolchain` mode. This re-enables the non-deferred
+frozen-manifest step through the built-in dispatcher
+`scripts/run_p610_nondeferred_inventory.sh` (which executes the non-fuzz
+`mesh_boolean` CTest inventory and emits the `P610_OBSERVATION` protocol plus a
+`completion.tsv`) and re-enables the six fuzz allocations that the available
+compilers can execute. The frozen dimensions that require unavailable tools are
+recorded as documented known limitations instead of blocking anomalies:
+
+- oldest-supported GCC and Clang profiles;
+- libc++ Debug and Release profiles;
+- ThreadSanitizer profiles and the two TSan fuzz allocations; and
+- the two independent AArch64 toolchain cases.
+
+```bash
+./scripts/run_mesh_boolean_p610_campaign.sh \
+  --available-toolchain \
+  --output ../p610-available-evidence \
+  --work ../p610-available-work \
+  --jobs 32
+```
+
+The command is restartable exactly like the full campaign. The seven available
+profiles are current GCC Debug / Release / ASan+UBSan / libstdc++-debug and
+current Clang (libstdc++) Debug / Release / ASan+UBSan; the two Release profiles
+also retain the B0-B8 and exact-arithmetic benchmark records. A completed
+available-toolchain run finalizes with the distinct
+`campaign_status=complete_limited_toolchain` rather than
+`complete_candidate_evidence`. That status is candidate evidence only: it does
+not exercise the full frozen matrix and can never support a profile promotion.
+Evaluate it with the same P6.11 procedure below, and record every unresolved
+anomaly; the TSan, libc++, oldest-compiler, and AArch64 known limitations remain
+documented gaps that a full controlled campaign or end-user beta testing must
+cover.
+
 ## Run the full campaign
 
 Set the oldest-supported compiler commands explicitly. These values are part of
@@ -403,3 +440,8 @@ Before using these files for P6.11, a reviewer must:
 `campaign_status=complete_candidate_evidence` means only that the driver's
 mechanical inventory is complete and has no unresolved ledger rows. It is not a
 self-approval or a production promotion decision.
+`campaign_status=complete_limited_toolchain` is the analogous status for an
+`--available-toolchain` run: the available profiles and the re-enabled fuzz
+allocations completed, but the unavailable frozen matrix dimensions are
+documented known limitations, so it is candidate evidence only and can never
+support a profile promotion.

@@ -253,20 +253,79 @@ Start only after P5. This section is the sole successor to the former one-line P
   - [x] Add a restartable single-machine manual campaign driver with exact command/environment capture, atomic checkpoints, measured fuzz CPU-hour accumulation, immutable attempt logs, anomaly/resolution ledgers, output checksums, and a documented P6.11 evaluation procedure. This driver records evidence and blockers; it does not claim that the campaign has run.
   - [x] Assess the retained v4 offline run, reject its zero-test/missing-evidence results, and harden driver v5 against the discovered CMake/CTest compatibility and evidence-integrity failures. This is infrastructure remediation, not controlled-campaign evidence.
   - [x] Adjust all fuzzing campaign long-duration runtimes to merely 10 minutes per run, significantly shortening the requisite test duration. This a last minute modification imposed by leadership in order to achieve cost savings and enter the market early so that eager end-users can beta test. Relax test matrix and thresholds  so that implementation can proceed after a much more modest campaign; in lieu, ensure end-users have detailed information when failures are encountered that can be passed back to the development team unambiguously.
-  - [ ] Re-enable deferred manifest entries across the entire campaign. With the shortened fuzzing durations, it will be feasible for an LLM to coordinate and run the campaign. Note that **only** the toolchain available at the time of invocation is needed to consider the entire campaign run complete; ensure the LLM has clear instructions (added in `tracker.md` appropriately) to run the campaign and assess the results.
+  - [x] Re-enable deferred manifest entries across the entire campaign. With the shortened fuzzing durations, it will be feasible for an LLM to coordinate and run the campaign. Note that **only** the toolchain available at the time of invocation is needed to consider the entire campaign run complete; ensure the LLM has clear instructions (added in `tracker.md` appropriately) to run the campaign and assess the results.
+    - Implemented as `--available-toolchain` in `scripts/run_mesh_boolean_p610_campaign.sh` plus the built-in non-deferred inventory dispatcher `scripts/run_p610_nondeferred_inventory.sh`. This mode re-enables the non-deferred frozen-manifest step and the six runnable fuzz allocations, and records the unavailable frozen dimensions (oldest-supported compilers, libc++, ThreadSanitizer, independent AArch64) and the two TSan fuzz allocations as documented known limitations instead of blocking anomalies. A completed available-toolchain run finalizes with the distinct `campaign_status=complete_limited_toolchain` (not `complete_candidate_evidence`), so it can never be mistaken for a full controlled campaign or used to promote a profile.
   - [ ] Run every non-deferred frozen manifest entry on controlled infrastructure and publish the incomplete candidate campaign with deferred fuzz entries retained as blocking.
   - [ ] Run the deferred Plan 16 fuzz-duration entries offline, reconcile their retained issues, and complete the full frozen manifest.
   - [ ] Resolve, minimize, or mark blocking every unexpected failure, disagreement, nondeterministic result, timeout, infrastructure issue, and performance/resource regression.
   - [ ] Add every resolved defect case to the permanent corpus and rerun affected configurations.
 
+  ### Campaign run and assessment instructions (for the LLM)
+
+  These instructions are the clear, reproducible procedure required by the item
+  above. Run them exactly; do not invent a different campaign shape.
+
+  **Toolchain on the invocation host (the only one required):** current GCC
+  8.3.0 (`gcc`/`g++`), current Clang 7.0.1 (`clang`/`clang++`), CMake 3.13.4,
+  Ninja 1.8.2, CTest 3.13.4, GNU `/usr/bin/time` and `timeout`, x86-64. No
+  oldest-supported compiler, libc++, ThreadSanitizer runtime, or AArch64
+  dispatcher is needed: those frozen dimensions are recorded as known
+  limitations and never treated as blocking in this mode.
+
+  **1. Validate the driver first (no build):**
+  ```bash
+  ./scripts/run_mesh_boolean_p610_campaign.sh --self-test
+  ```
+
+  **2. Run the available-toolchain campaign.** Put `--output` and `--work`
+  outside the source tree. The command is restartable: rerun the identical
+  command after an interruption and passed steps are skipped.
+  ```bash
+  ./scripts/run_mesh_boolean_p610_campaign.sh \
+    --available-toolchain \
+    --output ../p610-available-evidence \
+    --work ../p610-available-work \
+    --jobs 32
+  ```
+  The `contracts` phase builds seven available profiles (current GCC Debug /
+  Release / ASan+UBSan / libstdc++-debug; current Clang libstdc++ Debug /
+  Release / ASan+UBSan), runs the non-fuzz `mesh_boolean` test inventory plus
+  benchmarks, and re-enables the non-deferred frozen-manifest step via the
+  built-in dispatcher. The `fuzz` phase runs the six available frozen 10-minute
+  allocations (`--phase fuzz`); the two TSan allocations are known limitations.
+
+  **3. Assess the retained evidence** (adapt the P6.11 procedure in
+  `docs/MeshBooleanP610ManualCampaign.md`):
+  - Verify `campaign.tsv` names the reviewed commit/tree, `repository_dirty=false`,
+    `smoke=0`, and `available_toolchain=1`.
+  - `summary.tsv` reports `campaign_status=complete_limited_toolchain` only when
+    every required step passed and only known-limitation rows were skipped;
+    otherwise it is `incomplete_blocking`.
+  - Reconcile `anomalies.tsv` and `observations.tsv`; every nonzero attempt and
+    every failing case must be retained with an unresolved or reviewed issue.
+  - Independently sum `user+system` CPU over exit-code-zero rows in each of the
+    six run `fuzz-progress/*.tsv` files; require at least 600 CPU-seconds each.
+  - The limited run does **not** qualify any profile and `qualified_default`
+    stays fail-closed. Record the outcome honestly in the report.
+
+  **4. Known blocking finding to resolve first:** the existing Release build and
+  a fresh rebuild both fail `MeshBoolean.PerformanceBaselines` `B0`-`B8` with
+  `frozen canonical output identity`. All counters match the frozen values
+  (e.g. B0 `canonical_bytes=60486`, `output_vertices=16`, `output_faces=24`)
+  but the `output` stage semantic digest drifted from the frozen
+  `21cbe88be34183af2a4a1dbcbea815f9` to `0cffa01f0f8f4af4966790098976fb10`.
+  Determine whether this is benign schema drift (re-freeze the baseline after
+  review) or a genuine output regression; either way record it as an anomaly
+  and resolve it under the item below before closure. This is exactly the kind
+  of issue the limited campaign is meant to surface.
+
   The retained candidate campaign `p610-b8427a7a70dc-b9fb5f16437d-x86_64` was
-  rejected as evidence (`docs/MeshBooleanP610CandidateAssessment.md`) and no
-  further controlled campaign can be executed in the remaining operational
-  window. These four items stay blocking/deferred: the eight frozen fuzz
-  allocations and the non-deferred frozen-manifest entries are retained as
-  blocking, and end-user beta testing (`docs/MeshBooleanBetaTesting.md`) is the
-  forward path for defect discovery. A reviewed configuration-bound rerun is
-  still required before closure.
+  rejected as evidence (`docs/MeshBooleanP610CandidateAssessment.md`) and is
+  diagnostic only. The `--available-toolchain` run above is the forward path
+  for a limited campaign; it is candidate evidence, not controlled-campaign
+  evidence, and end-user beta testing (`docs/MeshBooleanBetaTesting.md`) still
+  carries the residual validation burden. A reviewed configuration-bound rerun
+  is still required before any profile closure.
 
 - [x] **P6.11 — Commit the reproducible report and promote only reviewed profiles.**
   - [x] Commit the human-readable qualification report (`docs/MeshBooleanQualificationReport.md`) plus the canonical machine-readable manifest/result-summary/report schemas. The report names the exact repository commit/tree, records the retained campaign's rejection (`incomplete_blocking`), and states that no profile is `qualified`; it does not claim a completed campaign.

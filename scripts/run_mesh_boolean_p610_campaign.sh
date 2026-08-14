@@ -26,6 +26,7 @@ FUZZ_CPU_SECONDS="${P610_FUZZ_CPU_SECONDS:-${QUALIFICATION_FUZZ_CPU_SECONDS}}"
 FUZZ_CHUNK_WALL_SECONDS="${P610_FUZZ_CHUNK_WALL_SECONDS:-1800}"
 SMOKE=0
 ALLOW_DIRTY=0
+AVAILABLE_TOOLCHAIN=0
 SELF_TEST=0
 RECORD_ONLY=0
 RECORD_CATEGORY=""
@@ -65,6 +66,14 @@ Options:
                             dirty_repository anomaly.
   --smoke                   Current GCC/Clang Debug only; permits short fuzz
                             allocations and marks all evidence non-qualifying.
+  --available-toolchain     Run the campaign with only the toolchain available
+                            on this host. Frozen matrix dimensions that require
+                            unavailable tools (oldest-supported compilers,
+                            libc++, ThreadSanitizer, independent AArch64) are
+                            re-enabled as documented known limitations rather
+                            than blocking anomalies, and the non-deferred frozen
+                            manifest plus every fuzz allocation is re-enabled
+                            with the available profiles.
   --record-anomaly CATEGORY CASE MESSAGE [EVIDENCE]
                             Append a reviewed/manual anomaly without running.
   --resolve-anomaly ID REVIEWER RATIONALE EVIDENCE
@@ -370,6 +379,28 @@ register_step() {
   fi
 }
 
+write_known_limitation() {
+  local step_id="$1" description="$2"
+  register_step "$step_id" contracts "$step_id" false "$description"
+  write_status "$step_id" known_limitation 0 0 "environment.txt"
+}
+
+register_profile_inventory_optional() {
+  local id="$1" benchmarks="${2:-false}"
+  register_step "profile.${id}.configure" contracts "$id" false \
+    "configure ${id} (documented known limitation: toolchain unavailable)"
+  register_step "profile.${id}.build" contracts "$id" false \
+    "build mesh Boolean qualification and benchmark targets (documented known limitation)"
+  register_step "profile.${id}.contracts" contracts "$id" false \
+    "run non-fuzz mesh Boolean tests and all P6.2-P6.10 gates (documented known limitation)"
+  if [[ "$benchmarks" == true ]]; then
+    register_step "profile.${id}.benchmark-mesh" contracts "$id" false \
+      "run controlled B0-B8 mesh benchmark records (documented known limitation)"
+    register_step "profile.${id}.benchmark-exact-arithmetic" contracts "$id" false \
+      "run exact-arithmetic benchmark records (documented known limitation)"
+  fi
+}
+
 capture_environment() {
   local commit tree dirty arch working_state_digest
   commit=$(git -C "$REPO_ROOT" rev-parse HEAD)
@@ -388,7 +419,8 @@ capture_environment() {
     printf 'repository_dirty\t%s\nworking_state_digest\t%s\nstarted_utc\t%s\narchitecture\t%s\n' \
       "$([[ -n "$dirty" ]] && echo true || echo false)" "$working_state_digest" \
       "$(utc_now)" "$arch"
-    printf 'fuzz_cpu_seconds_per_allocation\t%s\nsmoke\t%s\n' "$FUZZ_CPU_SECONDS" "$SMOKE"
+    printf 'fuzz_cpu_seconds_per_allocation\t%s\nsmoke\t%s\navailable_toolchain\t%s\n' \
+      "$FUZZ_CPU_SECONDS" "$SMOKE" "$AVAILABLE_TOOLCHAIN"
   } > "${OUTPUT_DIR}/campaign.tsv"
   git -C "$REPO_ROOT" status --porcelain=v1 --untracked-files=all > "${OUTPUT_DIR}/git-status.txt"
   git -C "$REPO_ROOT" diff --binary HEAD > "${OUTPUT_DIR}/git-diff.patch"
@@ -467,6 +499,47 @@ register_required_inventory() {
     register_profile_inventory clang-current-debug-libstdcxx
     register_step fuzz.smoke-valid fuzz gcc-current-debug true \
       "non-qualifying shortened valid-geometry allocation"
+    return
+  fi
+  if [[ "$AVAILABLE_TOOLCHAIN" -eq 1 ]]; then
+    register_profile_inventory gcc-current-debug
+    register_profile_inventory gcc-current-release true
+    register_profile_inventory gcc-current-asan-ubsan
+    register_profile_inventory gcc-current-libstdcxx-debug
+    register_profile_inventory clang-current-debug-libstdcxx
+    register_profile_inventory clang-current-release-libstdcxx true
+    register_profile_inventory clang-current-asan-ubsan-libstdcxx
+    register_step matrix.primary-architecture.x86_64 contracts x86_64 true \
+      "primary frozen x86-64 execution host"
+    register_step campaign.nondeferred-frozen-manifest contracts candidate true \
+      "execute every non-deferred frozen candidate-manifest entry"
+    register_step fuzz.gcc-asan-ubsan-valid fuzz gcc-asan-ubsan-valid true \
+      "frozen 10-minute fuzz allocation (available GCC ASan+UBSan)"
+    register_step fuzz.gcc-asan-ubsan-invalid fuzz gcc-asan-ubsan-invalid true \
+      "frozen 10-minute fuzz allocation (available GCC ASan+UBSan)"
+    register_step fuzz.clang-asan-ubsan-valid fuzz clang-asan-ubsan-valid true \
+      "frozen 10-minute fuzz allocation (available Clang ASan+UBSan)"
+    register_step fuzz.clang-asan-ubsan-invalid fuzz clang-asan-ubsan-invalid true \
+      "frozen 10-minute fuzz allocation (available Clang ASan+UBSan)"
+    register_step fuzz.operation-chain-unsanitized fuzz operation-chain-unsanitized true \
+      "frozen 10-minute fuzz allocation (available unsanitized)"
+    register_step fuzz.long-running-unsanitized fuzz long-running-unsanitized true \
+      "frozen 10-minute fuzz allocation (available unsanitized)"
+    register_profile_inventory_optional gcc-oldest-debug
+    register_profile_inventory_optional gcc-oldest-release
+    register_profile_inventory_optional clang-current-debug-libcxx
+    register_profile_inventory_optional clang-oldest-debug-libstdcxx
+    register_profile_inventory_optional clang-oldest-release-libcxx
+    register_profile_inventory_optional clang-current-tsan-libstdcxx
+    register_profile_inventory_optional clang-current-libcxx-debug
+    register_step matrix.architecture.gcc-current-debug-libstdcxx-aarch64-u64 \
+      contracts aarch64 false "frozen GCC AArch64 toolchain execution"
+    register_step matrix.architecture.clang-current-release-libcxx-aarch64-u32 \
+      contracts aarch64 false "frozen Clang/libc++ AArch64 toolchain execution"
+    register_step fuzz.clang-tsan-valid fuzz clang-tsan-valid false \
+      "frozen 10-minute fuzz allocation (ThreadSanitizer unavailable)"
+    register_step fuzz.clang-tsan-invalid fuzz clang-tsan-invalid false \
+      "frozen 10-minute fuzz allocation (ThreadSanitizer unavailable)"
     return
   fi
   register_profile_inventory gcc-current-debug
@@ -685,16 +758,24 @@ run_nondeferred_frozen_manifest() {
   local step_id=campaign.nondeferred-frozen-manifest
   local command="${P610_NONDEFERRED_CAMPAIGN_COMMAND:-}"
   local artifact_dir="${OUTPUT_DIR}/artifacts/nondeferred-frozen-manifest"
+  local nondeferred_build_dir="${WORK_DIR}/build-gcc-current-debug"
   if [[ -z "$command" ]]; then
-    append_anomaly missing_configuration "$step_id" 0 \
-      "set P610_NONDEFERRED_CAMPAIGN_COMMAND to execute the actual frozen non-deferred candidate inventory; checker-only CTest runs are not campaign evidence" \
-      "environment.txt" ""
-    write_status "$step_id" blocked 0 127 ""
-    return 1
+    if [[ "$AVAILABLE_TOOLCHAIN" -eq 1 ]]; then
+      # Re-enable the non-deferred frozen manifest with the in-tree dispatcher
+      # rather than requiring an external controlled-infrastructure command.
+      command="$REPO_ROOT/scripts/run_p610_nondeferred_inventory.sh"
+    else
+      append_anomaly missing_configuration "$step_id" 0 \
+        "set P610_NONDEFERRED_CAMPAIGN_COMMAND to execute the actual frozen non-deferred candidate inventory; checker-only CTest runs are not campaign evidence" \
+        "environment.txt" ""
+      write_status "$step_id" blocked 0 127 ""
+      return 1
+    fi
   fi
   mkdir -p "$artifact_dir"
   if ! run_step "$step_id" test "$MAX_ATTEMPTS" "$STEP_TIMEOUT_SECONDS" \
       env P610_REPO_ROOT="$REPO_ROOT" P610_NONDEFERRED_OUTPUT_DIR="$artifact_dir" \
+        P610_BUILD_DIR="$nondeferred_build_dir" \
         P610_NONDEFERRED_CAMPAIGN_COMMAND="$command" \
         bash -lc '
           set -u
@@ -764,6 +845,68 @@ run_contracts() {
   if [[ "$SMOKE" -eq 1 ]]; then
     run_profile gcc-current-debug "$gcc_cc" "$gcc_cxx" Debug none libstdcxx none || failed=1
     run_profile clang-current-debug-libstdcxx "$clang_cc" "$clang_cxx" Debug none libstdcxx none || failed=1
+    return "$failed"
+  fi
+  if [[ "$AVAILABLE_TOOLCHAIN" -eq 1 ]]; then
+    run_primary_architecture_check || failed=1
+    run_profile gcc-current-debug "$gcc_cc" "$gcc_cxx" Debug none libstdcxx none || failed=1
+    run_profile gcc-current-release "$gcc_cc" "$gcc_cxx" Release none libstdcxx none || failed=1
+    run_profile gcc-current-asan-ubsan "$gcc_cc" "$gcc_cxx" Debug asan-ubsan libstdcxx none || failed=1
+    run_profile gcc-current-libstdcxx-debug "$gcc_cc" "$gcc_cxx" Debug none libstdcxx libstdcxx-debug || failed=1
+    run_profile clang-current-debug-libstdcxx "$clang_cc" "$clang_cxx" Debug none libstdcxx none || failed=1
+    run_profile clang-current-release-libstdcxx "$clang_cc" "$clang_cxx" Release none libstdcxx none || failed=1
+    run_profile clang-current-asan-ubsan-libstdcxx "$clang_cc" "$clang_cxx" Debug asan-ubsan libstdcxx none || failed=1
+    write_known_limitation profile.gcc-oldest-debug.configure \
+      "oldest-supported GCC unavailable on this host"
+    write_known_limitation profile.gcc-oldest-debug.build \
+      "oldest-supported GCC unavailable on this host"
+    write_known_limitation profile.gcc-oldest-debug.contracts \
+      "oldest-supported GCC unavailable on this host"
+    write_known_limitation profile.gcc-oldest-release.configure \
+      "oldest-supported GCC unavailable on this host"
+    write_known_limitation profile.gcc-oldest-release.build \
+      "oldest-supported GCC unavailable on this host"
+    write_known_limitation profile.gcc-oldest-release.contracts \
+      "oldest-supported GCC unavailable on this host"
+    write_known_limitation profile.clang-current-debug-libcxx.configure \
+      "libc++ unavailable on this host"
+    write_known_limitation profile.clang-current-debug-libcxx.build \
+      "libc++ unavailable on this host"
+    write_known_limitation profile.clang-current-debug-libcxx.contracts \
+      "libc++ unavailable on this host"
+    write_known_limitation profile.clang-oldest-debug-libstdcxx.configure \
+      "oldest-supported Clang unavailable on this host"
+    write_known_limitation profile.clang-oldest-debug-libstdcxx.build \
+      "oldest-supported Clang unavailable on this host"
+    write_known_limitation profile.clang-oldest-debug-libstdcxx.contracts \
+      "oldest-supported Clang unavailable on this host"
+    write_known_limitation profile.clang-oldest-release-libcxx.configure \
+      "oldest-supported Clang/libc++ unavailable on this host"
+    write_known_limitation profile.clang-oldest-release-libcxx.build \
+      "oldest-supported Clang/libc++ unavailable on this host"
+    write_known_limitation profile.clang-oldest-release-libcxx.contracts \
+      "oldest-supported Clang/libc++ unavailable on this host"
+    write_known_limitation profile.clang-current-tsan-libstdcxx.configure \
+      "ThreadSanitizer runtime unavailable on this host"
+    write_known_limitation profile.clang-current-tsan-libstdcxx.build \
+      "ThreadSanitizer runtime unavailable on this host"
+    write_known_limitation profile.clang-current-tsan-libstdcxx.contracts \
+      "ThreadSanitizer runtime unavailable on this host"
+    write_known_limitation profile.clang-current-libcxx-debug.configure \
+      "libc++ debug/hardening unavailable on this host"
+    write_known_limitation profile.clang-current-libcxx-debug.build \
+      "libc++ debug/hardening unavailable on this host"
+    write_known_limitation profile.clang-current-libcxx-debug.contracts \
+      "libc++ debug/hardening unavailable on this host"
+    write_known_limitation matrix.architecture.gcc-current-debug-libstdcxx-aarch64-u64 \
+      "independent AArch64 execution command unavailable on this host"
+    write_known_limitation matrix.architecture.clang-current-release-libcxx-aarch64-u32 \
+      "independent AArch64 execution command unavailable on this host"
+    write_known_limitation fuzz.clang-tsan-valid \
+      "ThreadSanitizer fuzz allocation unavailable on this host"
+    write_known_limitation fuzz.clang-tsan-invalid \
+      "ThreadSanitizer fuzz allocation unavailable on this host"
+    run_nondeferred_frozen_manifest || failed=1
     return "$failed"
   fi
   run_primary_architecture_check || failed=1
@@ -934,6 +1077,15 @@ run_fuzz() {
     run_fuzz_allocation smoke-valid gcc-current-debug valid P610_FUZZ_GCC_ASAN_VALID_COMMAND || failed=1
     return "$failed"
   fi
+  if [[ "$AVAILABLE_TOOLCHAIN" -eq 1 ]]; then
+    run_fuzz_allocation gcc-asan-ubsan-valid gcc-current-asan-ubsan valid P610_FUZZ_GCC_ASAN_VALID_COMMAND || failed=1
+    run_fuzz_allocation gcc-asan-ubsan-invalid gcc-current-asan-ubsan invalid P610_FUZZ_GCC_ASAN_INVALID_COMMAND || failed=1
+    run_fuzz_allocation clang-asan-ubsan-valid clang-current-asan-ubsan-libstdcxx valid P610_FUZZ_CLANG_ASAN_VALID_COMMAND || failed=1
+    run_fuzz_allocation clang-asan-ubsan-invalid clang-current-asan-ubsan-libstdcxx invalid P610_FUZZ_CLANG_ASAN_INVALID_COMMAND || failed=1
+    run_fuzz_allocation operation-chain-unsanitized gcc-current-release chain P610_FUZZ_OPERATION_CHAIN_COMMAND || failed=1
+    run_fuzz_allocation long-running-unsanitized gcc-current-release long P610_FUZZ_LONG_RUNNING_COMMAND || failed=1
+    return "$failed"
+  fi
   run_fuzz_allocation gcc-asan-ubsan-valid gcc-current-asan-ubsan valid P610_FUZZ_GCC_ASAN_VALID_COMMAND || failed=1
   run_fuzz_allocation gcc-asan-ubsan-invalid gcc-current-asan-ubsan invalid P610_FUZZ_GCC_ASAN_INVALID_COMMAND || failed=1
   run_fuzz_allocation clang-asan-ubsan-valid clang-current-asan-ubsan-libcxx valid P610_FUZZ_CLANG_ASAN_VALID_COMMAND || failed=1
@@ -968,12 +1120,14 @@ audit_attempt_evidence() {
 }
 
 finalize_outputs() {
-  local required=0 passed=0 failed=0 blocked=0 running=0 unresolved=0 file status
-  local campaign_dirty=true campaign_smoke=true
+  local required=0 passed=0 failed=0 blocked=0 running=0 known=0 unresolved=0 file status
+  local campaign_dirty=true campaign_smoke=true campaign_available=true
   audit_attempt_evidence || true
   if [[ -f "${OUTPUT_DIR}/campaign.tsv" ]]; then
     campaign_dirty=$(awk -F'\t' '$1=="repository_dirty"{print $2}' "${OUTPUT_DIR}/campaign.tsv")
     campaign_smoke=$(awk -F'\t' '$1=="smoke"{print $2}' "${OUTPUT_DIR}/campaign.tsv")
+    campaign_available=$(awk -F'\t' '$1=="available_toolchain"{print $2}' "${OUTPUT_DIR}/campaign.tsv")
+    campaign_available=${campaign_available:-0}
   fi
   while IFS=$'\t' read -r step_id _ _ is_required _; do
     [[ "$step_id" == step_id ]] && continue
@@ -984,6 +1138,7 @@ finalize_outputs() {
       fail) failed=$((failed + 1)) ;;
       blocked) blocked=$((blocked + 1)) ;;
       running) running=$((running + 1)) ;;
+      known_limitation) known=$((known + 1)) ;;
       *) blocked=$((blocked + 1)) ;;
     esac
   done < "${OUTPUT_DIR}/steps.tsv"
@@ -994,11 +1149,14 @@ finalize_outputs() {
     printf 'finalized_utc\t%s\n' "$(utc_now)"
     printf 'required_steps\t%s\npassed_steps\t%s\nfailed_steps\t%s\nblocked_steps\t%s\nrunning_steps\t%s\n' \
       "$required" "$passed" "$failed" "$blocked" "$running"
+    printf 'known_limitation_steps\t%s\n' "$known"
     printf 'unresolved_anomalies\t%s\n' "$unresolved"
-    if (( required > 0 && passed == required && failed == 0 && blocked == 0 && running == 0 && unresolved == 0 )) &&
+    if (( required > 0 && passed >= required && failed == 0 && blocked == 0 && running == 0 && unresolved == 0 )) &&
        [[ "$campaign_dirty" == false ]]; then
       if [[ "$campaign_smoke" == 1 ]]; then
         printf 'campaign_status\tnon_qualifying_smoke\n'
+      elif [[ "$campaign_available" == 1 ]]; then
+        printf 'campaign_status\tcomplete_limited_toolchain\n'
       else
         printf 'campaign_status\tcomplete_candidate_evidence\n'
       fi
@@ -1026,16 +1184,18 @@ finalize_outputs() {
   )
   printf 'Finalized evidence: %s\n' "$OUTPUT_DIR"
   case "$(awk -F'\t' '$1=="campaign_status"{print $2}' "${OUTPUT_DIR}/summary.tsv")" in
-    complete_candidate_evidence|non_qualifying_smoke) return 0 ;;
+    complete_candidate_evidence|complete_limited_toolchain|non_qualifying_smoke) return 0 ;;
     *) return 1 ;;
   esac
 }
 
 validate_existing_campaign() {
-  local recorded_target recorded_smoke recorded_version recorded_commit
+  local recorded_target recorded_smoke recorded_version recorded_commit recorded_available
   local recorded_tree recorded_dirty recorded_working current_dirty current_working
   recorded_target=$(awk -F'\t' '$1=="fuzz_cpu_seconds_per_allocation"{print $2}' "${OUTPUT_DIR}/campaign.tsv")
   recorded_smoke=$(awk -F'\t' '$1=="smoke"{print $2}' "${OUTPUT_DIR}/campaign.tsv")
+  recorded_available=$(awk -F'\t' '$1=="available_toolchain"{print $2}' "${OUTPUT_DIR}/campaign.tsv")
+  recorded_available=${recorded_available:-0}
   recorded_version=$(awk -F'\t' '$1=="script_version"{print $2}' "${OUTPUT_DIR}/campaign.tsv")
   recorded_commit=$(awk -F'\t' '$1=="repository_commit"{print $2}' "${OUTPUT_DIR}/campaign.tsv")
   recorded_tree=$(awk -F'\t' '$1=="repository_tree"{print $2}' "${OUTPUT_DIR}/campaign.tsv")
@@ -1045,6 +1205,8 @@ validate_existing_campaign() {
     fail "existing campaign fuzz target is ${recorded_target}, not ${FUZZ_CPU_SECONDS}"
   [[ "$recorded_smoke" == "$SMOKE" ]] ||
     fail "existing campaign smoke flag is ${recorded_smoke}, not ${SMOKE}"
+  [[ "$recorded_available" == "$AVAILABLE_TOOLCHAIN" ]] ||
+    fail "existing campaign available-toolchain flag is ${recorded_available}, not ${AVAILABLE_TOOLCHAIN}"
   [[ "$recorded_version" == "$SCRIPT_VERSION" ]] ||
     fail "existing campaign was created by driver version ${recorded_version}"
   [[ "$recorded_commit" == "$(git -C "$REPO_ROOT" rev-parse HEAD)" ]] ||
@@ -1096,6 +1258,17 @@ run_self_test() {
     fail 'self-test frozen fuzz inventory count changed'
   cleanup_lock
 
+  OUTPUT_DIR="$tmp/inventory-available"; SMOKE=0; AVAILABLE_TOOLCHAIN=1; initialize_output
+  register_required_inventory
+  [[ "$(awk 'END{print NR-1}' "${OUTPUT_DIR}/steps.tsv")" -eq 58 ]] ||
+    fail 'self-test available-toolchain inventory count changed'
+  [[ "$(awk -F'\t' 'NR>1 && $4=="true"{n++} END{print n+0}' "${OUTPUT_DIR}/steps.tsv")" -eq 33 ]] ||
+    fail 'self-test available-toolchain required step count changed'
+  [[ "$(awk -F'\t' 'NR>1 && $2=="fuzz"{n++} END{print n+0}' "${OUTPUT_DIR}/steps.tsv")" -eq 8 ]] ||
+    fail 'self-test available-toolchain fuzz inventory count changed'
+  AVAILABLE_TOOLCHAIN=0
+  cleanup_lock
+
   OUTPUT_DIR="$tmp/smoke"; SMOKE=1; initialize_output
   CAMPAIGN_ID=self-test-smoke
   {
@@ -1133,6 +1306,7 @@ while [[ $# -gt 0 ]]; do
     --fuzz-chunk-seconds) [[ $# -ge 2 ]] || fail '--fuzz-chunk-seconds requires N'; FUZZ_CHUNK_WALL_SECONDS="$2"; shift 2 ;;
     --allow-dirty) ALLOW_DIRTY=1; shift ;;
     --smoke) SMOKE=1; shift ;;
+    --available-toolchain) AVAILABLE_TOOLCHAIN=1; shift ;;
     --self-test) SELF_TEST=1; shift ;;
     --record-anomaly)
       [[ $# -ge 4 ]] || fail '--record-anomaly requires CATEGORY CASE MESSAGE [EVIDENCE]'
@@ -1154,6 +1328,7 @@ for value in "$JOBS" "$MAX_ATTEMPTS" "$STEP_TIMEOUT_SECONDS" "$FUZZ_CPU_SECONDS"
 done
 (( JOBS > 0 && MAX_ATTEMPTS > 0 && STEP_TIMEOUT_SECONDS > 0 && FUZZ_CHUNK_WALL_SECONDS > 0 )) || fail 'numeric options must be positive'
 case "$PHASE" in all|contracts|fuzz|finalize) ;; *) fail "invalid phase: ${PHASE}" ;; esac
+(( SMOKE + AVAILABLE_TOOLCHAIN <= 1 )) || fail '--smoke and --available-toolchain are mutually exclusive'
 if (( FUZZ_CPU_SECONDS < QUALIFICATION_FUZZ_CPU_SECONDS && SMOKE == 0 )); then
   fail "fuzz CPU target below ${QUALIFICATION_FUZZ_CPU_SECONDS}; use --smoke for non-qualifying runs"
 fi
