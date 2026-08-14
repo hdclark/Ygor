@@ -272,6 +272,17 @@ Start only after P5. This section is the sole successor to the former one-line P
   dispatcher is needed: those frozen dimensions are recorded as known
   limitations and never treated as blocking in this mode.
 
+  **0. Use a clean environment.** A stale shell can export `P610_*` placeholders
+  (for example `P610_NONDEFERRED_CAMPAIGN_COMMAND=/bin/true`) left over from the
+  rejected v4 campaign. The `--available-toolchain` mode ignores those for the
+  non-deferred manifest (it always uses the in-tree dispatcher), but unset them
+  anyway so the recorded environment is honest:
+  ```bash
+  unset P610_NONDEFERRED_CAMPAIGN_COMMAND P610_INDEPENDENT_ARCH_COMMAND \
+        P610_OLDEST_GCC_CC P610_OLDEST_GCC_CXX \
+        P610_OLDEST_CLANG_CC P610_OLDEST_CLANG_CXX 2>/dev/null
+  ```
+
   **1. Validate the driver first (no build):**
   ```bash
   ./scripts/run_mesh_boolean_p610_campaign.sh --self-test
