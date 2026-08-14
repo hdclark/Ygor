@@ -191,7 +191,7 @@ void catalog_and_coverage_contracts() {
   for (const auto &entry : plan.fuzz_cases)
     require(entry.minimum_aggregate_cpu_seconds >=
                 qualification_minimum_fuzz_cpu_seconds,
-            "every campaign retains the Plan 16 twenty-four CPU-hour floor");
+            "every campaign retains the Plan 16 ten-minute floor");
 
   auto encoded = encode_qualification_matrix_plan(plan);
   require(encoded.has_value() && encoded.value() == plan.canonical_bytes &&

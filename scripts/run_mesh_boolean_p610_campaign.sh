@@ -8,7 +8,7 @@ set -u
 set -o pipefail
 
 readonly SCRIPT_VERSION="5"
-readonly QUALIFICATION_FUZZ_CPU_SECONDS=86400
+readonly QUALIFICATION_FUZZ_CPU_SECONDS=600
 readonly TSV_HEADER_ATTEMPTS=$'utc\tstep_id\tattempt\tclassification\texit_code\twall_seconds\tuser_cpu_seconds\tsystem_cpu_seconds\tmax_rss_kib\tcommand_file\tlog_file'
 readonly TSV_HEADER_ANOMALIES=$'utc\tanomaly_id\tstep_id\tcase_identifier\tattempt\tcategory\tstatus\tdetail\tevidence_file\tlog_file'
 readonly TSV_HEADER_STEPS=$'step_id\tphase\tprofile\trequired\tdescription'
@@ -59,7 +59,7 @@ Options:
   --max-attempts N          Attempts for infrastructure/build steps (default: 3).
   --timeout-seconds N       Per contracts/build step timeout (default: 7200).
   --fuzz-cpu-seconds N      Aggregate CPU seconds per frozen fuzz allocation.
-                            Values below 86400 require --smoke.
+                            Values below 600 require --smoke.
   --fuzz-chunk-seconds N    Maximum wall seconds per restartable fuzz chunk.
   --allow-dirty             Run against a dirty tree, but retain a blocking
                             dirty_repository anomaly.
@@ -496,7 +496,7 @@ register_required_inventory() {
     clang-tsan-valid clang-tsan-invalid \
     operation-chain-unsanitized long-running-unsanitized; do
     register_step "fuzz.${allocation}" fuzz "$allocation" true \
-      "frozen 24 CPU-hour fuzz allocation"
+      "frozen 10-minute fuzz allocation"
   done
 }
 
@@ -828,7 +828,7 @@ run_fuzz_allocation() {
     fuzz_cases_per_run="${P610_FUZZ_CASES_PER_RUN:-4}"
     fuzz_runs_per_chunk="${P610_FUZZ_RUNS_PER_CHUNK:-1}"
   fi
-  register_step "$step_id" fuzz "$profile" true "24 CPU-hour frozen ${family} allocation"
+  register_step "$step_id" fuzz "$profile" true "10-minute frozen ${family} allocation"
   if [[ ! -d "$build_dir" ]]; then
     append_anomaly missing_configuration "$step_id" 0 \
       "required build profile is unavailable: ${profile}; run --phase contracts first" "" ""

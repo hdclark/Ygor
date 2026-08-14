@@ -274,7 +274,7 @@ void deferred_offline_contracts() {
   qualification_candidate_deferred_execution deferred;
   deferred.case_identifier = "candidate.case.expected_failure";
   deferred.reason =
-      "The 24-hour fuzz-duration campaign is scheduled for offline execution.";
+      "The 10-minute fuzz-duration campaign is scheduled for offline execution.";
   deferred.evidence_digest = tagged_digest('D', 500);
   deferred_options.deferred_executions.push_back(deferred);
 

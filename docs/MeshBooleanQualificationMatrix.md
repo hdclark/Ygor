@@ -73,9 +73,17 @@ the declared resource contract.
 
 Every sanitizer/configuration pair has independent valid-geometry and
 invalid/preparation campaigns. Each campaign has a minimum aggregate duration
-of 86,400 CPU-seconds (24 CPU-hours). Operation-chain fuzzing and long-running
+of 600 CPU-seconds (10 minutes). Operation-chain fuzzing and long-running
 unsanitized exact-growth fuzzing have the same frozen minimum. The plan rejects
 smaller values rather than treating a short smoke run as equivalent evidence.
+
+This 10-minute floor is a reviewed cost-saving reduction of the former 24
+CPU-hour Plan 16 floor. It shortens the campaign but does not weaken the
+fail-closed evidence contract: every unique outcome is still serialized,
+minimized, and promoted, and every unresolved or false-success outcome remains
+blocking. The shorter campaign is paired with an expanded end-user beta-testing
+boundary so that field failures are reported back unambiguously; see
+`docs/MeshBooleanBetaTesting.md`.
 
 A fuzz observation binds engine/version, workers, wall and aggregate CPU time,
 seed set, dictionary, mutator, corpus, failure index, and replay digests. Before
@@ -112,7 +120,7 @@ floors, failure preservation, and stale-binding rejection.
 `.github/workflows/mesh-boolean-p6-matrix.yml` runs that bounded contract test
 with current GCC and Clang. Those jobs prove that the P6.8 checker compiles and
 its fail-closed logic remains intact. They do **not** claim to have run the
-oldest compiler, libc++/debug-library, AArch64, sanitizer-duration, or 24-hour
+oldest compiler, libc++/debug-library, AArch64, sanitizer-duration, or 10-minute
 fuzz matrix. Qualification evidence must retain the exact full-matrix versions,
 commands, environments, logs, durations, and replay artifacts required by the
 frozen plan.

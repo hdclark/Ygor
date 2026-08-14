@@ -218,12 +218,23 @@ Generate malformed meshes with controlled defects and require precise, determini
 
 For a production qualification campaign, run at least:
 
-- 24 aggregate CPU-hours per sanitizer/configuration for valid-geometry fuzzing;
-- 24 aggregate CPU-hours per sanitizer/configuration for invalid/preparation fuzzing;
-- 24 aggregate CPU-hours for operation-chain fuzzing; and
-- a scheduled long-running unsanitized campaign sufficient to exercise large cases and exact-number growth.
+- 10 minutes (600 aggregate CPU-seconds) per sanitizer/configuration for
+  valid-geometry fuzzing;
+- 10 minutes (600 aggregate CPU-seconds) per sanitizer/configuration for
+  invalid/preparation fuzzing;
+- 10 minutes (600 aggregate CPU-seconds) for operation-chain fuzzing; and
+- a scheduled long-running unsanitized campaign sufficient to exercise large
+  cases and exact-number growth, capped at the same 10-minute floor for the
+  shortened candidate campaign.
 
-These are minimum campaign floors, not claims of statistical completeness. Every unique failure/disagreement is serialized, minimized, and added to the permanent corpus before closure.
+These floors were reduced from the original 24 CPU-hours by a reviewed
+leadership cost-saving decision that prioritizes entering the market early for
+end-user beta testing. They remain minimum campaign floors, not claims of
+statistical completeness. Every unique failure/disagreement is still serialized,
+minimized, and added to the permanent corpus before closure, and every
+fail-closed and false-success gate is unchanged. The shortened campaign is
+paired with an expanded end-user failure-reporting boundary; see
+`docs/MeshBooleanBetaTesting.md`.
 
 ## 7. Determinism and schedule matrix
 

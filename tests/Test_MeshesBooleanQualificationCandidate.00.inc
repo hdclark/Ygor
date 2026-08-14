@@ -123,7 +123,7 @@ qualification_campaign_manifest manifest_fixture() {
   fuzz.dictionary_digest = tagged_digest('F', 1);
   fuzz.mutator_digest = tagged_digest('F', 2);
   fuzz.seed_set_digest = tagged_digest('F', 3);
-  fuzz.duration_seconds = 86400;
+  fuzz.duration_seconds = 600;
   fuzz.worker_count = 2;
   manifest.fuzz_campaigns.push_back(fuzz);
 

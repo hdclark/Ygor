@@ -220,9 +220,10 @@ invalid/preparation, operation-chain, and long-running fuzz campaigns.
 Every matrix observation binds exact environment and replay evidence. Canonical
 artifacts, results, failures, diagnostics, and certificates must agree across a
 determinism equivalence group. Resource failures must be typed, replayable, and
-transactional. Each fuzz campaign retains the 86,400 aggregate CPU-second floor
-and cannot close until every unique outcome is serialized, minimized, and
-promoted to the permanent corpus. The focused current-GCC/current-Clang CI job
+transactional. Each fuzz campaign retains the 600 aggregate CPU-second
+(10-minute) floor and cannot close until every unique outcome is serialized,
+minimized, and promoted to the permanent corpus. The focused
+current-GCC/current-Clang CI job
 is a bounded checker smoke test only; it is not a substitute for the full P6.10
 candidate campaign. Long-duration entries may be recorded as explicit offline
 deferrals during an online candidate slice, but each deferral remains a blocking

@@ -540,6 +540,12 @@ The product error schema retains the original engine categories and adds:
 `stale_binding`, `replay_mismatch`, and `verifier_disagreement` are explicit
 fail-closed contract errors and are never fallback-authorized.
 
+Because the qualification campaign was shortened, field failures are part of the
+release path. End users should report failures using the fields in
+`docs/MeshBooleanBetaTesting.md` (typed code/subcode/message-key, replay binding
+digest, and serialized operands) so the development team can replay them
+unambiguously.
+
 ## Current non-goals
 
 The current productized scope does not:

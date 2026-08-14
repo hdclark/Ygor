@@ -80,12 +80,12 @@ The focused deferral contract imports the canonical
 `make_default_qualification_matrix_plan()` inventory rather than maintaining a
 second hand-written fuzz list. It requires all eight P6.8 fuzz-duration cases,
 retains each case's matrix plan digest, case digest, exact configuration
-identifier, family, and 86,400 CPU-second floor, and binds every configuration to
-the embedded candidate manifest. The online runner must skip exactly those eight
-named cases and emit eight distinct canonical infrastructure observations and
-eight distinct unresolved blocking issues. This is an inventory and checker
-contract: it prevents silent omission or coalescing of an offline allocation but
-does not claim that any 24 CPU-hour run has occurred.
+identifier, family, and 600 CPU-second (10-minute) floor, and binds every
+configuration to the embedded candidate manifest. The online runner must skip
+exactly those eight named cases and emit eight distinct canonical infrastructure
+observations and eight distinct unresolved blocking issues. This is an inventory
+and checker contract: it prevents silent omission or coalescing of an offline
+allocation but does not claim that any 10-minute run has occurred.
 
 Cancellation, executor errors, malformed observations, reconciliation errors,
 and rejected publication all return typed failures. The publication sink is

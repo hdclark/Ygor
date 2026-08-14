@@ -56,7 +56,7 @@ void default_matrix_deferred_inventory_contracts() {
   for (const auto &fuzz_case : matrix.fuzz_cases) {
     require(fuzz_case.minimum_aggregate_cpu_seconds ==
                 qualification_minimum_fuzz_cpu_seconds,
-            "every frozen fuzz entry retains the 24 CPU-hour floor");
+            "every frozen fuzz entry retains the 10-minute floor");
 
     qualification_candidate_execution_case execution;
     execution.identifier = "candidate.matrix." + fuzz_case.identifier;
@@ -96,7 +96,7 @@ void default_matrix_deferred_inventory_contracts() {
     qualification_candidate_deferred_execution deferred;
     deferred.case_identifier = identifier;
     deferred.reason =
-        "The frozen 24 CPU-hour fuzz allocation requires reviewed offline execution.";
+        "The frozen 10-minute fuzz allocation requires reviewed offline execution.";
     deferred.evidence_digest = tagged_digest('F', 700U + ordinal);
     options.deferred_executions.push_back(std::move(deferred));
     ++ordinal;

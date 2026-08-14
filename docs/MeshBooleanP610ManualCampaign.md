@@ -100,7 +100,7 @@ toward a contract pass or fuzz CPU duration. The full campaign also rejects an
 oldest-compiler command whose resolved executable and reported version are
 identical to the corresponding current compiler.
 
-After the non-deferred profiles are complete, run the eight frozen 24 CPU-hour
+After the non-deferred profiles are complete, run the eight frozen 10-minute
 allocations:
 
 ```bash
@@ -111,11 +111,11 @@ allocations:
 ```
 
 Each allocation is executed in finite chunks and measured with GNU `time`. The
-default target is 86,400 aggregate CPU-seconds per allocation. The progress TSV
-is updated after every chunk, while only exit-code-zero chunks contribute to the
-accumulated user+system CPU total. A chunk timeout or failed test is recorded as
-an anomaly and contributes no passing duration. Restarting resumes from the
-successful accumulated total.
+default target is 600 aggregate CPU-seconds (10 minutes) per allocation. The
+progress TSV is updated after every chunk, while only exit-code-zero chunks
+contribute to the accumulated user+system CPU total. A chunk timeout or failed
+test is recorded as an anomaly and contributes no passing duration. Restarting
+resumes from the successful accumulated total.
 
 The complete sequence can also be requested in one invocation:
 
@@ -125,7 +125,8 @@ The complete sequence can also be requested in one invocation:
   --work ../p610-candidate-work
 ```
 
-The command may take many days on one machine. Running it inside `tmux`,
+The command is bounded by the shortened 10-minute fuzz allocations but the full
+contracts phase still takes many hours on one machine. Running it inside `tmux`,
 `screen`, or a supervised service is recommended. Do not run two processes
 against the same output directory. A `.lock` directory prevents accidental
 concurrent writers. Remove a stale lock only after confirming that no campaign
@@ -260,7 +261,7 @@ The seed pair changes deterministically for each iteration. The C++ test config
 honours the three `YGOR_BOOLEAN_*` seed/budget variables. The default number of
 runs per chunk is 16 and the default generated-case budget is 128; they can be
 changed with `P610_FUZZ_RUNS_PER_CHUNK` and
-`P610_FUZZ_CASES_PER_RUN`. Changing them does not lower the 86,400 CPU-second
+`P610_FUZZ_CASES_PER_RUN`. Changing them does not lower the 600 CPU-second
 floor.
 
 P6.11 must review the retained command, not merely the allocation name. Repeated
@@ -382,7 +383,7 @@ Before using these files for P6.11, a reviewer must:
 3. confirm every required `steps.tsv` entry has a passing atomic state and that
    every attempt has its command and log;
 4. independently sum user+system CPU for exit-code-zero rows in each of the
-   eight `fuzz-progress` files and require at least 86,400 seconds per file;
+   eight `fuzz-progress` files and require at least 600 seconds per file;
 5. verify each progress row's command digest and review the command for the
    claimed geometry/failure/chain coverage;
 6. reconcile `observations.tsv` with the non-deferred `completion.tsv`, AArch64

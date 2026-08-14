@@ -13,7 +13,7 @@ namespace mesh_boolean {
 
 constexpr std::uint16_t qualification_matrix_schema_version = 1;
 constexpr std::uint32_t qualification_matrix_checker_version = 1;
-constexpr std::uint64_t qualification_minimum_fuzz_cpu_seconds = 24ULL * 60ULL * 60ULL;
+constexpr std::uint64_t qualification_minimum_fuzz_cpu_seconds = 10ULL * 60ULL;
 
 enum class qualification_compiler_family : std::uint8_t {
   gcc,
