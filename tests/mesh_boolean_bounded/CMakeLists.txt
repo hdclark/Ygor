@@ -565,3 +565,26 @@ foreach(output_assembly_suite
     add_test(NAME mesh_boolean_bounded_component14_${output_assembly_suite}
         COMMAND ygor_mesh_boolean_output_assembly_tests ${output_assembly_suite})
 endforeach()
+
+add_executable(ygor_mesh_boolean_final_verification_tests
+    TestFinalVerificationMain.cc
+    FinalVerificationFixtures.cc
+    OutputAssemblyFixtures.cc
+    CleanupFixtures.cc
+    TriangulationFixtures.cc
+    OutputTopologyFixtures.cc
+    SelectionFixtures.cc
+    ClassificationFixtures.cc
+    BroadPhaseFixtures.cc
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_include_directories(ygor_mesh_boolean_final_verification_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_final_verification_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_final_verification_tests)
+foreach(final_verification_suite
+        contracts empty containment canonical mutation)
+    add_test(NAME mesh_boolean_bounded_component15_${final_verification_suite}
+        COMMAND ygor_mesh_boolean_final_verification_tests ${final_verification_suite})
+endforeach()

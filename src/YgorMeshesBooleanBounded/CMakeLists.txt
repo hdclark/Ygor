@@ -165,7 +165,10 @@ add_library(ygor_mesh_boolean_bounded_facade OBJECT
     OutputAssemblyTypes.cc
     AssembledOutputCandidate.cc
     OutputAssemblyCodec.cc
-    OutputAssemblyVerifier.cc)
+    OutputAssemblyVerifier.cc
+    FinalVerification.cc
+    FinalVerificationTypes.cc
+    VerifiedBooleanResult.cc)
 set_property(TARGET ygor_mesh_boolean_bounded_facade PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(ygor_mesh_boolean_bounded_facade PRIVATE
     "${CMAKE_CURRENT_SOURCE_DIR}/.."

@@ -259,9 +259,11 @@ private:
       facet_offset += workspace.cleaned_triangles.size();
     }
 
-    // Build the public mesh.
-    for (std::size_t v = 0; v < cleaned_->vertices().size(); ++v) {
-      const std::uint64_t position = vertex_position_by_cleaned[v];
+    // Build the public mesh in canonical position order.
+    std::vector<std::uint64_t> cleaned_by_position(cleaned_->vertices().size(),
+                                                   assembly_invalid_ordinal);
+    for (std::size_t o = 0; o < cleaned_->vertices().size(); ++o) {
+      const std::uint64_t position = vertex_position_by_cleaned[o];
       if (position == assembly_invalid_ordinal) {
         error = output_assembly_error(
             output_assembly_subcode::permutation_non_bijective,
@@ -270,6 +272,18 @@ private:
             output_assembly_checkpoint::vertex_permutation);
         return false;
       }
+      if (cleaned_by_position[position] != assembly_invalid_ordinal) {
+        error = output_assembly_error(
+            output_assembly_subcode::permutation_non_bijective,
+            bounded_boolean_error_category::internal_invariant_error,
+            "public position is assigned more than once",
+            output_assembly_checkpoint::vertex_permutation);
+        return false;
+      }
+      cleaned_by_position[position] = o;
+    }
+    for (std::size_t p = 0; p < cleaned_->vertices().size(); ++p) {
+      const std::uint64_t v = cleaned_by_position[p];
       const auto &vertex = cleaned_->vertices()[v];
       vec3<T> coordinate;
       coordinate.x = from_bits<T>(static_cast<floating_uint_t<T>>(vertex.nominal_bits[0]));
@@ -279,7 +293,7 @@ private:
 
       coordinate_copy_record copy;
       copy.canonical_id = artifact.coordinate_copies_.size();
-      copy.public_vertex = position;
+      copy.public_vertex = p;
       copy.cleaned_occurrence = vertex.component11_occurrence;
       copy.output_bits = vertex.nominal_bits;
       copy.disposition = coordinate_copy_disposition::exact_bits_preserved;
