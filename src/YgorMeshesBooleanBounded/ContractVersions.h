@@ -301,6 +301,26 @@ struct contract_versions final {
     static constexpr std::uint16_t output_topology_codec = 1;
     static constexpr std::uint16_t output_topology_verifier = 1;
 
+    // Component 12 degeneracy-tolerant polygon triangulation.
+    static constexpr std::uint16_t output_triangulation_artifact_schema = 2;
+    static constexpr std::uint16_t output_triangulation_provider = 1;
+    static constexpr std::uint16_t output_triangulation_projection_provider = 1;
+    static constexpr std::uint16_t output_triangulation_region_model_provider = 1;
+    static constexpr std::uint16_t output_triangulation_predicate_provider = 2;
+    static constexpr std::uint16_t output_triangulation_contour_provider = 1;
+    static constexpr std::uint16_t output_triangulation_escalation_provider = 2;
+    static constexpr std::uint16_t output_triangulation_diagonal_provider = 1;
+    static constexpr std::uint16_t output_triangulation_degeneracy_provider = 2;
+    static constexpr std::uint16_t output_triangulation_overlap_provider = 1;
+    static constexpr std::uint16_t output_triangulation_coverage_provider = 1;
+    static constexpr std::uint16_t output_triangulation_verification_provider = 2;
+    static constexpr std::uint16_t output_triangulation_predicate_evidence_schema = 2;
+    static constexpr std::uint16_t output_triangulation_triangle_category_schema = 2;
+    static constexpr std::uint16_t output_triangulation_cleanup_certificate_schema = 1;
+    static constexpr std::uint16_t output_triangulation_residual_schema = 2;
+    static constexpr std::uint16_t output_triangulation_codec = 2;
+    static constexpr std::uint16_t output_triangulation_verifier = 2;
+
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;
     static constexpr std::uint16_t shell_semantics = shell_semantics_provider;

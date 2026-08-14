@@ -124,7 +124,12 @@ add_library(ygor_mesh_boolean_bounded_strict
     OutputTopologyCodec.cc
     OutputTopologyTypes.cc
     OutputTopologyVerifier.cc
-    PolygonalOutputComplex.cc)
+    PolygonalOutputComplex.cc
+    OutputTriangulation.cc
+    OutputTriangulationTypes.cc
+    TriangulatedOutputComplex.cc
+    TriangulationCodec.cc
+    TriangulationVerifier.cc)
 set_property(TARGET ygor_mesh_boolean_bounded_strict PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(ygor_mesh_boolean_bounded_strict PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>

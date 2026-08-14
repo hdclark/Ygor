@@ -502,3 +502,23 @@ foreach(output_topology_suite
     add_test(NAME mesh_boolean_bounded_component11_${output_topology_suite}
         COMMAND ygor_mesh_boolean_output_topology_tests ${output_topology_suite})
 endforeach()
+
+add_executable(ygor_mesh_boolean_triangulation_tests
+    TestTriangulationMain.cc
+    TriangulationFixtures.cc
+    OutputTopologyFixtures.cc
+    SelectionFixtures.cc
+    ClassificationFixtures.cc
+    BroadPhaseFixtures.cc
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_include_directories(ygor_mesh_boolean_triangulation_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_triangulation_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_triangulation_tests)
+foreach(triangulation_suite
+        contracts empty containment boundary euler canonical mutation)
+    add_test(NAME mesh_boolean_bounded_component12_${triangulation_suite}
+        COMMAND ygor_mesh_boolean_triangulation_tests ${triangulation_suite})
+endforeach()

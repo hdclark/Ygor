@@ -17,7 +17,7 @@
 - [x] Component 9: connectivity and winding classification.
 - [x] Component 10: Boolean selection and topological occurrence accounting.
 - [x] Component 11: paired output edges and polygonal face cycles.
-- [ ] Component 12: degeneracy-tolerant triangulation.
+- [x] Component 12: degeneracy-tolerant triangulation.
 - [ ] Component 13: budgeted cleanup and simplification.
 - [ ] Component 14: output assembly and canonical serialization.
 - [ ] Component 15: full independent final verification and replay diagnostics.

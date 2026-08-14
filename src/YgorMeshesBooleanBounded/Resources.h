@@ -66,7 +66,13 @@ enum class resource_kind : std::uint8_t {
     output_topology_contours=118,output_topology_witnesses=119,
     output_topology_admissibility=120,output_topology_vertex_links=121,
     output_topology_carrier_audits=122,output_topology_verifier_evidence=123,
-    count=124
+    output_triangulation_support_frames=124,output_triangulation_projected=125,
+    output_triangulation_predicates=126,output_triangulation_diagonals=127,
+    output_triangulation_internal_halfedges=128,output_triangulation_triangles=129,
+    output_triangulation_corner_refs=130,output_triangulation_edge_use_refs=131,
+    output_triangulation_residuals=132,output_triangulation_assignments=133,
+    output_triangulation_certificates=134,output_triangulation_verifier_evidence=135,
+    count=136
 };
 struct resource_counter { std::uint64_t hard=0,advisory=0,reserved=0,committed=0,peak_live=0,cumulative=0; };
 class resource_manager;
