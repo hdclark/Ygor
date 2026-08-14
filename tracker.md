@@ -21,5 +21,5 @@
 - [x] Component 13: budgeted cleanup and simplification.
 - [x] Component 14: output assembly and canonical serialization.
 - [x] Component 15: full independent final verification and replay diagnostics.
-- [ ] Component 17: performance optimization and deterministic concurrency.
+- [x] Component 17: performance optimization and deterministic concurrency.
 - [ ] Component 16: full qualification matrix and release report.

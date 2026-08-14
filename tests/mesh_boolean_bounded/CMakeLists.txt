@@ -588,3 +588,18 @@ foreach(final_verification_suite
     add_test(NAME mesh_boolean_bounded_component15_${final_verification_suite}
         COMMAND ygor_mesh_boolean_final_verification_tests ${final_verification_suite})
 endforeach()
+
+add_executable(ygor_mesh_boolean_execution_tests
+    TestDeterministicExecution.cc
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_include_directories(ygor_mesh_boolean_execution_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_execution_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_execution_tests)
+foreach(execution_suite
+        serial order determinism cancellation)
+    add_test(NAME mesh_boolean_bounded_component17_${execution_suite}
+        COMMAND ygor_mesh_boolean_execution_tests ${execution_suite})
+endforeach()
