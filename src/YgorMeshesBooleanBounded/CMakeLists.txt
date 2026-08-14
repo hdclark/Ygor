@@ -135,7 +135,10 @@ add_library(ygor_mesh_boolean_bounded_strict
     CleanedTriangleManifold.cc
     CleanupCodec.cc
     CleanupVerifier.cc
-    DeterministicExecutionTypes.cc)
+    DeterministicExecutionTypes.cc
+    QualificationTypes.cc
+    DeterministicSeed.cc
+    QualificationHarness.cc)
 set_property(TARGET ygor_mesh_boolean_bounded_strict PROPERTY POSITION_INDEPENDENT_CODE TRUE)
 target_include_directories(ygor_mesh_boolean_bounded_strict PUBLIC
     $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/..>

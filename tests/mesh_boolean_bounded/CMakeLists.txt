@@ -603,3 +603,18 @@ foreach(execution_suite
     add_test(NAME mesh_boolean_bounded_component17_${execution_suite}
         COMMAND ygor_mesh_boolean_execution_tests ${execution_suite})
 endforeach()
+
+add_executable(ygor_mesh_boolean_qualification_tests
+    TestQualificationMain.cc
+    "${CMAKE_SOURCE_DIR}/src/YgorMeshesBooleanBounded/Cancellation.cc")
+target_include_directories(ygor_mesh_boolean_qualification_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(ygor_mesh_boolean_qualification_tests PRIVATE
+    ygor_mesh_boolean_bounded_strict ygor Threads::Threads)
+ygor_apply_mesh_boolean_strict_fp(ygor_mesh_boolean_qualification_tests)
+foreach(qualification_suite
+        seed release fail_closed digest)
+    add_test(NAME mesh_boolean_bounded_component16_${qualification_suite}
+        COMMAND ygor_mesh_boolean_qualification_tests ${qualification_suite})
+endforeach()

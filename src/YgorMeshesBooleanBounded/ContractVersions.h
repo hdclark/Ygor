@@ -370,6 +370,12 @@ struct contract_versions final {
     static constexpr std::uint16_t execution_codec = 1;
     static constexpr std::uint16_t execution_verifier = 1;
 
+    // Component 16 test infrastructure and release qualification.
+    static constexpr std::uint16_t qualification_artifact_schema = 1;
+    static constexpr std::uint16_t qualification_provider = 1;
+    static constexpr std::uint16_t qualification_codec = 1;
+    static constexpr std::uint16_t qualification_verifier = 1;
+
     static constexpr std::uint16_t input_facet_geometry = input_facet_geometry_provider;
     static constexpr std::uint16_t coherent_realization = coherent_realization_provider;
     static constexpr std::uint16_t shell_semantics = shell_semantics_provider;
