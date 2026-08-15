@@ -340,6 +340,17 @@ Start only after P5. This section is the sole successor to the former one-line P
   closure. This is exactly the kind of issue the limited campaign is meant to
   surface.
 
+  **Resolved (intended, re-frozen after review):** the drift is an intended
+  schema change, not a regression. P2.1/P5.2 bumped
+  `selected_exact_boundary_schema` 3→4, added the `preparation_provenance` /
+  `normalized` fields, and bumped the selection/realization semantic tags
+  (`YGBCAN10`→`YGBCAN11`, `YGBSEL10`→`YGBSEL11`), so the selection→realization→
+  output digest chain intentionally changes while every structural counter and
+  canonical byte count stays identical (B0 `canonical_bytes=60486`,
+  `output_vertices=16`, `output_faces=24` unchanged). The B0–B8 `output` stage
+  digests were re-frozen to their current values and the baseline test passes
+  under both GCC and Clang. See commit `ec6977e`.
+
   **5. Instrumented-build resource finding:** the `--jobs 32` available-toolchain
   run builds the plain Debug and Release profiles cleanly, but the
   `gcc-current-asan-ubsan` and `gcc-current-libstdcxx-debug` Debug builds both
@@ -352,6 +363,10 @@ Start only after P5. This section is the sole successor to the former one-line P
   `gcc-asan-ubsan-*` fuzz allocations are therefore not executable on this host
   until the profile build succeeds.
 
+  **Resolved:** the campaign was run with `--jobs 8`; the
+  `gcc-current-asan-ubsan` and `gcc-current-libstdcxx-debug` profiles both
+  build and execute successfully at that parallelism on this host.
+
   **6. Clang link finding:** the Clang 7.0.1 libstdc++ profiles fail at link
   time with `undefined reference to ygor::mesh_boolean::exact_point3::~exact_point3()`
   (`Test_MeshesBooleanInputTopologyProperties`, and later binaries). This is a
@@ -360,6 +375,26 @@ Start only after P5. This section is the sole successor to the former one-line P
   allocations) are not executable on this host until the destructor/linkage
   issue is fixed or a newer Clang is used. Record it as an anomaly and resolve
   under the item below.
+
+  **Resolved (compiler/library defect fixed in-tree):** the exact
+  arithmetic/kernel value types (`big_uint`, `big_int`, `exact_rational`,
+  `exact_point2/3`, `exact_vector2/3`, the segment/line/ray/interval/box types)
+  now declare out-of-line defaulted destructors, so Clang 7.0.1/libstdc++ emits
+  both the complete-object (`D1`) and base-object (`D2`) destructor symbols and
+  every Clang profile links and passes. See commit `ec6977e`.
+
+  **7. ASan campaign findings (surfaced by the fixed instrumented build):** the
+  `gcc-current-asan-ubsan` contracts step originally failed five tests from two
+  distinct memory-safety defects. (A) Four property tests
+  (`IntersectionEvents.Properties`, `SymbolicRegistry.Properties`,
+  `LocalRefinement.Properties`, `CellClassification.Properties`, plus
+  `Selection.Properties`) bound a `const auto&` reference to a subobject of the
+  temporary `shared_ptr` returned by `context->performance()`, leaving a
+  dangling reference (heap-use-after-free). (B) The independent
+  symbolic-registry verifier indexed `a.vertices[id.value_for_debug()]` /
+  `a.curves[id.value_for_debug()]` by canonical id without a bounds check, so a
+  mutated-id artifact caused a heap-buffer-overflow instead of a clean
+  rejection. Both were fixed and re-verified under ASan; see commit `5aeaffa`.
 
   The retained candidate campaign `p610-b8427a7a70dc-b9fb5f16437d-x86_64` was
   rejected as evidence (`docs/MeshBooleanP610CandidateAssessment.md`) and is
