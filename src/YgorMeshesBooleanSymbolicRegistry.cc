@@ -675,6 +675,14 @@ status_or<bool> independently_verify(const symbolic_complex<T, I> &a,
                     (exact_scalar(0) - component(result.anchor));
     return result;
   };
+  // The verifier indexes vertices and curves by their canonical id. Reject a
+  // malformed artifact whose ids do not match their storage indices before any
+  // such dereference, mirroring the structural invariant enforced by valid().
+  if (!a.raw_events || !a.validated || !a.constructions) return false;
+  for (std::size_t i = 0; i < a.vertices.size(); ++i)
+    if (a.vertices[i].id.value_for_debug() != i) return false;
+  for (std::size_t i = 0; i < a.curves.size(); ++i)
+    if (a.curves[i].id.value_for_debug() != i) return false;
   auto members = checked_add(a.validated->payload->vertices.size(),
                               a.raw_events->payload->points.size(),
                               boolean_stage::symbolic_registry);

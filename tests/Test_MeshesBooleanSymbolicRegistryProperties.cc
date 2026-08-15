@@ -83,7 +83,7 @@ template <class T, class I> void run() {
   require(mandatory.has_value() &&
               mandatory.value()->payload->canonical_symbolic_bytes == expected,
            "mandatory sorted verifier preserves canonical artifact");
-  const auto &verifier_counters = mandatory_context->performance()
+  const auto verifier_counters = mandatory_context->performance()
       ->stage(boolean_stage::symbolic_registry).verifier;
   const auto point_candidates = verifier_counters.value(
       performance_counter::symbolic_point_candidates);

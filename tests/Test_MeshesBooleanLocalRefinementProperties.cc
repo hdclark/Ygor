@@ -80,7 +80,7 @@ int main() {
                        refined_facet_patches_schema, 1,
                        x.value()->artifact_digest, x.value()->payload,
                        x.value()->payload.get()};
-    const auto &verifier = c1->performance()->stage(
+    const auto verifier = c1->performance()->stage(
         boolean_stage::local_refinement).verifier;
     for (const auto &entry : std::array<std::pair<resource_kind, std::uint64_t>, 2>{{
              {resource_kind::verifier_work,

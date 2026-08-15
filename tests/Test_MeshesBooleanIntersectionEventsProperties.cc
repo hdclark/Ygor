@@ -191,7 +191,7 @@ template <class T, class I> void run() {
   require(expected_area == exact_scalar(2), "independent concave oracle fixture");
   require(actual_area == expected_area, "concave overlay exact oracle area");
   require(matching_regions == 2, "disconnected concave overlap regions");
-  const auto &event_verifier = oracle_context->performance()
+  const auto event_verifier = oracle_context->performance()
       ->stage(boolean_stage::intersection_events).verifier;
   const auto exact_edge_tests = event_verifier.value(
       performance_counter::exact_coplanar_edge_tests);
