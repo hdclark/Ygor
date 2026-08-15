@@ -21,8 +21,8 @@ boundary).
 ## Repository and commands
 
 - Reviewed branch: `boolean_symbolic`.
-- Reported commit: `e5cf632a9c0edd24e6b1bc557d83a6aa12cf702b`.
-- Reported tree: `4a73450f671cd49b3261bcc99973d00e79bf32b0`.
+- Reported commit: `f9e06c0` (available-toolchain campaign evidence is bound to
+  the reviewed commit of that run; see the evidence directory `campaign.tsv`).
 - Dirty state: the campaign evidence below was generated from a clean checkout;
   `git-status.txt` and `git-diff.patch` in the evidence directory record the
   proof. No qualification claim may be made from a dirty tree.
@@ -41,8 +41,51 @@ boundary).
   steps, 18 passes, 14 failures, 23 blockers, 16 unresolved anomalies, and
   `campaign_status=incomplete_blocking`; its own checksum manifest could not be
   verified after log removal. See `docs/MeshBooleanP610CandidateAssessment.md`.
-- Consequently there is no committed passing platform-matrix outcome, and no
+- The `--available-toolchain` limited campaign was then executed with driver
+  schema v5 over the seven available profiles (current GCC Debug/Release/
+  ASan+UBSan/libstdc++-debug and current Clang Debug/Release/ASan+UBSan) after
+  resolving the campaign findings below. That run is candidate evidence only
+  (`campaign_status=complete_limited_toolchain`); the unavailable frozen matrix
+  dimensions (oldest-supported compilers, libc++, ThreadSanitizer, AArch64)
+  remain documented known limitations, and a reviewed configuration-bound rerun
+  plus end-user beta testing are still required before any profile closure.
+- Consequently there is no committed passing full-matrix outcome, and no
   platform profile may be promoted.
+
+### Available-toolchain campaign findings and resolutions
+
+The limited campaign surfaced six distinct findings; each is resolved in-tree
+and recorded here as an anomaly-plus-resolution rather than left blocking:
+
+1. **B0-B8 output digest drift.** `MeshBoolean.PerformanceBaselines` `B0`-`B8`
+   failed `frozen canonical output identity` while every structural counter and
+   canonical byte count stayed identical. Root cause: the P2.1/P5.2
+   `selected_exact_boundary` schema bump (3→4) and preparation-provenance fields
+   intentionally changed the selection→realization→output digest chain. Resolved
+   as an intended schema change by re-freezing the B0-B8 digests after review
+   (commit `ec6977e`); the test passes under both GCC and Clang.
+2. **Clang 7.0.1 destructor ABI mismatch.** Clang libstdc++ profiles failed to
+   link with `undefined reference to exact_point3::~exact_point3()` (a D1/D2
+   complete-vs-base-object destructor symbol split). Resolved by declaring
+   out-of-line defaulted destructors for the exact arithmetic/kernel value
+   types (commit `ec6977e`).
+3. **Instrumented-build resource pressure.** `--jobs 32` OOM-killed the
+   ASan+UBSan and libstdc++-debug builds on this host. Resolved by running the
+   campaign at `--jobs 8`; both instrumented profiles build and execute.
+4. **Dangling references in property tests.** Four/five property tests bound a
+   `const auto&` reference to a subobject of the temporary `shared_ptr` returned
+   by `context->performance()`, producing heap-use-after-free under ASan.
+   Resolved by copying the snapshot by value (commit `5aeaffa`).
+5. **Verifier out-of-bounds on mutated ids.** The independent symbolic-registry
+   verifier indexed `a.vertices[id.value_for_debug()]`/`a.curves[...]` without a
+   bounds check, so a mutated-id artifact caused a heap-buffer-overflow instead
+   of a clean rejection. Resolved by rejecting non-canonical ids and null
+   upstream pointers before any dereference (commit `5aeaffa`).
+6. **Sanitizer test timeouts.** Six correct tests (GlobalArrangement.Properties,
+   CellClassification.Properties, Selection.Properties, Approximate.Adversarial,
+   Replay, PerformanceBaselines) exceeded their fixed 300-600s CTest timeouts
+   under ASan. Resolved by scaling every mesh Boolean CTest timeout by 6x under
+   `WITH_ASAN`/`WITH_TSAN`/`WITH_MSAN` (commit `2603459`).
 
 ## Corpus coverage
 
@@ -67,8 +110,11 @@ boundary).
   burden. This is recorded in `docs/MeshBooleanQualification.md`,
   `docs/MeshBooleanP610ManualCampaign.md`, and `docs/MeshBooleanBetaTesting.md`.
 - **The shortened campaign has not been executed on controlled infrastructure.**
-  The eight frozen fuzz-duration allocations and the non-deferred frozen-manifest
-  entries remain deferred/blocking. The bounded CI checker test
+  The `--available-toolchain` limited run executed the non-deferred frozen
+  manifest via the in-tree dispatcher and the six runnable 600-CPU-second fuzz
+  allocations on this host, but the full controlled campaign (oldest compilers,
+  libc++, ThreadSanitizer, AArch64, and the two TSan fuzz allocations) remains
+  deferred/blocking. The bounded CI checker test
   (`MeshBoolean.QualificationCandidate`) is a runner smoke test, not campaign
   evidence.
 
@@ -77,8 +123,9 @@ boundary).
 - Normalized outcome taxonomy and false-success accounting are implemented in
   `YgorMeshesBooleanQualificationAccounting.h` and
   `docs/MeshBooleanQualificationAccounting.md`.
-- No complete campaign outcome summary exists to certify success, typed-failure,
-  or false-success rates for any workload profile.
+- The available-toolchain limited campaign produced a candidate outcome summary
+  (see the evidence directory `summary.tsv`); it does not certify success,
+  typed-failure, or false-success rates for any production workload profile.
 - Zero false successes cannot be claimed; the gate remains open pending a
   controlled campaign and end-user beta-testing findings.
 
@@ -140,6 +187,10 @@ boundary).
   `observations.tsv`, `anomalies.tsv`, `resolutions.tsv`, and `SHA256SUMS`. It is
   diagnostic only; it is not qualification evidence and cannot support
   promotion.
-- A future controlled campaign must be re-run with driver schema v5
-  (`scripts/run_mesh_boolean_p610_campaign.sh`) and reviewed against
-  `docs/MeshBooleanP610ManualCampaign.md` before any profile may be promoted.
+- The `--available-toolchain` limited campaign evidence was produced at
+  `p610-available-evidence/` (outside the source tree) with the same protocol
+  and `available_toolchain=1`; it is candidate evidence only
+  (`campaign_status=complete_limited_toolchain`) and cannot support promotion.
+- A full controlled campaign must still be run on controlled infrastructure and
+  reviewed against `docs/MeshBooleanP610ManualCampaign.md` before any profile
+  may be promoted.
