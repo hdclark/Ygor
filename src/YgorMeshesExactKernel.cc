@@ -10,6 +10,19 @@
 #error "Exact kernel must not assume finite-only arithmetic"
 #endif
 namespace ygor { namespace mesh_boolean {
+exact_point2::~exact_point2()=default;
+exact_vector2::~exact_vector2()=default;
+exact_point3::~exact_point3()=default;
+exact_vector3::~exact_vector3()=default;
+exact_segment2::~exact_segment2()=default;
+exact_segment3::~exact_segment3()=default;
+exact_triangle3::~exact_triangle3()=default;
+exact_line2::~exact_line2()=default;
+exact_line3::~exact_line3()=default;
+exact_ray3::~exact_ray3()=default;
+exact_interval::~exact_interval()=default;
+exact_box2::~exact_box2()=default;
+exact_box3::~exact_box3()=default;
 exact_sign substitute_defining_relation(const defining_relation&r,const exact_point3&p){
   return (r.coefficients[0]*p.x+r.coefficients[1]*p.y+
           r.coefficients[2]*p.z+r.coefficients[3]).sign();

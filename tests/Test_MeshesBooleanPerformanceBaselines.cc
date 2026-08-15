@@ -20,15 +20,15 @@ struct frozen_baseline {
 };
 
 const frozen_baseline baselines[] = {
-    {"B0", operation::regularized_union, "21cbe88be34183af2a4a1dbcbea815f9", 0, 0, 12, 16, 24, 60486},
-    {"B1", operation::regularized_union, "21cbe88be34183af2a4a1dbcbea815f9", 0, 0, 12, 16, 24, 60486},
-    {"B2", operation::regularized_union, "8ab64aecce1cb6c3811582962b942433", 6, 12, 12, 20, 36, 96626},
-    {"B3", operation::regularized_union, "aa7ba03125f4a12a1816663cfbd6dfa4", 20, 48, 14, 16, 28, 69356},
-    {"B4", operation::regularized_union, "0742898a71ee22d7f13f695fea440f9e", 4, 8, 11, 16, 28, 74601},
-    {"B5", operation::a_minus_b, "8ea99cb11f2af36a82fd1544cdbdf00c", 8, 16, 10, 16, 32, 88467},
-    {"B6", operation::regularized_union, "1fb3f7992d92003bcdc8e87efd00b6d5", 0, 0, 6, 8, 12, 30172},
-    {"B7", operation::regularized_union, "b891fe7f99c9e75e6d43f57081960ee8", 4, 8, 17, 24, 40, 104623},
-    {"B8", operation::regularized_union, "9f3ec87295a16c6de74c994882172340", 12, 28, 14, 20, 36, 103790},
+    {"B0", operation::regularized_union, "0cffa01f0f8f4af4966790098976fb10", 0, 0, 12, 16, 24, 60486},
+    {"B1", operation::regularized_union, "0cffa01f0f8f4af4966790098976fb10", 0, 0, 12, 16, 24, 60486},
+    {"B2", operation::regularized_union, "e980c207c226f010726939446f75ad01", 6, 12, 12, 20, 36, 96626},
+    {"B3", operation::regularized_union, "2123bfa67e69548aace2c76dd730ded2", 20, 48, 14, 16, 28, 69356},
+    {"B4", operation::regularized_union, "80a53395c0aa7157a7fa4a9b74197c8f", 4, 8, 11, 16, 28, 74601},
+    {"B5", operation::a_minus_b, "b0bdb9015e4d8717c35247fb48f6cc6b", 8, 16, 10, 16, 32, 88467},
+    {"B6", operation::regularized_union, "0d68d6893beb86becac050d42ab1f403", 0, 0, 6, 8, 12, 30172},
+    {"B7", operation::regularized_union, "6f1f52709bd05f6aa5438db3697c0883", 4, 8, 17, 24, 40, 104623},
+    {"B8", operation::regularized_union, "5228fdb8248569e4ee4149e408da8721", 12, 28, 14, 20, 36, 103790},
 };
 
 performance_observation run(const frozen_baseline &baseline,

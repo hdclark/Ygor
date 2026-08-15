@@ -30,6 +30,7 @@ void big_uint::push_back(std::uint32_t value){const auto old=size_;if(old==std::
 void big_uint::normalize()noexcept{const auto*current=data();auto normalized=size_;while(normalized&&!current[normalized-1])--normalized;if(normalized<=inline_capacity_&&!heap_limbs_.empty()){for(std::size_t i=0;i<normalized;++i)inline_limbs_[i]=current[i];for(std::size_t i=normalized;i<inline_capacity_;++i)inline_limbs_[i]=0;heap_limbs_.clear();}else if(normalized>inline_capacity_&&heap_limbs_.size()!=normalized)heap_limbs_.resize(normalized);size_=normalized;}
 big_uint::big_uint(big_uint&&o)noexcept:inline_limbs_(o.inline_limbs_),heap_limbs_(std::move(o.heap_limbs_)),size_(o.size_){o.inline_limbs_={{0,0}};o.size_=0;}
 big_uint&big_uint::operator=(big_uint o){using std::swap;swap(inline_limbs_,o.inline_limbs_);swap(heap_limbs_,o.heap_limbs_);swap(size_,o.size_);return *this;}
+big_uint::~big_uint()=default;
 big_uint::big_uint(std::uint64_t v){if(v){inline_limbs_[0]=std::uint32_t(v);size_=1;}if(v>>32){inline_limbs_[1]=std::uint32_t(v>>32);size_=2;}}
 status_or<big_uint>big_uint::from_hex(const std::string&s,boolean_stage st){try{big_uint r;if(s.empty())return make_error(boolean_error_code::input_contract_error,st,"empty_integer");for(char c:s){unsigned d=c>='0'&&c<='9'?c-'0':c>='a'&&c<='f'?c-'a'+10:c>='A'&&c<='F'?c-'A'+10:16;if(d==16)return make_error(boolean_error_code::input_contract_error,st,"invalid_integer");r=r.shifted_left(4)+big_uint(d);}return r;}catch(const std::bad_alloc&){return make_error(boolean_error_code::resource_limit,st,"allocation");}}
 std::size_t big_uint::bit_length()const noexcept{if(is_zero())return 0;std::uint32_t x=limb(size_-1);std::size_t n=32*(size_-1);while(x){++n;x>>=1;}return n;}
@@ -105,6 +106,7 @@ big_uint gcd(big_uint a,big_uint b){
 }
 
 big_int::big_int(std::int64_t v):sign_(v<0?integer_sign::negative:v?integer_sign::positive:integer_sign::zero),magnitude_(v<0?std::uint64_t(-(v+1))+1:std::uint64_t(v)){}
+big_int::~big_int()=default;
 big_int::big_int(integer_sign s,big_uint m):sign_(m.is_zero()?integer_sign::zero:s),magnitude_(std::move(m)){if(!magnitude_.is_zero()&&s==integer_sign::zero)throw std::invalid_argument("zero sign with magnitude");}
 int big_int::compare(const big_int&o)const noexcept{if(sign_!=o.sign_)return int(sign_)<int(o.sign_)?-1:1;int c=magnitude_.compare(o.magnitude_);return sign_==integer_sign::negative?-c:c;}
 big_int big_int::negated()const{return big_int(sign_==integer_sign::negative?integer_sign::positive:sign_==integer_sign::positive?integer_sign::negative:integer_sign::zero,magnitude_);}
@@ -116,6 +118,7 @@ big_int operator*(const big_int&a,const big_int&b){if(a.is_zero()||b.is_zero())r
 std::pair<big_int,big_int>divide(const big_int&a,const big_int&b){if(b.is_zero())throw std::invalid_argument("division by zero");auto qr=divide(a.magnitude_,b.magnitude_);auto qs=a.sign_==b.sign_?integer_sign::positive:integer_sign::negative;return{big_int(qs,std::move(qr.first)),big_int(a.sign_,std::move(qr.second))};}
 
 exact_rational::exact_rational(big_int n,big_uint d):numerator_(std::move(n)),denominator_(std::move(d)){normalize();}
+exact_rational::~exact_rational()=default;
 void exact_rational::normalize(){
   performance_count(performance_counter::rational_normalizations);performance_max(performance_counter::max_numerator_limbs,numerator_.magnitude().limb_count());performance_max(performance_counter::max_denominator_limbs,denominator_.limb_count());
   if(denominator_.is_zero())throw std::invalid_argument("zero denominator");

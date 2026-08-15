@@ -6,15 +6,15 @@
 #include <type_traits>
 
 namespace ygor { namespace mesh_boolean {
-struct exact_point2{exact_scalar x,y;}; struct exact_vector2{exact_scalar x,y;};
-struct exact_point3{exact_scalar x,y,z;}; struct exact_vector3{exact_scalar x,y,z;};
+struct exact_point2{exact_scalar x,y;~exact_point2();}; struct exact_vector2{exact_scalar x,y;~exact_vector2();};
+struct exact_point3{exact_scalar x,y,z;~exact_point3();}; struct exact_vector3{exact_scalar x,y,z;~exact_vector3();};
 inline bool operator==(const exact_point2&a,const exact_point2&b){return a.x==b.x&&a.y==b.y;}inline bool operator==(const exact_point3&a,const exact_point3&b){return a.x==b.x&&a.y==b.y&&a.z==b.z;}
 enum class projection_axis:std::uint8_t{drop_x,drop_y,drop_z}; enum class orientation_parity:std::int8_t{opposite=-1,agree=1};
-struct exact_segment2{exact_point2 origin,destination;};struct exact_segment3{exact_point3 origin,destination;};
-struct exact_triangle3{exact_point3 a,b,c;};
-struct exact_line2{exact_point2 anchor;exact_vector2 direction;};struct exact_line3{exact_point3 anchor;exact_vector3 direction;};struct exact_ray3{exact_point3 anchor;exact_vector3 direction;};
-struct exact_interval{exact_scalar lower,upper;bool lower_closed=true,upper_closed=true;};
-struct exact_box2{exact_point2 minimum,maximum;};struct exact_box3{exact_point3 minimum,maximum;};
+struct exact_segment2{exact_point2 origin,destination;~exact_segment2();};struct exact_segment3{exact_point3 origin,destination;~exact_segment3();};
+struct exact_triangle3{exact_point3 a,b,c;~exact_triangle3();};
+struct exact_line2{exact_point2 anchor;exact_vector2 direction;~exact_line2();};struct exact_line3{exact_point3 anchor;exact_vector3 direction;~exact_line3();};struct exact_ray3{exact_point3 anchor;exact_vector3 direction;~exact_ray3();};
+struct exact_interval{exact_scalar lower,upper;bool lower_closed=true,upper_closed=true;~exact_interval();};
+struct exact_box2{exact_point2 minimum,maximum;~exact_box2();};struct exact_box3{exact_point3 minimum,maximum;~exact_box3();};
 struct exact_plane3{big_int a,b,c,d;orientation_parity oriented=orientation_parity::agree;};
 enum class predicate_execution_policy:std::uint8_t{automatic,exact_only,force_filter_attempt,force_exact_fallback};
 

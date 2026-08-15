@@ -36,6 +36,7 @@ public:
     big_uint(const big_uint&)=default;
     big_uint(big_uint&&)noexcept;
     big_uint&operator=(big_uint);
+    ~big_uint();
     explicit big_uint(std::uint64_t);
     static status_or<big_uint> from_hex(const std::string&, boolean_stage=boolean_stage::intersection_events);
     bool is_zero() const noexcept { return size_==0; }
@@ -68,6 +69,7 @@ public:
     big_int()=default;
     explicit big_int(std::int64_t);
     big_int(integer_sign,big_uint);
+    ~big_int();
     integer_sign sign()const noexcept{return sign_;}
     exact_sign exact_signum()const noexcept{return static_cast<exact_sign>(sign_);}
     const big_uint&magnitude()const noexcept{return magnitude_;}
@@ -93,6 +95,7 @@ public:
     exact_rational()=default;
     explicit exact_rational(std::int64_t n):numerator_(n){}
     exact_rational(big_int,big_uint);
+    ~exact_rational();
     const big_int&numerator()const noexcept{return numerator_;}
     const big_uint&denominator()const noexcept{return denominator_;}
     exact_sign sign()const noexcept{return numerator_.exact_signum();}
