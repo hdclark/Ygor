@@ -2,6 +2,18 @@ if(NOT YGOR_BUILD_BOOLEAN_TESTS)
     return()
 endif()
 
+# Sanitizer builds slow the exact-arithmetic Boolean tests by roughly an order
+# of magnitude. Scale the CTest timeouts so they remain a safety cap rather than
+# a false timeout failure under ASan/UBSan/TSan/MSan.
+set(MESH_BOOLEAN_TEST_TIMEOUT_SCALE 1)
+if(WITH_ASAN OR WITH_TSAN OR WITH_MSAN)
+    set(MESH_BOOLEAN_TEST_TIMEOUT_SCALE 6)
+endif()
+math(EXPR MESH_BOOLEAN_TIMEOUT_60 "60 * ${MESH_BOOLEAN_TEST_TIMEOUT_SCALE}")
+math(EXPR MESH_BOOLEAN_TIMEOUT_360 "360 * ${MESH_BOOLEAN_TEST_TIMEOUT_SCALE}")
+math(EXPR MESH_BOOLEAN_TIMEOUT_600 "600 * ${MESH_BOOLEAN_TEST_TIMEOUT_SCALE}")
+math(EXPR MESH_BOOLEAN_TIMEOUT_900 "900 * ${MESH_BOOLEAN_TEST_TIMEOUT_SCALE}")
+
 add_library(mesh_boolean_test_support STATIC
     MeshBooleanTestHarness.cc
     MeshBooleanTestConfig.cc)
@@ -24,20 +36,20 @@ add_executable(Test_MeshesBooleanContract Test_MeshesBooleanContract.cc)
 target_link_libraries(Test_MeshesBooleanContract PRIVATE ygor Threads::Threads)
 mesh_boolean_strict_fp(Test_MeshesBooleanContract)
 add_test(NAME MeshesBooleanContract COMMAND Test_MeshesBooleanContract)
-set_tests_properties(MeshesBooleanContract PROPERTIES TIMEOUT 360 LABELS "mesh_boolean;component1;continuous")
+set_tests_properties(MeshesBooleanContract PROPERTIES TIMEOUT ${MESH_BOOLEAN_TIMEOUT_360} LABELS "mesh_boolean;component1;continuous")
 
 add_executable(Test_MeshesBooleanProductContract Test_MeshesBooleanProductContract.cc)
 target_link_libraries(Test_MeshesBooleanProductContract PRIVATE ygor Threads::Threads)
 mesh_boolean_strict_fp(Test_MeshesBooleanProductContract)
 add_test(NAME MeshesBooleanProductContract COMMAND Test_MeshesBooleanProductContract)
-set_tests_properties(MeshesBooleanProductContract PROPERTIES TIMEOUT 360 LABELS "mesh_boolean;component1;p0;continuous")
+set_tests_properties(MeshesBooleanProductContract PROPERTIES TIMEOUT ${MESH_BOOLEAN_TIMEOUT_360} LABELS "mesh_boolean;component1;p0;continuous")
 
 function(add_exact_kernel_test target name)
     add_executable(${target} ${target}.cc)
     target_link_libraries(${target} PRIVATE ygor Threads::Threads)
     mesh_boolean_strict_fp(${target})
     add_test(NAME ${name} COMMAND ${target})
-    set_tests_properties(${name} PROPERTIES TIMEOUT 360 LABELS "mesh_boolean;component3")
+    set_tests_properties(${name} PROPERTIES TIMEOUT ${MESH_BOOLEAN_TIMEOUT_360} LABELS "mesh_boolean;component3")
 endfunction()
 add_exact_kernel_test(Test_MeshesExactArithmetic MeshExactArithmetic.Unit)
 add_exact_kernel_test(Test_MeshesExactKernel MeshExactKernel.Unit)
@@ -48,7 +60,7 @@ function(add_boolean_component_test target name labels)
     target_link_libraries(${target} PRIVATE ygor Threads::Threads)
     mesh_boolean_strict_fp(${target})
     add_test(NAME ${name} COMMAND ${target})
-    set_tests_properties(${name} PROPERTIES TIMEOUT 360 LABELS "${labels}")
+    set_tests_properties(${name} PROPERTIES TIMEOUT ${MESH_BOOLEAN_TIMEOUT_360} LABELS "${labels}")
 endfunction()
 add_boolean_component_test(Test_MeshesBooleanVerification MeshBooleanVerification.Unit "mesh_boolean;component13")
 add_boolean_component_test(Test_MeshesBooleanTransaction MeshBooleanTransaction.Unit "mesh_boolean;component1;continuous")
@@ -93,7 +105,7 @@ add_test(NAME MeshBooleanApproximate.VerifierIsolationFixture
             "${approximate_isolation_fixture}")
 set_tests_properties(MeshBooleanApproximate.VerifierIsolationFixture PROPERTIES
     FIXTURES_SETUP ApproximateVerifierFixture
-    TIMEOUT 60
+    TIMEOUT ${MESH_BOOLEAN_TIMEOUT_60}
     LABELS "mesh_boolean;component13;p3;p3.3;continuous;isolation")
 add_executable(Test_MeshesBooleanApproximateVerifierIsolation
     Test_MeshesBooleanApproximateVerifierIsolation.cc)
@@ -108,13 +120,14 @@ add_test(NAME MeshBooleanApproximate.VerifierIsolation
             "${approximate_isolation_fixture}")
 set_tests_properties(MeshBooleanApproximate.VerifierIsolation PROPERTIES
     FIXTURES_REQUIRED ApproximateVerifierFixture
-    TIMEOUT 60
+    TIMEOUT ${MESH_BOOLEAN_TIMEOUT_60}
     LABELS "mesh_boolean;component13;p3;p3.3;continuous;isolation")
 add_boolean_component_test(Test_MeshesBooleanOutput MeshBooleanOutput.Unit "mesh_boolean;component12")
 add_boolean_component_test(Test_MeshesBooleanOutputProperties MeshBooleanOutput.Properties "mesh_boolean;component12")
-set_tests_properties(MeshBooleanCellClassification.Adversarial MeshBooleanSelection.Adversarial PROPERTIES TIMEOUT 600)
+set_tests_properties(MeshBooleanCellClassification.Adversarial MeshBooleanSelection.Adversarial PROPERTIES TIMEOUT ${MESH_BOOLEAN_TIMEOUT_600})
 
 function(add_component14_test target name labels timeout)
+    math(EXPR scaled_timeout "${timeout} * ${MESH_BOOLEAN_TEST_TIMEOUT_SCALE}")
     add_executable(${target} ${target}.cc)
     target_link_libraries(${target} PRIVATE mesh_boolean_test_support)
     target_compile_definitions(${target} PRIVATE
@@ -122,7 +135,7 @@ function(add_component14_test target name labels timeout)
     mesh_boolean_strict_fp(${target})
     add_test(NAME ${name} COMMAND ${target})
     set_tests_properties(${name} PROPERTIES
-        TIMEOUT ${timeout}
+        TIMEOUT ${scaled_timeout}
         LABELS "mesh_boolean;component14;${labels}"
         ENVIRONMENT "YGOR_BOOLEAN_TEST_TIER=${YGOR_BOOLEAN_TEST_TIER};YGOR_BOOLEAN_ARTIFACT_DIR=${CMAKE_CURRENT_BINARY_DIR}/mesh_boolean_artifacts")
 endfunction()
@@ -153,7 +166,7 @@ target_compile_features(MeshBooleanExample PRIVATE cxx_std_17)
 mesh_boolean_strict_fp(MeshBooleanExample)
 add_test(NAME MeshBoolean.Example.Ordinary COMMAND MeshBooleanExample)
 set_tests_properties(MeshBoolean.Example.Ordinary PROPERTIES
-    TIMEOUT 900
+    TIMEOUT ${MESH_BOOLEAN_TIMEOUT_900}
     LABELS "mesh_boolean;component14;example;p5;p5.3;continuous")
 
 add_executable(MeshBooleanExpertExample
@@ -163,7 +176,7 @@ target_compile_features(MeshBooleanExpertExample PRIVATE cxx_std_17)
 mesh_boolean_strict_fp(MeshBooleanExpertExample)
 add_test(NAME MeshBoolean.Example.Expert COMMAND MeshBooleanExpertExample)
 set_tests_properties(MeshBoolean.Example.Expert PROPERTIES
-    TIMEOUT 900
+    TIMEOUT ${MESH_BOOLEAN_TIMEOUT_900}
     LABELS "mesh_boolean;component14;example;expert;p5;p5.3;continuous")
 
 add_executable(Test_MeshesBooleanPlanGaps Test_MeshesBooleanPlanGaps.cc)
@@ -173,6 +186,6 @@ foreach(case_id IN ITEMS G1a G1b G2a G3 G4a G4b G5a G6 G7a G7b G8solver G8pairs 
     add_test(NAME MeshBoolean.PlanGap.${case_id}
         COMMAND Test_MeshesBooleanPlanGaps ${case_id})
     set_tests_properties(MeshBoolean.PlanGap.${case_id} PROPERTIES
-        TIMEOUT 600
+        TIMEOUT ${MESH_BOOLEAN_TIMEOUT_600}
         LABELS "mesh_boolean;component14;plan_gap;continuous")
 endforeach()
