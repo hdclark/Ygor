@@ -65,7 +65,7 @@ target_link_libraries(ygor_mesh_boolean_exact_result_verifier_isolation PRIVATE
     Threads::Threads
     m
     "${STD_FS_LIB}")
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND NOT WITH_ASAN AND NOT WITH_TSAN AND NOT WITH_MSAN)
     target_link_options(ygor_mesh_boolean_exact_result_verifier_isolation PRIVATE "LINKER:--no-undefined")
 endif()
 
@@ -88,7 +88,7 @@ target_link_libraries(ygor_mesh_boolean_approximate_verifier_isolation PRIVATE
     Threads::Threads
     m
     "${STD_FS_LIB}")
-if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+if(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang" AND NOT WITH_ASAN AND NOT WITH_TSAN AND NOT WITH_MSAN)
     target_link_options(ygor_mesh_boolean_approximate_verifier_isolation PRIVATE "LINKER:--no-undefined")
 endif()
 
