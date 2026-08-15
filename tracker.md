@@ -396,6 +396,16 @@ Start only after P5. This section is the sole successor to the former one-line P
   mutated-id artifact caused a heap-buffer-overflow instead of a clean
   rejection. Both were fixed and re-verified under ASan; see commit `5aeaffa`.
 
+  **8. ASan contracts step duration:** after the memory-safety fixes, the
+  `gcc-current-asan-ubsan` contracts step (all 72 non-fuzz tests) still exceeded
+  the driver's default 7200-second step timeout because six correct tests are
+  ~10-20x slower under ASan (e.g. `Approximate.Adversarial` ~971s,
+  `Replay` ~843s, `GlobalArrangement.Properties` ~779s). Resolved by scaling the
+  mesh Boolean CTest timeouts 6x under `WITH_ASAN`/`WITH_TSAN`/`WITH_MSAN`
+  (commit `2603459`) and by running the campaign with a raised step timeout
+  (`P610_STEP_TIMEOUT_SECONDS=21600`). The sanitizer contracts step is bounded
+  by the per-test timeouts, not by the driver default.
+
   The retained candidate campaign `p610-b8427a7a70dc-b9fb5f16437d-x86_64` was
   rejected as evidence (`docs/MeshBooleanP610CandidateAssessment.md`) and is
   diagnostic only. The `--available-toolchain` run above is the forward path
