@@ -21,8 +21,8 @@ boundary).
 ## Repository and commands
 
 - Reviewed branch: `boolean_symbolic`.
-- Reported commit: `f9e06c0` (available-toolchain campaign evidence is bound to
-  the reviewed commit of that run; see the evidence directory `campaign.tsv`).
+- Reported commit: `e78c38d` (the completed available-toolchain campaign
+  evidence is bound to this commit; see the evidence directory `campaign.tsv`).
 - Dirty state: the campaign evidence below was generated from a clean checkout;
   `git-status.txt` and `git-diff.patch` in the evidence directory record the
   proof. No qualification claim may be made from a dirty tree.
@@ -44,11 +44,16 @@ boundary).
 - The `--available-toolchain` limited campaign was then executed with driver
   schema v5 over the seven available profiles (current GCC Debug/Release/
   ASan+UBSan/libstdc++-debug and current Clang Debug/Release/ASan+UBSan) after
-  resolving the campaign findings below. That run is candidate evidence only
-  (`campaign_status=complete_limited_toolchain`); the unavailable frozen matrix
-  dimensions (oldest-supported compilers, libc++, ThreadSanitizer, AArch64)
-  remain documented known limitations, and a reviewed configuration-bound rerun
-  plus end-user beta testing are still required before any profile closure.
+  resolving the campaign findings below. That run finalized
+  `campaign_status=complete_limited_toolchain` at commit `e78c38d` with all 33
+  required steps passed, 25 known-limitation steps, zero failed/blocked steps,
+  zero unresolved anomalies, all 72 non-deferred manifest cases
+  `verified_exact_success`, and every one of the six runnable fuzz allocations
+  at or above the 600 aggregate CPU-second floor. It is candidate evidence only;
+  the unavailable frozen matrix dimensions (oldest-supported compilers, libc++,
+  ThreadSanitizer, AArch64) remain documented known limitations, and end-user
+  beta testing still carries the residual validation burden before any profile
+  closure.
 - Consequently there is no committed passing full-matrix outcome, and no
   platform profile may be promoted.
 
@@ -86,6 +91,28 @@ and recorded here as an anomaly-plus-resolution rather than left blocking:
    Replay, PerformanceBaselines) exceeded their fixed 300-600s CTest timeouts
    under ASan. Resolved by scaling every mesh Boolean CTest timeout by 6x under
    `WITH_ASAN`/`WITH_TSAN`/`WITH_MSAN` (commit `2603459`).
+7. **GCC `_GLIBCXX_DEBUG` `yspan` iterator const-correctness.** The
+   `gcc-current-libstdcxx-debug` build failed compiling `YgorStats.cc` because
+   `yspan<T>::iterator` declared a `random_access_iterator_tag` but its
+   `operator-`/`operator<`/`operator+`/`operator-` were not `const`-qualified,
+   so `__gnu_debug::__get_distance` could not subtract two `const` iterators.
+   Resolved by making the read-only iterator operators `const` (commit
+   `e78c38d`); the profile now builds and its 72-test contracts step passes.
+8. **Clang 7.0.1 ASan+UBSan shared-library link.** The two verifier-isolation
+   `SHARED` libraries failed to link under Clang ASan+UBSan because
+   `LINKER:--no-undefined` was applied while Clang 7.0.1 does not link the
+   sanitizer runtime into shared libraries (the `__asan_*`/`__ubsan_*` symbols
+   are resolved at load time from the executable's runtime). Resolved by not
+   applying the `--no-undefined` self-containment check under sanitizer builds
+   (commit `e78c38d`); the profile now builds and its 72-test contracts step
+   passes, and the two Clang ASan fuzz allocations execute.
+9. **Fuzz chunk sizing under ASan.** The GCC ASan+UBSan valid-geometry fuzz
+   allocation's default chunk (16 runs x 128 generated cases of the
+   Fuzz/EndToEnd/Metamorphic set) exceeded the 1800-second chunk wall limit, so
+   no successful CPU time was retained. Resolved by rerunning the campaign with
+   `P610_FUZZ_RUNS_PER_CHUNK=1`, `P610_FUZZ_CASES_PER_RUN=32`, and
+   `--fuzz-chunk-seconds 3600`; the 600 CPU-second floor is unchanged and every
+   allocation completed.
 
 ## Corpus coverage
 
@@ -109,25 +136,30 @@ and recorded here as an anomaly-plus-resolution rather than left blocking:
   modest campaign with end-user beta testing carrying the residual validation
   burden. This is recorded in `docs/MeshBooleanQualification.md`,
   `docs/MeshBooleanP610ManualCampaign.md`, and `docs/MeshBooleanBetaTesting.md`.
-- **The shortened campaign has not been executed on controlled infrastructure.**
-  The `--available-toolchain` limited run executed the non-deferred frozen
-  manifest via the in-tree dispatcher and the six runnable 600-CPU-second fuzz
-  allocations on this host, but the full controlled campaign (oldest compilers,
-  libc++, ThreadSanitizer, AArch64, and the two TSan fuzz allocations) remains
-  deferred/blocking. The bounded CI checker test
-  (`MeshBoolean.QualificationCandidate`) is a runner smoke test, not campaign
-  evidence.
+- **The shortened campaign has been executed on the available toolchain.** The
+  `--available-toolchain` limited run executed the non-deferred frozen manifest
+  via the in-tree dispatcher (72 cases, all `verified_exact_success`) and the
+  six runnable 600-CPU-second fuzz allocations on this host to
+  `campaign_status=complete_limited_toolchain`. The full controlled campaign
+  (oldest compilers, libc++, ThreadSanitizer, AArch64, and the two TSan fuzz
+  allocations) remains deferred and documented as known limitations. The
+  bounded CI checker test (`MeshBoolean.QualificationCandidate`) is a runner
+  smoke test, not campaign evidence.
 
 ## Outcomes
 
 - Normalized outcome taxonomy and false-success accounting are implemented in
   `YgorMeshesBooleanQualificationAccounting.h` and
   `docs/MeshBooleanQualificationAccounting.md`.
-- The available-toolchain limited campaign produced a candidate outcome summary
-  (see the evidence directory `summary.tsv`); it does not certify success,
-  typed-failure, or false-success rates for any production workload profile.
-- Zero false successes cannot be claimed; the gate remains open pending a
-  controlled campaign and end-user beta-testing findings.
+- The available-toolchain limited campaign produced a completed candidate
+  outcome summary at commit `e78c38d` (see the evidence directory
+  `summary.tsv`): 33/33 required steps passed, zero unresolved anomalies, and
+  all 72 non-deferred manifest cases `verified_exact_success`. It does not
+  certify success, typed-failure, or false-success rates for any production
+  workload profile.
+- Zero false successes are observed in the limited campaign, but zero false
+  successes cannot be claimed at controlled-campaign scale; the gate remains
+  open pending end-user beta-testing findings.
 
 ## Disagreements
 
@@ -188,9 +220,9 @@ and recorded here as an anomaly-plus-resolution rather than left blocking:
   diagnostic only; it is not qualification evidence and cannot support
   promotion.
 - The `--available-toolchain` limited campaign evidence was produced at
-  `p610-available-evidence/` (outside the source tree) with the same protocol
-  and `available_toolchain=1`; it is candidate evidence only
-  (`campaign_status=complete_limited_toolchain`) and cannot support promotion.
-- A full controlled campaign must still be run on controlled infrastructure and
-  reviewed against `docs/MeshBooleanP610ManualCampaign.md` before any profile
-  may be promoted.
+  `p610-available-evidence-r2/` (outside the source tree) at commit `e78c38d`
+  with the same protocol and `available_toolchain=1`; it finalized
+  `campaign_status=complete_limited_toolchain` with zero unresolved anomalies.
+  It is candidate evidence only and cannot support promotion.
+- A full controlled campaign on controlled infrastructure, plus end-user beta
+  testing, is still required before any profile may be promoted.
