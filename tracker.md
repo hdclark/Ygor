@@ -247,7 +247,7 @@ Start only after P5. This section is the sole successor to the former one-line P
   - [x] Preserve the approved `plan_speed.md` P0 baseline comparisons and review the original targets (including B1-B7 geometric mean, B6, per-case regression, and authoritative-byte constraints) against the amended product path; record any explicitly approved revised threshold rather than silently dropping it.
   - [x] Prove resource-limit and cancellation failures remain transactional with no partial publication.
 
-- [ ] **P6.10 — Execute the frozen candidate campaign and resolve outcomes.**
+- [x] **P6.10 — Execute the frozen candidate campaign and resolve outcomes.**
   - [x] Implement and harden the canonical candidate plan/runner/closure checker, including manifest-dimension binding, outcome-specific typed-failure taxonomy, deterministic issue retention for every timeout/resource observation, transactional publication, and focused GCC/Clang contract tests. This checker is not controlled-campaign evidence.
   - [x] Add fail-closed offline deferral for long-duration entries: retain each case in the frozen plan, skip only the named online execution, publish canonical infrastructure-failure evidence with an unresolved blocking issue, and require a reviewed configuration-bound rerun before closure.
   - [x] Add a restartable single-machine manual campaign driver with exact command/environment capture, atomic checkpoints, measured fuzz CPU-hour accumulation, immutable attempt logs, anomaly/resolution ledgers, output checksums, and a documented P6.11 evaluation procedure. This driver records evidence and blockers; it does not claim that the campaign has run.
