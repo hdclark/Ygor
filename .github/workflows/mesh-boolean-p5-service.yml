@@ -1,0 +1,92 @@
+name: Mesh Boolean P5 service and examples
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - 'src/YgorMeshesBooleanService*'
+      - 'src/YgorMeshesBooleanPreparation*'
+      - 'src/YgorMeshesBooleanSelection*'
+      - 'src/YgorMeshesBooleanExactResult*'
+      - 'src/YgorMeshesBooleanProductContract*'
+      - 'src/YgorMeshesBooleanContract*'
+      - 'src/YgorMeshesBooleanBackend*'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanService.cc'
+      - 'tests/Test_MeshesBooleanExactResult.cc'
+      - 'examples/MeshBooleanExample.cc'
+      - 'examples/MeshBooleanExpertExample.cc'
+      - 'tests/CMakeLists.txt'
+      - 'docs/MeshBooleanService.md'
+      - 'docs/MeshBooleanMigration.md'
+      - 'docs/MeshBooleanProductContract.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p5-service.yml'
+  pull_request:
+    paths:
+      - 'src/YgorMeshesBooleanService*'
+      - 'src/YgorMeshesBooleanPreparation*'
+      - 'src/YgorMeshesBooleanSelection*'
+      - 'src/YgorMeshesBooleanExactResult*'
+      - 'src/YgorMeshesBooleanProductContract*'
+      - 'src/YgorMeshesBooleanContract*'
+      - 'src/YgorMeshesBooleanBackend*'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanService.cc'
+      - 'tests/Test_MeshesBooleanExactResult.cc'
+      - 'examples/MeshBooleanExample.cc'
+      - 'examples/MeshBooleanExpertExample.cc'
+      - 'tests/CMakeLists.txt'
+      - 'docs/MeshBooleanService.md'
+      - 'docs/MeshBooleanMigration.md'
+      - 'docs/MeshBooleanProductContract.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p5-service.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  service:
+    name: ${{ matrix.compiler }} conservative service
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install --yes cmake ninja-build clang
+      - name: Configure
+        env:
+          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+        run: >-
+          cmake -S . -B build-p5-service -G Ninja
+          -DBUILD_TESTING=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DWITH_EIGEN=OFF
+          -DWITH_GNU_GSL=OFF
+      - name: Build P5 targets
+        run: >-
+          cmake --build build-p5-service
+          --target ygor_mesh_boolean_attribute_verifier_isolation
+          ygor_mesh_boolean_approximate_verifier_isolation
+          Test_MeshesBooleanProductContract
+          Test_MeshesBooleanPreparation
+          Test_MeshesBooleanNormalization
+          Test_MeshesBooleanExactResult
+          Test_MeshesBooleanBackend
+          Test_MeshesBooleanAttributes
+          Test_MeshesBooleanService
+          Test_MeshesBooleanEndToEnd
+          MeshBooleanExample
+          MeshBooleanExpertExample
+          --parallel 2
+      - name: Run P5 integration gates
+        run: >-
+          ctest --test-dir build-p5-service --output-on-failure
+          -R '^(MeshesBooleanProductContract|MeshBooleanPreparation.Unit|MeshBooleanNormalization.Unit|MeshBooleanExactResult.Unit|MeshBooleanBackend.Unit|MeshBooleanAttributes.Unit|MeshBooleanService.Unit|MeshBoolean.EndToEnd|MeshBoolean.Example.Ordinary|MeshBoolean.Example.Expert)$'
+          --timeout 900

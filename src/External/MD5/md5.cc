@@ -33,23 +33,18 @@
 // properly aligned word in host byte order. The check for little-endian 
 // architectures that tolerate unaligned memory accesses is just an 
 // optimization. Nothing will break if it doesn't work." -- Alexander.
-#if defined(__i386__) || defined(__x86_64__) || defined(__vax__)
-    #define MD5SET(n)  (*(MD5::YGOR_MD5_u_t *)&ptr[(n) * 4])
-    #define MD5GET(n)  MD5SET(n)
-#else
-    #define MD5SET(n)  (ctx->block[(n)] = \
+#define MD5SET(n)  (ctx->block[(n)] = \
        (MD5::YGOR_MD5_u_t)ptr[(n) * 4] | \
        ((MD5::YGOR_MD5_u_t)ptr[(n) * 4 + 1] << 8) | \
        ((MD5::YGOR_MD5_u_t)ptr[(n) * 4 + 2] << 16) | \
        ((MD5::YGOR_MD5_u_t)ptr[(n) * 4 + 3] << 24))
-    #define MD5GET(n)  (ctx->block[(n)])
-#endif
+#define MD5GET(n)  (ctx->block[(n)])
 
 //"This processes one or more 64-byte data blocks, but does NOT update the bit 
 // counters. There are no alignment requirements." -- Alexander.
-static void *body(MD5::Context *ctx, void *data, unsigned long size){
+static const void *body(MD5::Context *ctx, const void *data, unsigned long size){
     MD5::YGOR_MD5_u_t a, b, c, d, saved_a, saved_b, saved_c, saved_d;
-    unsigned char *ptr = reinterpret_cast<unsigned char *>(data);
+    const unsigned char *ptr = reinterpret_cast<const unsigned char *>(data);
     a = ctx->a;  b = ctx->b;
     c = ctx->c;  d = ctx->d;
 
@@ -143,7 +138,7 @@ void MD5::Init(MD5::Context *ctx){
     return;
 }
 
-void MD5::Update(MD5::Context *ctx, void *data, unsigned long size){
+void MD5::Update(MD5::Context *ctx, const void *data, unsigned long size){
     MD5::YGOR_MD5_u_t saved_lo;
     unsigned long used, free;
     saved_lo = ctx->lo;
@@ -157,7 +152,7 @@ void MD5::Update(MD5::Context *ctx, void *data, unsigned long size){
             return;
         }
         memcpy(&ctx->buffer[used], data, free);
-        data = (unsigned char *)data + free;
+        data = static_cast<const unsigned char *>(data) + free;
         size -= free;
         body(ctx, ctx->buffer, 64);
     }
@@ -209,5 +204,4 @@ void MD5::Final(unsigned char *result, MD5::Context *ctx){
     memset(ctx, 0, sizeof(*ctx));
     return;
 }
-
 

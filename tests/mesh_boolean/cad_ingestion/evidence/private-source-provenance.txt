@@ -1,0 +1,1 @@
+Private workload metadata is retained only as an anonymized class, content digest, outcome summary, and sanitized CI representative. No customer geometry or credential is stored.
