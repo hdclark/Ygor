@@ -1,0 +1,53 @@
+name: Mesh Boolean P6.4 independent comparison
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - 'src/YgorMeshesBooleanQualificationComparison.*'
+      - 'src/YgorMeshesBooleanBackend*'
+      - 'src/YgorMeshesBooleanQualification*'
+      - 'tests/Test_MeshesBooleanQualificationComparison.cc'
+      - 'tests/CMakeLists.txt'
+      - 'src/CMakeLists.txt'
+      - 'docs/MeshBooleanQualificationComparison.md'
+      - '.github/workflows/mesh-boolean-p6-comparison.yml'
+  pull_request:
+    paths:
+      - 'src/YgorMeshesBooleanQualificationComparison.*'
+      - 'src/YgorMeshesBooleanBackend*'
+      - 'src/YgorMeshesBooleanQualification*'
+      - 'tests/Test_MeshesBooleanQualificationComparison.cc'
+      - 'tests/CMakeLists.txt'
+      - 'src/CMakeLists.txt'
+      - 'docs/MeshBooleanQualificationComparison.md'
+      - '.github/workflows/mesh-boolean-p6-comparison.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  p6-comparison:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y cmake g++ libeigen3-dev libgsl-dev pkg-config
+      - name: Configure
+        run: |
+          cmake -S . -B build-p6-comparison \
+            -DCMAKE_BUILD_TYPE=Debug \
+            -DYGOR_BOOLEAN_TEST_TIER=continuous \
+            -DYGOR_BUILD_BOOLEAN_BENCHMARKS=OFF
+      - name: Build P6.4 qualification comparison
+        run: |
+          cmake --build build-p6-comparison --parallel 2 \
+            --target Test_MeshesBooleanQualificationComparison
+      - name: Run P6.4 qualification comparison
+        run: |
+          ctest --test-dir build-p6-comparison --output-on-failure \
+            -R '^MeshBoolean\.QualificationComparison$'

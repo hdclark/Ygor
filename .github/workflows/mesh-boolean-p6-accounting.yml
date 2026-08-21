@@ -1,0 +1,82 @@
+name: Mesh Boolean P6.5 false-success accounting
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - 'src/YgorMeshesBooleanQualificationAccounting.*'
+      - 'src/YgorMeshesBooleanProductContract.h'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanQualificationAccounting.cc'
+      - 'tests/CMakeLists.txt'
+      - 'tests/mesh_boolean/requirements.tsv'
+      - 'docs/MeshBooleanQualificationAccounting.md'
+      - 'docs/MeshBooleanQualification.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p6-accounting.yml'
+  pull_request:
+    paths:
+      - 'src/YgorMeshesBooleanQualificationAccounting.*'
+      - 'src/YgorMeshesBooleanProductContract.h'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanQualificationAccounting.cc'
+      - 'tests/CMakeLists.txt'
+      - 'tests/mesh_boolean/requirements.tsv'
+      - 'docs/MeshBooleanQualificationAccounting.md'
+      - 'docs/MeshBooleanQualification.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p6-accounting.yml'
+
+concurrency:
+  group: mesh-boolean-p6-accounting-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  accounting-contracts:
+    name: ${{ matrix.compiler }} accounting contracts
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update -qq && sudo apt-get install --yes -qq cmake ninja-build clang
+      - name: Configure
+        env:
+          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+        run: >-
+          cmake -S . -B build-p6-accounting -G Ninja
+          -DBUILD_TESTING=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DWITH_EIGEN=OFF
+          -DWITH_GNU_GSL=OFF
+      - name: Build P6.5 target
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake --build build-p6-accounting \
+            --target Test_MeshesBooleanQualificationAccounting \
+            --parallel 2 2>&1 | tee build-p6-accounting/p6-accounting-build.log
+      - name: Run false-success and accounting gates
+        run: >-
+          ctest --test-dir build-p6-accounting --output-on-failure
+          -R '^MeshBoolean\.QualificationAccounting$'
+          --timeout 1500
+      - name: Retain failing diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mesh-boolean-p6-accounting-${{ matrix.compiler }}-failure
+          path: |
+            build-p6-accounting/p6-accounting-build.log
+            build-p6-accounting/Testing/Temporary/LastTest.log
+          if-no-files-found: ignore
+          retention-days: 7

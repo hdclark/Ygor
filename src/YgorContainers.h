@@ -136,7 +136,7 @@ class yspan {
 
                 reference operator*() const { return (*(this->it_yspan))[this->it_n]; }
                 pointer operator->(){ return &((*(this->it_yspan))[this->it_n]); }
-                bool operator<(const iterator &rhs){ 
+                bool operator<(const iterator &rhs) const { 
                     return std::make_tuple(*(this->it_yspan), this->it_n)
                          < std::make_tuple(*(rhs.it_yspan), rhs.it_n);
                 }
@@ -149,12 +149,12 @@ class yspan {
                 iterator operator++(int){ iterator tmp = *this; ++(*this); return tmp; }
                 iterator operator--(int){ iterator tmp = *this; --(*this); return tmp; }
 
-                difference_type operator-(const iterator &rhs){ return static_cast<difference_type>(this->it_n - rhs.it_n); }
+                difference_type operator-(const iterator &rhs) const { return static_cast<difference_type>(this->it_n - rhs.it_n); }
                 iterator& operator+=(difference_type n){ this->it_n += n; return *this; }
                 iterator& operator-=(difference_type n){ this->it_n -= n; return *this; }
 
-                iterator operator+(difference_type n){ iterator out = *this; out.it_n += n; return out; }
-                iterator operator-(difference_type n){ iterator out = *this; out.it_n -= n; return out; }
+                iterator operator+(difference_type n) const { iterator out = *this; out.it_n += n; return out; }
+                iterator operator-(difference_type n) const { iterator out = *this; out.it_n -= n; return out; }
 
                 friend bool operator==(const iterator& A, const iterator& B){
                     return (A.it_yspan == B.it_yspan)

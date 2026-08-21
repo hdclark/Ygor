@@ -1,0 +1,65 @@
+name: Mesh Boolean P4 adapters
+
+on:
+  push:
+    branches:
+      - boolean_symbolic
+    paths:
+      - 'src/YgorMeshesBooleanBackend*'
+      - 'src/YgorMeshesBooleanProductContract*'
+      - 'src/YgorMeshesBooleanExactResult*'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanBackend.cc'
+      - 'tests/CMakeLists.txt'
+      - 'docs/MeshBooleanProductContract.md'
+      - 'docs/MeshBooleanBackendAdapters.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p4.yml'
+  pull_request:
+    paths:
+      - 'src/YgorMeshesBooleanBackend*'
+      - 'src/YgorMeshesBooleanProductContract*'
+      - 'src/YgorMeshesBooleanExactResult*'
+      - 'src/CMakeLists.txt'
+      - 'tests/Test_MeshesBooleanBackend.cc'
+      - 'tests/CMakeLists.txt'
+      - 'docs/MeshBooleanProductContract.md'
+      - 'docs/MeshBooleanBackendAdapters.md'
+      - 'tracker.md'
+      - '.github/workflows/mesh-boolean-p4.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  backend-adapters:
+    name: ${{ matrix.compiler }} backend adapters
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        compiler: [gcc, clang]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install build tools
+        run: sudo apt-get update && sudo apt-get install --yes cmake ninja-build clang
+      - name: Configure
+        env:
+          CC: ${{ matrix.compiler == 'gcc' && 'gcc' || 'clang' }}
+          CXX: ${{ matrix.compiler == 'gcc' && 'g++' || 'clang++' }}
+        run: >-
+          cmake -S . -B build-p4 -G Ninja
+          -DBUILD_TESTING=ON
+          -DCMAKE_BUILD_TYPE=Debug
+          -DWITH_EIGEN=OFF
+          -DWITH_GNU_GSL=OFF
+      - name: Build P4 targets
+        run: >-
+          cmake --build build-p4
+          --target Test_MeshesBooleanProductContract Test_MeshesBooleanExactResult Test_MeshesBooleanBackend
+          --parallel 2
+      - name: Run P4 adapter and contract tests
+        run: >-
+          ctest --test-dir build-p4 --output-on-failure
+          -R '^(MeshesBooleanProductContract|MeshBooleanExactResult.Unit|MeshBooleanBackend.Unit)$'
+          --timeout 360

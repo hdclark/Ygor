@@ -9,6 +9,7 @@ doctest
 # Compiled Object files
 *.lo
 *.o
+gmon.out
 
 # Compiled Dynamic libraries
 *.so
@@ -26,8 +27,10 @@ regex*
 report_machine_parameters
 run_tests
 run_*
+Testing*
+p610-candidate-evidence/
+p610-smoke/
 
 # CodeQL build artifacts
 _codeql_build_dir
 _codeql_detected_source_root
-

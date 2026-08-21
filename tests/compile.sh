@@ -87,3 +87,10 @@ g++ -std=c++17 Test_MeshesBoolean.cc -o test_meshesboolean -lygor -pthread &
 g++ -std=c++17 Test_MeshesBoolean2.cc -o test_meshesboolean2 -lygor -pthread &
 g++ -std=c++17 Test_MeshesBoolean5.cc -o test_meshesboolean5 -lygor -pthread &
 wait
+
+BOOLEAN_BUILD="${REPOROOT}/build-tests-boolean"
+cmake -S "${REPOROOT}" -B "${BOOLEAN_BUILD}" \
+    -DBUILD_TESTING=ON -DYGOR_BUILD_BOOLEAN_TESTS=ON \
+    -DWITH_EIGEN=OFF -DWITH_GNU_GSL=OFF
+cmake --build "${BOOLEAN_BUILD}" --parallel 2
+cmake -E chdir "${BOOLEAN_BUILD}" ctest --output-on-failure -L mesh_boolean

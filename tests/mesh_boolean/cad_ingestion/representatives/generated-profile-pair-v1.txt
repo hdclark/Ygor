@@ -1,0 +1,5 @@
+YGOR-CAD-EMBEDDED-PAIR v1
+case=internally-generated-profile
+operand_a=axis-aligned extrusion of exact integer profile
+operand_b=rotated representable extrusion
+expected=verified exact success
