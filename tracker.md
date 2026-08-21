@@ -1,0 +1,25 @@
+- [x] Component 1: contract, IDs, errors, resources, transactions, and replay.
+- [x] Component 3: precision model and bounded arithmetic, together with the exact test oracle.
+- [x] Component 2: input topology, shell semantics, and independent validation.
+- [x] Component 2: validate partial implementation.
+- [x] Component 4: source polygon triangulation and provenance.
+- [x] Component 5: canonical halfedge topology.
+- [x] Component 6: broad phase, gated against exhaustive enumeration.
+- [x] Component 7 audit: assess the implementation against the reviewed plan and record the missing elements.
+- [x] Component 7a: make the closed canonical request DAG the pre-evaluation execution authority and publish explicit triangle-local/internal-diagonal reconciliation evidence.
+- [x] Component 7b: complete public truth/construction evidence, first-class source-vertex/source-facet relations, and transverse event-to-carrier membership.
+- [x] Component 7c: enforce the downstream view boundary and replace producer-kernel reuse in the verifier with independent reconstruction.
+- [x] Component 7d: freeze semantically valid operation-specific symbolic consequences and reject impossible symbolic matrix keys.
+- [x] Component 7e: complete per-domain resource accounting, predecessor/version handshakes, section digests, and deterministic numerical diagnostics.
+- [x] Component 7f: complete exact-oracle, type/index, internal-diagonal, fan-conservation, scheduling, selection-boundary, fuzz/shrinking, and golden-artifact qualification.
+- [x] Component 8: canonical event registry and shared construction lineage.
+- [x] Component 8 coplanar/collinear arrangement adapter (gated on Component 07 bounded coplanar lineage for coplanar/contact fixtures).
+- [x] Component 9: connectivity and winding classification.
+- [x] Component 10: Boolean selection and topological occurrence accounting.
+- [x] Component 11: paired output edges and polygonal face cycles.
+- [x] Component 12: degeneracy-tolerant triangulation.
+- [x] Component 13: budgeted cleanup and simplification.
+- [x] Component 14: output assembly and canonical serialization.
+- [x] Component 15: full independent final verification and replay diagnostics.
+- [x] Component 17: performance optimization and deterministic concurrency.
+- [x] Component 16: full qualification matrix and release report.

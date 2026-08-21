@@ -1,0 +1,2272 @@
+#include "BroadPhaseFixtures.h"
+#include "YgorMeshesBooleanBounded/ContextVerifier.h"
+#include "YgorMeshesBooleanBounded/RelationBuild.h"
+#include "YgorMeshesBooleanBounded/IntersectionBuild.h"
+#include "YgorMeshesBooleanBounded/RelationReplay.h"
+#include "YgorMeshesBooleanBounded/RelationVerifier.h"
+#include "YgorMeshesBooleanBounded/TransverseRelationAdapter.h"
+
+#include <algorithm>
+#include <array>
+#include <cstdint>
+#include <iostream>
+#include <memory>
+#include <stdexcept>
+#include <vector>
+
+namespace bounded = ygor::mesh_boolean::bounded;
+using broad_phase_tests::built_fixture;
+using broad_phase_tests::diagnostic;
+using broad_phase_tests::require;
+
+namespace ygor::mesh_boolean::bounded {
+
+struct relation_artifact_test_access final {
+  template <class T, class I>
+  static const auto &predecessor_candidates(
+      const signed_feature_relations<T, I> &artifact) {
+    return artifact.candidates_;
+  }
+
+  template <class T, class I>
+  static const auto &source_edge_stage(
+      const signed_feature_relations<T, I> &artifact) {
+    return artifact.source_edge_stage_;
+  }
+
+  template <class T, class I>
+  static const auto &source_edge_facet_stage(
+      const signed_feature_relations<T, I> &artifact) {
+    return artifact.source_edge_facet_stage_;
+  }
+
+  template <class T, class I>
+  static const auto &source_facet_stage(
+      const signed_feature_relations<T, I> &artifact) {
+    return artifact.source_facet_stage_;
+  }
+
+  template <class T, class I>
+  static const auto &coplanar_overlay_stage(
+      const signed_feature_relations<T, I> &artifact) {
+    return artifact.coplanar_overlay_stage_;
+  }
+
+  template <class T, class I>
+  static signed_feature_relations<T, I>
+  copy(const signed_feature_relations<T, I> &artifact) {
+    return artifact;
+  }
+
+  template <class T, class I>
+  static auto &imported_geometry(signed_feature_relations<T, I> &artifact) {
+    return artifact.imported_geometry_;
+  }
+
+  template <class T, class I>
+  static auto &bounded_primitives(signed_feature_relations<T, I> &artifact) {
+    return artifact.bounded_primitives_;
+  }
+
+  template <class T, class I>
+  static auto &exact_relations(signed_feature_relations<T, I> &artifact) {
+    return artifact.exact_relations_;
+  }
+
+  template <class T, class I>
+  static auto &truth_lineage(signed_feature_relations<T, I> &artifact) {
+    return artifact.truth_lineage_;
+  }
+
+  template <class T, class I>
+  static auto &interval_evidence(signed_feature_relations<T, I> &artifact) {
+    return artifact.interval_evidence_;
+  }
+
+  template <class T, class I>
+  static auto &source_facet_regions(signed_feature_relations<T, I> &artifact) {
+    return artifact.source_facet_regions_;
+  }
+
+  template <class T, class I>
+  static auto &constructions(signed_feature_relations<T, I> &artifact) {
+    return artifact.constructions_;
+  }
+
+  template <class T, class I>
+  static auto &construction_ledger(signed_feature_relations<T, I> &artifact) {
+    return artifact.construction_ledger_;
+  }
+
+  template <class T, class I>
+  static auto &crossings(signed_feature_relations<T, I> &artifact) {
+    return artifact.crossings_;
+  }
+
+  template <class T, class I>
+  static auto &event_seeds(signed_feature_relations<T, I> &artifact) {
+    return artifact.event_seeds_;
+  }
+
+  template <class T, class I>
+  static auto &event_seed_incidence(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.event_seed_incidence_;
+  }
+
+  template <class T, class I>
+  static auto &event_seed_candidate_incidence(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.event_seed_candidate_incidence_;
+  }
+
+  template <class T, class I>
+  static auto &candidate_relation_coverage(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.candidate_relation_coverage_;
+  }
+
+  template <class T, class I>
+  static auto &candidate_event_seed_coverage(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.candidate_event_seed_coverage_;
+  }
+
+  template <class T, class I>
+  static auto &candidate_partitions(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.candidate_partitions_;
+  }
+
+  template <class T, class I>
+  static auto &symbolic_eligibility(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.symbolic_eligibility_;
+  }
+
+  template <class T, class I>
+  static auto &symbolic_decisions(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.symbolic_decisions_;
+  }
+
+  template <class T, class I>
+  static auto &coplanar_event_nodes(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.coplanar_event_nodes_;
+  }
+
+  template <class T, class I>
+  static auto &coplanar_oriented_arcs(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.coplanar_oriented_arcs_;
+  }
+
+  template <class T, class I>
+  static auto &coplanar_overlap_components(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.coplanar_overlap_components_;
+  }
+
+  template <class T, class I>
+  static auto &coplanar_supports(signed_feature_relations<T, I> &artifact) {
+    return artifact.coplanar_supports_;
+  }
+
+  template <class T, class I>
+  static auto &dispositions(signed_feature_relations<T, I> &artifact) {
+    return artifact.candidate_dispositions_;
+  }
+
+  template <class T, class I>
+  static auto &execution_authority(signed_feature_relations<T, I> &artifact) {
+    return artifact.execution_authority_;
+  }
+
+  template <class T, class I>
+  static auto &transverse_memberships(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.transverse_carrier_memberships_;
+  }
+
+  template <class T, class I>
+  static auto &source_topology(signed_feature_relations<T, I> &artifact) {
+    return artifact.source_topology_;
+  }
+
+  template <class T, class I>
+  static auto &transverse_supports(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.transverse_carrier_supports_;
+  }
+
+  template <class T, class I>
+  static auto &statistics(signed_feature_relations<T, I> &artifact) {
+    return artifact.statistics_;
+  }
+
+  template <class T, class I>
+  static auto &triangle_local_reconciliation(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.triangle_local_reconciliation_;
+  }
+
+  template <class T, class I>
+  static auto &diagnostics(signed_feature_relations<T, I> &artifact) {
+    return artifact.diagnostics_;
+  }
+
+  template <class T, class I>
+  static auto &predecessor_commitments(
+      signed_feature_relations<T, I> &artifact) {
+    return artifact.predecessor_commitments_;
+  }
+
+  template <class T, class I>
+  static auto &resource_evidence(signed_feature_relations<T, I> &artifact) {
+    return artifact.resource_evidence_;
+  }
+
+  template <class T, class I>
+  static auto &section_digests(signed_feature_relations<T, I> &artifact) {
+    return artifact.section_digests_;
+  }
+
+  template <class T, class I>
+  static auto &replay_checkpoints(signed_feature_relations<T, I> &artifact) {
+    return artifact.replay_checkpoints_;
+  }
+
+  template <class T, class I>
+  static auto &replay_evidence(signed_feature_relations<T, I> &artifact) {
+    return artifact.replay_evidence_;
+  }
+
+  template <class T, class I>
+  static auto &canonical_bytes(signed_feature_relations<T, I> &artifact) {
+    return artifact.canonical_bytes_;
+  }
+
+  template <class T, class I>
+  static void set_owner(signed_feature_relations<T, I> &artifact,
+                        context_owner_token owner) {
+    artifact.owner_ = std::move(owner);
+  }
+
+  template <class T, class I>
+  static void repair_codec(signed_feature_relations<T, I> &artifact) {
+    if (!refresh_relation_section_digests(artifact))
+      throw std::runtime_error("could not refresh Component 07 section digests");
+    artifact.canonical_bytes_ = encode_signed_feature_relations(artifact);
+    artifact.digest_ = sha256::digest(artifact.canonical_bytes_);
+  }
+};
+
+} // namespace ygor::mesh_boolean::bounded
+
+namespace {
+
+bounded::relation_capabilities capabilities(
+    built_fixture &fixture, bounded::resource_manager *resources = nullptr) {
+  bounded::relation_capabilities out;
+  out.owner = fixture.predecessor.context.owner;
+  out.resources = resources ? resources : fixture.predecessor.resources.get();
+  return out;
+}
+
+std::shared_ptr<const bounded::signed_feature_relations<double, std::uint32_t>>
+build_artifact(built_fixture &fixture,
+               bounded::resource_manager *resources = nullptr) {
+  auto result = bounded::build_signed_feature_relations(
+      fixture.predecessor.context, *fixture.predecessor.precision,
+      fixture.artifact, capabilities(fixture, resources));
+  if (!result.has_value())
+    throw std::runtime_error(diagnostic(*result.error()));
+  return *result.value();
+}
+
+built_fixture overlapping_fixture() {
+  return broad_phase_tests::build(
+      broad_phase_tests::box(),
+      broad_phase_tests::box(0.5, 0.25, 0.125, 1.5, 1.25, 1.125));
+}
+
+built_fixture symbolic_fixture() {
+  return broad_phase_tests::build(
+      broad_phase_tests::box(),
+      broad_phase_tests::box(0.25, 0.25, 1.0, 0.75, 0.75, 2.0));
+}
+
+built_fixture empty_fixture() {
+  return broad_phase_tests::build(
+      broad_phase_tests::box(),
+      broad_phase_tests::box(4.0, 4.0, 4.0, 5.0, 5.0, 5.0));
+}
+
+void test_zero_ordinal_source_vertex_import() {
+  auto fixture = empty_fixture();
+  const auto &vertices = fixture.predecessor.manifolds->a()->vertices();
+  const auto vertex = std::find_if(vertices.begin(), vertices.end(), [](const auto &value) {
+    return value.canonical_id == 0;
+  });
+  require(vertex != vertices.end(),
+          "source-import regression requires canonical vertex zero");
+  bounded::bounded_point3<double> point;
+  require(bounded::candidate_source_edge_relation_detail::import_vertex_point(
+              *vertex, bounded::operand_id::a,
+              fixture.predecessor.context.owner, point),
+          "canonical vertex zero imports with nonzero bounded identities");
+  std::vector<const bounded::bounded_scalar<double> *> inputs;
+  for (const auto &component : point.coordinates.components) {
+    require(component.identity.value.ordinal() != 0,
+            "source-import bounded identity reserves the zero sentinel");
+    inputs.push_back(&component);
+  }
+  auto certificate = bounded::certify_construction_operation(
+      bounded::rounded_operation_code::source_import,
+      bounded::contract_versions::rounded_operation_graphs, point, inputs,
+      bounded::finite_interval<double>::singleton(1.0),
+      bounded::construction_category::exact_stored_coordinate_tie,
+      bounded::construction_tolerance_disposition::accepted, 1.0);
+  require(certificate.has_value(),
+          "canonical vertex zero produces a valid source-import certificate");
+}
+
+struct cancellation_observer_state final {
+  bounded_boolean_cancellation_source *source = nullptr;
+  bounded::relation_checkpoint target =
+      bounded::relation_checkpoint::context_policy_capability_validation;
+  std::uint64_t target_poll = 1;
+  std::uint64_t seen = 0;
+};
+
+void cancellation_observer_poll(
+    void *opaque, bounded::relation_checkpoint checkpoint) noexcept {
+  auto &state = *static_cast<cancellation_observer_state *>(opaque);
+  if (checkpoint == state.target && ++state.seen == state.target_poll)
+    state.source->request_cancel(static_cast<std::uint32_t>(checkpoint));
+}
+
+void require_no_live_resources(const bounded::resource_manager &resources,
+                               const char *message) {
+  const auto snapshot = resources.snapshot();
+  for (const auto &counter : snapshot)
+    if (counter.reserved != 0 || counter.committed != 0)
+      throw std::runtime_error(message);
+}
+
+void require_replay_contract(
+    const bounded::signed_feature_relations<double, std::uint32_t> &artifact) {
+  require(artifact.replay_checkpoints().size() == 17 &&
+               artifact.diagnostics().size() == 7 &&
+               artifact.statistics().replay_checkpoint_count == 17 &&
+               artifact.statistics().diagnostic_count == 7,
+          "relation replay publishes the complete fixed checkpoint and diagnostic sets");
+  std::uint64_t previous_work = 0;
+  for (std::size_t i = 0; i < artifact.replay_checkpoints().size(); ++i) {
+    const auto &checkpoint = artifact.replay_checkpoints()[i];
+    require(checkpoint.id.ordinal() == i &&
+                checkpoint.status ==
+                    bounded::relation_replay_checkpoint_status::completed &&
+                checkpoint.cumulative_work_units >= previous_work &&
+                checkpoint.schema_version ==
+                    bounded::contract_versions::relation_replay_checkpoint_schema &&
+                checkpoint.reserved16 == 0 && checkpoint.reserved32 == 0 &&
+                checkpoint.semantic_digest != bounded_boolean_digest{},
+            "relation replay checkpoints retain canonical IDs, work, and digests");
+    previous_work = checkpoint.cumulative_work_units;
+  }
+  const std::array<bounded::relation_diagnostic_kind, 7> expected_kinds{{
+      bounded::relation_diagnostic_kind::owner_exclusion_audit,
+      bounded::relation_diagnostic_kind::selection_boundary_audit,
+      bounded::relation_diagnostic_kind::replay_completeness_audit,
+      bounded::relation_diagnostic_kind::resource_reconciliation_audit,
+      bounded::relation_diagnostic_kind::minimum_positive_margin,
+      bounded::relation_diagnostic_kind::maximum_uncertainty_width,
+      bounded::relation_diagnostic_kind::maximum_exact_capacity}};
+  for (std::size_t i = 0; i < artifact.diagnostics().size(); ++i) {
+    const auto &diagnostic_record = artifact.diagnostics()[i];
+    require(diagnostic_record.id.ordinal() == i &&
+                diagnostic_record.kind == expected_kinds[i] &&
+                diagnostic_record.severity ==
+                    bounded::relation_diagnostic_severity::retained_finding &&
+                !diagnostic_record.has_candidate &&
+                !diagnostic_record.has_source_features &&
+                (i < 4 || diagnostic_record.has_relation ==
+                              diagnostic_record.has_numeric_evidence) &&
+                (i >= 4 || (!diagnostic_record.has_relation &&
+                            !diagnostic_record.has_numeric_evidence)) &&
+                diagnostic_record.replay_checkpoint.ordinal() <
+                    artifact.replay_checkpoints().size() &&
+                diagnostic_record.schema_version ==
+                    bounded::contract_versions::relation_diagnostic_schema &&
+                diagnostic_record.reserved16 == 0 &&
+                diagnostic_record.reserved32 == 0 &&
+                diagnostic_record.semantic_digest != bounded_boolean_digest{},
+            "canonical relation diagnostics are bounded, owner-free, and replay-linked");
+  }
+  const auto &evidence = artifact.replay_evidence();
+  require(evidence.schema_version ==
+                  bounded::contract_versions::relation_replay_evidence_schema &&
+              evidence.policy_version ==
+                  bounded::contract_versions::relation_replay_policy &&
+              evidence.checkpoint_count == artifact.replay_checkpoints().size() &&
+              evidence.diagnostic_count == artifact.diagnostics().size() &&
+              evidence.complete && evidence.artifact_reconstructed &&
+              !evidence.primary_failure_present && evidence.reserved8 == 0 &&
+              evidence.reserved32 == 0 &&
+              evidence.input_equivalence_digest != bounded_boolean_digest{} &&
+              evidence.checkpoint_digest != bounded_boolean_digest{} &&
+              evidence.diagnostic_digest != bounded_boolean_digest{} &&
+              evidence.base_artifact_digest != bounded_boolean_digest{} &&
+              evidence.semantic_digest != bounded_boolean_digest{},
+          "relation replay evidence is complete, versioned, and independently reconstructable");
+  bounded_boolean_error replay_error;
+  require(bounded::verify_relation_replay_bundle(artifact, replay_error),
+          "relation replay bundle independently reconstructs");
+}
+
+void test_context_execution_is_nonsemantic() {
+  auto a = broad_phase_tests::box();
+  auto b = broad_phase_tests::box(0.5, 0.25, 0.125, 1.5, 1.25, 1.125);
+  bounded_boolean_options<double> serial_options;
+  serial_options.tolerance = 0.25;
+  serial_options.execution.mode = bounded_execution_mode::serial_v1;
+  serial_options.execution.requested_workers = 1;
+  auto parallel_options = serial_options;
+  parallel_options.execution.mode =
+      bounded_execution_mode::deterministic_parallel_v1;
+  parallel_options.execution.requested_workers = 7;
+
+  auto serial_pending = bounded::build_pending_invocation(
+      a, b, boolean_operation::intersection, serial_options);
+  auto parallel_pending = bounded::build_pending_invocation(
+      a, b, boolean_operation::intersection, parallel_options);
+  require(serial_pending.has_value() && parallel_pending.has_value(),
+          "execution-invariance fixture creates both invocations");
+  bounded::precision_bootstrap_record<double> serial_precision;
+  serial_precision.machine_floor = 0.0;
+  serial_precision.input_precision_a =
+      serial_pending.value()->options.input_precision_a;
+  serial_precision.input_precision_b =
+      serial_pending.value()->options.input_precision_b;
+  serial_precision.source_digest = serial_pending.value()->sources.digest;
+  auto parallel_precision = serial_precision;
+  parallel_precision.source_digest = parallel_pending.value()->sources.digest;
+  auto serial_context = bounded::finalize_context(
+      std::move(*serial_pending.value()), serial_precision);
+  auto parallel_context = bounded::finalize_context(
+      std::move(*parallel_pending.value()), parallel_precision);
+  require(serial_context.has_value() && parallel_context.has_value() &&
+              bounded::verify_context(*serial_context.value()) &&
+              bounded::verify_context(*parallel_context.value()) &&
+              serial_context.value()->context_digest ==
+                  parallel_context.value()->context_digest &&
+              serial_context.value()->replay_digest !=
+                  parallel_context.value()->replay_digest,
+          "worker count and execution schedule remain replayed but nonsemantic");
+}
+
+void test_empty_artifact_and_decode() {
+  auto fixture = empty_fixture();
+  require(fixture.artifact->candidates().empty(),
+          "empty relation fixture must have no candidates");
+  bounded::resource_manager resources(
+      resource_policy::conservative_defaults());
+  const auto artifact = build_artifact(fixture, &resources);
+  require(artifact->request_graph().requests.empty() &&
+              artifact->relations().empty() && artifact->constructions().empty() &&
+              artifact->candidate_dispositions().empty(),
+          "empty candidates publish a canonical empty relation artifact");
+  require(bounded::relation_artifact_test_access::source_edge_stage(*artifact) &&
+              bounded::relation_artifact_test_access::source_edge_facet_stage(*artifact) &&
+              bounded::relation_artifact_test_access::source_facet_stage(*artifact) &&
+              bounded::relation_artifact_test_access::coplanar_overlay_stage(*artifact),
+          "empty artifact retains all verified detailed stages");
+  bounded_boolean_error verify_error;
+  require(bounded::verify_signed_feature_relations(*artifact, verify_error),
+          "empty relation artifact independently verifies");
+  require_replay_contract(*artifact);
+
+  auto decode_fixture = broad_phase_tests::build(
+      broad_phase_tests::box(),
+      broad_phase_tests::box(4.0, 4.0, 4.0, 5.0, 5.0, 5.0));
+  bounded::resource_manager decode_resources(
+      resource_policy::conservative_defaults());
+  auto decoded = bounded::decode_signed_feature_relations(
+      artifact->canonical_bytes(), decode_fixture.predecessor.context,
+      *decode_fixture.predecessor.precision, decode_fixture.artifact,
+      capabilities(decode_fixture, &decode_resources));
+  if (!decoded.has_value())
+    throw std::runtime_error(diagnostic(*decoded.error()));
+  require((*decoded.value())->canonical_bytes() == artifact->canonical_bytes(),
+          "empty relation decode reproduces canonical bytes");
+}
+
+void test_nonempty_determinism_and_decode() {
+  auto first_fixture = overlapping_fixture();
+  auto second_fixture = overlapping_fixture();
+  bounded::resource_manager first_resources(
+      resource_policy::conservative_defaults());
+  bounded::resource_manager second_resources(
+      resource_policy::conservative_defaults());
+  const auto first = build_artifact(first_fixture, &first_resources);
+  const auto second = build_artifact(second_fixture, &second_resources);
+  require_replay_contract(*first);
+  require_replay_contract(*second);
+
+  require(!first->relations().empty() &&
+              !first->imported_geometry().empty() &&
+              first->bounded_primitives().size() ==
+                  first->truth_records().size() &&
+              first->truth_lineage().size() == first->truth_records().size() &&
+              !first->interval_evidence().empty() &&
+              !first->source_facet_regions().empty() &&
+              !first->constructions().empty() &&
+              !first->construction_ledger().empty() &&
+              !first->event_seeds().empty() &&
+              !first->transverse_carrier_memberships().empty() &&
+              !first->event_seed_candidate_incidence().empty() &&
+              first->candidate_dispositions().size() ==
+                  first_fixture.artifact->candidates().size() &&
+              first->candidate_partitions().size() ==
+                  first_fixture.artifact->partitions().size() &&
+              first->execution_authority().closed_before_evaluation &&
+              first->execution_authority().independently_verified &&
+              first->triangle_local_reconciliation().size() ==
+                  first_fixture.artifact->candidates().size(),
+          "nonempty artifact publishes primitive support, complete event incidence, and candidate partitions");
+  std::size_t internal_diagonal_reconciliations = 0;
+  for (const auto &record : first->triangle_local_reconciliation()) {
+    require(record.complete &&
+                record.bookkeeping_request.ordinal() <
+                    first->execution_authority().graph.requests.size(),
+            "every candidate retains complete triangle-local authority evidence");
+    if (!record.internal_diagonal)
+      continue;
+    ++internal_diagonal_reconciliations;
+    require(record.disposition ==
+                bounded::triangle_local_reconciliation_disposition::
+                    mapped_to_public_composite &&
+                !record.source_feature_owner &&
+                !record.symbolic_contact_owner &&
+                !record.classification_barrier &&
+                !record.retained_surface_feature,
+            "internal diagonals reconcile to source-facet semantics without ownership");
+  }
+  require(internal_diagonal_reconciliations != 0,
+          "qualification fixture exercises internal-diagonal reconciliation");
+  std::size_t expected_exact = 0;
+  for (const auto &truth : first->truth_records()) {
+    expected_exact += truth.exact_formula != 0 ? 1U : 0U;
+    if (truth.exact_formula != 0)
+      require(truth.exact_evidence != 0 && truth.exact_trace_root != 0 &&
+                  truth.exact_ordered_input_count != 0 &&
+                  truth.exact_capacity_used <= truth.exact_capacity_limit,
+              "requested exact formulas publish identity, ordered inputs, trace, and capacity");
+  }
+  const auto expected_vertex_facet = static_cast<std::size_t>(std::count_if(
+      first->execution_authority().graph.requests.begin(),
+      first->execution_authority().graph.requests.end(), [](const auto &request) {
+        return request.key.family == bounded::relation_request_family::
+                                         source_point_source_facet_region;
+      }));
+  bounded::relation_capabilities vertex_facet_capabilities;
+  vertex_facet_capabilities.owner = first->owner();
+  auto evaluated_vertex_facets = bounded::build_source_vertex_facet_evaluated_stage(
+      *bounded::relation_artifact_test_access::predecessor_candidates(*first),
+      first->execution_authority(),
+      first_fixture.predecessor.context.context_digest,
+      vertex_facet_capabilities, first->residual_boundary());
+  require(evaluated_vertex_facets.has_value() &&
+              evaluated_vertex_facets.value()->records.size() ==
+                  expected_vertex_facet &&
+              evaluated_vertex_facets.value()->evaluation_count ==
+                  expected_vertex_facet,
+          "frozen source-vertex/facet authority evaluates each unique key exactly once");
+  require(first->exact_relations().size() == expected_exact &&
+              first->statistics().imported_geometry_count ==
+                  first->imported_geometry().size() &&
+              first->statistics().bounded_primitive_count ==
+                  first->bounded_primitives().size() &&
+              first->statistics().exact_relation_count ==
+                  first->exact_relations().size() &&
+              first->statistics().truth_lineage_count ==
+                  first->truth_lineage().size() &&
+              first->statistics().interval_evidence_count ==
+                  first->interval_evidence().size() &&
+              first->statistics().source_facet_region_count ==
+                  first->source_facet_regions().size() &&
+              first->statistics().construction_count ==
+                  first->constructions().size() &&
+              first->statistics().construction_ledger_count ==
+                  first->construction_ledger().size() &&
+              first->statistics().transverse_carrier_membership_count ==
+                  first->transverse_carrier_memberships().size() &&
+              first->statistics().event_seed_candidate_incidence_count ==
+                  first->event_seed_candidate_incidence().size() &&
+              first->statistics().candidate_relation_coverage_count ==
+                  first->candidate_relation_coverage().size() &&
+              first->statistics().candidate_seed_coverage_count ==
+                  first->candidate_event_seed_coverage().size() &&
+              first->statistics().candidate_partition_count ==
+                  first->candidate_partitions().size(),
+          "primitive, construction, event-incidence, and candidate-coverage counts reconstruct from final records");
+
+  bounded::resource_manager intersection_resources(
+      resource_policy::conservative_defaults());
+  bounded::intersection_capabilities intersection_capabilities;
+  intersection_capabilities.owner = first_fixture.predecessor.context.owner;
+  intersection_capabilities.resources = &intersection_resources;
+  auto intersection = bounded::build_canonical_intersection_complex(
+      first_fixture.predecessor.context,
+      *first_fixture.predecessor.precision, first,
+      intersection_capabilities);
+  if (!intersection.has_value())
+    throw std::runtime_error(diagnostic(*intersection.error()));
+  require(!(*intersection.value())->transverse_carriers().empty() &&
+              !(*intersection.value())->carrier_memberships().empty() &&
+              std::any_of(
+                  (*intersection.value())->carrier_active_spans().begin(),
+                  (*intersection.value())->carrier_active_spans().end(),
+                  [](const auto &span) {
+                    return span.activation == bounded::intersection_span_activation::
+                                                  active_transverse_intersection;
+                  }),
+          "Component 08 consumes immutable Component 07 transverse memberships end to end");
+  const auto support_carriers = static_cast<std::size_t>(std::count_if(
+      bounded::relation_artifact_test_access::source_facet_stage(*first)
+          ->relations.begin(),
+      bounded::relation_artifact_test_access::source_facet_stage(*first)
+          ->relations.end(), [](const auto &relation) {
+        return relation.classification == bounded::
+                   source_facet_support_relation_class::transverse;
+      }));
+  std::vector<bounded::feature_relation_id> active_carrier_relations;
+  for (const auto &membership : first->transverse_carrier_memberships())
+    active_carrier_relations.push_back(membership.carrier_relation);
+  std::sort(active_carrier_relations.begin(), active_carrier_relations.end());
+  active_carrier_relations.erase(
+      std::unique(active_carrier_relations.begin(),
+                  active_carrier_relations.end()),
+      active_carrier_relations.end());
+  require((*intersection.value())->transverse_carriers().size() ==
+              active_carrier_relations.size() &&
+              active_carrier_relations.size() <= support_carriers,
+          "Component 08 exports only facet supports with certified memberships");
+  for (const auto &membership : first->transverse_carrier_memberships())
+    require(membership.parameter_lineage != 0 &&
+                membership.event_lineage != 0 &&
+                membership.parameter.ordinal() <
+                    first->interval_evidence().size() &&
+                first->interval_evidence()[membership.parameter.ordinal()]
+                        .issued_operation ==
+                    bounded::rounded_operation_code::divide &&
+                first->interval_evidence()[membership.parameter.ordinal()]
+                        .issued_value != 0 &&
+                first->interval_evidence()[membership.parameter.ordinal()]
+                        .issued_ledger_entry != 0 &&
+                first->interval_evidence()[membership.parameter.ordinal()]
+                        .issued_parent_values.size() == 2 &&
+                !first->interval_evidence()[membership.parameter.ordinal()]
+                     .issued_operation_evidence.empty() &&
+                (membership.transition ==
+                     bounded::relation_carrier_transition::entering ||
+                 membership.transition ==
+                     bounded::relation_carrier_transition::leaving ||
+                 membership.transition ==
+                     bounded::relation_carrier_transition::tangent),
+            "transverse memberships publish exact lineage and certified transition evidence");
+
+  std::size_t expected_ledger_begin = 0;
+  for (const auto &construction : first->constructions()) {
+    require(construction.id.ordinal() < first->constructions().size() &&
+                construction.ledger_begin == expected_ledger_begin &&
+                construction.ledger_count >= 2 &&
+                construction.ledger_begin + construction.ledger_count <=
+                    first->construction_ledger().size() &&
+                construction.source_relation.ordinal() <
+                    first->relations().size() &&
+                 construction.precision_evidence_complete &&
+                 construction.precision_trace_root != 0 &&
+                 construction.finite && construction.tolerance_compatible,
+            "each authoritative construction owns one complete contiguous ledger range");
+    const auto &authority =
+        first->construction_ledger()[construction.ledger_begin];
+    require(authority.id.ordinal() == construction.ledger_begin &&
+                authority.construction == construction.id &&
+                authority.source_relation == construction.source_relation &&
+                authority.precedence == construction.precedence &&
+                authority.authoritative_entry &&
+                authority.lineage_compatible &&
+                authority.enclosure_compatible &&
+                authority.parameter_compatible &&
+                authority.residual_compatible &&
+                authority.precision_evidence_complete,
+            "construction ledger begins with the reconstructed synthetic authority");
+    for (std::uint64_t offset = 1; offset < construction.ledger_count; ++offset) {
+      const auto &witness =
+          first->construction_ledger()[construction.ledger_begin + offset];
+      require(witness.id.ordinal() == construction.ledger_begin + offset &&
+                  witness.construction == construction.id &&
+                  witness.source_relation.ordinal() < first->relations().size() &&
+                  !witness.authoritative_entry &&
+                  witness.lineage_compatible &&
+                  witness.enclosure_compatible &&
+                  witness.parameter_compatible &&
+                  witness.residual_compatible &&
+                  witness.precision_evidence_complete,
+              "every construction witness retains complete compatibility evidence");
+    }
+    expected_ledger_begin += construction.ledger_count;
+  }
+  require(expected_ledger_begin == first->construction_ledger().size(),
+          "construction registry partitions the complete witness ledger");
+
+  std::size_t expected_candidate_incidence = 0;
+  for (const auto &seed : first->event_seeds()) {
+    require(seed.schema_version ==
+                bounded::contract_versions::relation_event_seed_schema &&
+                seed.candidate_incidence_begin == expected_candidate_incidence &&
+                seed.candidate_incidence_count != 0 &&
+                seed.precision_evidence_complete &&
+                seed.contact_dimension != bounded::relation_contact_dimension::none,
+            "each event seed retains complete contact, precision, and candidate incidence");
+    for (std::uint64_t offset = 0; offset < seed.candidate_incidence_count;
+         ++offset) {
+      const auto &incidence = first->event_seed_candidate_incidence()[
+          seed.candidate_incidence_begin + offset];
+      require(incidence.id.ordinal() ==
+                  seed.candidate_incidence_begin + offset &&
+                  incidence.seed == seed.id &&
+                  incidence.disposition.ordinal() ==
+                      incidence.candidate.ordinal() &&
+                  incidence.schema_version ==
+                      bounded::contract_versions::
+                          relation_event_seed_incidence_schema,
+              "event-seed incidence retains canonical candidate and disposition identity");
+    }
+    expected_candidate_incidence += seed.candidate_incidence_count;
+  }
+  require(expected_candidate_incidence ==
+              first->event_seed_candidate_incidence().size(),
+          "event seeds partition the complete candidate-incidence table");
+
+  std::size_t relation_coverage = 0;
+  std::size_t seed_coverage = 0;
+  for (const auto &disposition : first->candidate_dispositions()) {
+    require(disposition.relation_begin == relation_coverage &&
+                disposition.event_seed_begin == seed_coverage &&
+                disposition.coverage_complete &&
+                (disposition.coverage_flags &
+                 bounded::candidate_coverage_complete) != 0 &&
+                disposition.schema_version ==
+                    bounded::contract_versions::
+                        relation_candidate_disposition_schema,
+            "each candidate publishes canonical complete relation and seed coverage");
+    relation_coverage += disposition.relation_count;
+    seed_coverage += disposition.event_seed_count;
+  }
+  require(relation_coverage == first->candidate_relation_coverage().size() &&
+              seed_coverage ==
+                  first->candidate_event_seed_coverage().size(),
+          "candidate dispositions partition the complete coverage tables");
+  for (std::size_t i = 0; i < first->candidate_partitions().size(); ++i) {
+    const auto &published = first->candidate_partitions()[i];
+    const auto &source = first_fixture.artifact->partitions()[i];
+    require(published.id.ordinal() == i &&
+                published.source_partition == source.id &&
+                published.candidate_begin == source.begin &&
+                published.candidate_count == source.count &&
+                published.disposition_begin == source.begin &&
+                published.disposition_count == source.count &&
+                published.maximum_records == source.maximum_records,
+            "candidate partitions preserve Component 06 canonical boundaries");
+  }
+
+  require(first->canonical_bytes() == second->canonical_bytes() &&
+              first->digest() == second->digest(),
+          "different runtime owner anchors produce identical relation semantics");
+  require(first->statistics().persistent_bytes != 0 &&
+              first->statistics().verifier_work_units != 0 &&
+              first->verification_evidence().graph_reconstructed &&
+              first->verification_evidence().owner_exclusion_checked &&
+              first->verification_evidence().selection_boundary_checked &&
+              first->verification_evidence().candidate_dispositions_complete,
+          "published relation artifact carries complete verification evidence");
+
+  auto owner_changed = bounded::relation_artifact_test_access::copy(*first);
+  const auto original_bytes = bounded::encode_signed_feature_relations(owner_changed);
+  bounded::relation_artifact_test_access::set_owner(
+      owner_changed, bounded::context_owner_token::create());
+  require(bounded::encode_signed_feature_relations(owner_changed) ==
+              original_bytes,
+          "runtime owner anchor is absent from relation semantic bytes");
+
+  auto decode_fixture = overlapping_fixture();
+  bounded::resource_manager decode_resources(
+      resource_policy::conservative_defaults());
+  auto decoded = bounded::decode_signed_feature_relations(
+      first->canonical_bytes(), decode_fixture.predecessor.context,
+      *decode_fixture.predecessor.precision, decode_fixture.artifact,
+      capabilities(decode_fixture, &decode_resources));
+  if (!decoded.has_value())
+    throw std::runtime_error(diagnostic(*decoded.error()));
+  require((*decoded.value())->digest() == first->digest(),
+          "nonempty relation decode rebuilds and independently verifies artifact");
+}
+
+void test_matched_mutation_rejection() {
+  auto fixture = overlapping_fixture();
+  bounded::resource_manager resources(
+      resource_policy::conservative_defaults());
+  const auto artifact = build_artifact(fixture, &resources);
+  bounded_boolean_error error;
+
+  auto disposition_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!disposition_mutation.candidate_dispositions().empty(),
+          "mutation fixture requires candidate dispositions");
+  auto &dispositions =
+      bounded::relation_artifact_test_access::dispositions(disposition_mutation);
+  dispositions.front().candidate = bounded::candidate_id(
+      disposition_mutation.candidate_dispositions().size());
+  bounded::relation_artifact_test_access::repair_codec(disposition_mutation);
+  require(!bounded::verify_signed_feature_relations(disposition_mutation, error),
+           "matched candidate-disposition mutation is rejected");
+
+  auto authority_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  auto &authority =
+      bounded::relation_artifact_test_access::execution_authority(
+          authority_mutation);
+  authority.closed_before_evaluation = false;
+  bounded::relation_artifact_test_access::repair_codec(authority_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(authority_mutation, error),
+          "matched pre-evaluation authority mutation is rejected");
+
+  auto reconciliation_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  auto &reconciliation =
+      bounded::relation_artifact_test_access::triangle_local_reconciliation(
+          reconciliation_mutation);
+  require(!reconciliation.empty(),
+          "mutation fixture requires triangle-local reconciliation");
+  reconciliation.front().complete = false;
+  bounded::relation_artifact_test_access::repair_codec(
+      reconciliation_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(reconciliation_mutation,
+                                                    error),
+          "matched triangle-local reconciliation mutation is rejected");
+
+  auto topology_header_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  auto &topology_header = bounded::relation_artifact_test_access::source_topology(
+      topology_header_mutation)[0];
+  topology_header.source_semantic_digest.bytes[0] ^= std::uint8_t{1};
+  ++topology_header.source_triangle_count;
+  bounded::relation_artifact_test_access::repair_codec(topology_header_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(topology_header_mutation,
+                                                     error),
+          "repaired downstream topology header mutation is rejected");
+
+  auto topology_domain_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  auto &topology_domain = bounded::relation_artifact_test_access::source_topology(
+      topology_domain_mutation)[0].source_edges.front();
+  topology_domain.end_vertex.operand = bounded::operand_id::b;
+  topology_domain.end_vertex.kind = bounded::relation_feature_kind::source_edge;
+  ++topology_domain.canonical_edge;
+  bounded::relation_artifact_test_access::repair_codec(topology_domain_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(topology_domain_mutation,
+                                                     error),
+          "repaired downstream source-edge domain mutation is rejected");
+
+  auto topology_fan_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  auto &topology_fans = bounded::relation_artifact_test_access::source_topology(
+      topology_fan_mutation)[0].vertex_fans;
+  require(!topology_fans.empty() && !topology_fans.front().ordered_facets.empty(),
+          "mutation fixture requires downstream source fan evidence");
+  ++topology_fans.front().ordered_facets.front().primary;
+  bounded::relation_artifact_test_access::repair_codec(topology_fan_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(topology_fan_mutation,
+                                                     error),
+          "repaired downstream vertex-fan order mutation is rejected");
+
+  auto topology_adjacency_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  auto &topology_adjacency =
+      bounded::relation_artifact_test_access::source_topology(
+          topology_adjacency_mutation)[0].edge_adjacencies.front();
+  ++topology_adjacency.edge.primary;
+  ++topology_adjacency.first_facet.primary;
+  topology_adjacency.bookkeeping_only = !topology_adjacency.bookkeeping_only;
+  bounded::relation_artifact_test_access::repair_codec(
+      topology_adjacency_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(
+              topology_adjacency_mutation, error),
+          "repaired downstream edge-adjacency mutation is rejected");
+
+  auto import_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!import_mutation.imported_geometry().empty(),
+          "mutation fixture requires imported geometry");
+  auto &import_record =
+      bounded::relation_artifact_test_access::imported_geometry(import_mutation)
+          .front();
+  ++import_record.feature.primary;
+  bounded::relation_artifact_test_access::repair_codec(import_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(import_mutation, error),
+          "matched imported-geometry mutation is independently rejected");
+
+  auto bounded_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!bounded_mutation.bounded_primitives().empty(),
+          "mutation fixture requires bounded primitives");
+  auto &bounded_record =
+      bounded::relation_artifact_test_access::bounded_primitives(
+          bounded_mutation)
+          .front();
+  bounded_record.rounded_nominal_bits ^= std::uint64_t{1};
+  bounded::relation_artifact_test_access::repair_codec(bounded_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(bounded_mutation, error),
+          "matched bounded-primitive mutation is independently rejected");
+
+  if (!artifact->exact_relations().empty()) {
+    auto exact_mutation =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    auto &exact_record =
+        bounded::relation_artifact_test_access::exact_relations(exact_mutation)
+            .front();
+    exact_record.exact_formula ^= std::uint16_t{1};
+    bounded::relation_artifact_test_access::repair_codec(exact_mutation);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(exact_mutation, error),
+            "matched exact-relation mutation is independently rejected");
+
+    auto exact_identity_mutation =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    bounded::relation_artifact_test_access::exact_relations(
+        exact_identity_mutation)
+        .front()
+        .evidence.exact_evidence = 0;
+    bounded::relation_artifact_test_access::repair_codec(
+        exact_identity_mutation);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(exact_identity_mutation,
+                                                       error),
+            "requested exact evidence without an identity is rejected");
+  }
+
+  auto interval_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!interval_mutation.interval_evidence().empty(),
+          "mutation fixture requires interval evidence");
+  auto &interval_record =
+      bounded::relation_artifact_test_access::interval_evidence(
+          interval_mutation)
+          .front();
+  interval_record.lower_bits ^= std::uint64_t{1};
+  bounded::relation_artifact_test_access::repair_codec(interval_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(interval_mutation, error),
+          "matched interval-evidence mutation is independently rejected");
+
+  auto region_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!region_mutation.source_facet_regions().empty(),
+          "mutation fixture requires source-facet region evidence");
+  auto &region_record =
+      bounded::relation_artifact_test_access::source_facet_regions(
+          region_mutation)
+          .front();
+  region_record.query_nominal_bits[0] ^= std::uint64_t{1};
+  bounded::relation_artifact_test_access::repair_codec(region_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(region_mutation, error),
+          "matched source-facet-region mutation is independently rejected");
+
+  if (!artifact->transverse_carrier_memberships().empty()) {
+    auto membership_mutation =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    auto &membership = bounded::relation_artifact_test_access::
+        transverse_memberships(membership_mutation).front();
+    std::swap(membership.first_region, membership.second_region);
+    bounded::relation_artifact_test_access::repair_codec(membership_mutation);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(membership_mutation,
+                                                       error),
+            "transverse membership facet-region mismatch is rejected");
+
+    auto removed_membership =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    auto &memberships = bounded::relation_artifact_test_access::
+        transverse_memberships(removed_membership);
+    memberships.erase(memberships.begin());
+    bounded::relation_artifact_test_access::statistics(removed_membership)
+        .transverse_carrier_membership_count = memberships.size();
+    bounded::relation_artifact_test_access::repair_codec(removed_membership);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(removed_membership, error),
+            "removed transverse membership is rejected from the complete expected key set");
+    std::vector<bounded::transverse_carrier_proposal> carrier_proposals;
+    error = bounded_boolean_error{};
+        require(!bounded::collect_component07_transverse_carrier_proposals(
+                bounded::signed_feature_relations_view<double, std::uint32_t>(
+                    removed_membership, removed_membership.owner()),
+                carrier_proposals, error),
+            "Component 08 fails closed on a transverse carrier with a removed membership");
+
+    auto parameter_lineage_mutation =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    const auto parameter_id = parameter_lineage_mutation
+                                  .transverse_carrier_memberships()
+                                  .front()
+                                  .parameter;
+    auto &parameter = bounded::relation_artifact_test_access::interval_evidence(
+        parameter_lineage_mutation)[parameter_id.ordinal()];
+    parameter.issued_operation = bounded::rounded_operation_code::multiply;
+    bounded::relation_artifact_test_access::repair_codec(
+        parameter_lineage_mutation);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(
+                parameter_lineage_mutation, error),
+            "transverse bounded-divide issued lineage mutation is rejected");
+
+    require(!artifact->transverse_carrier_supports().empty(),
+            "mutation fixture requires downstream transverse supports");
+    auto missing_support =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    bounded::relation_artifact_test_access::transverse_supports(missing_support)
+        .erase(bounded::relation_artifact_test_access::transverse_supports(
+                   missing_support)
+                   .begin());
+    bounded::relation_artifact_test_access::repair_codec(missing_support);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(missing_support, error),
+            "repaired missing transverse support is rejected");
+
+    auto wrong_support_relation =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    auto &mutated_relation =
+        bounded::relation_artifact_test_access::transverse_supports(
+            wrong_support_relation)
+            .front()
+            .relation;
+    mutated_relation = bounded::feature_relation_id(mutated_relation.ordinal() + 1);
+    bounded::relation_artifact_test_access::repair_codec(
+        wrong_support_relation);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(wrong_support_relation,
+                                                       error),
+            "repaired transverse support relation mutation is rejected");
+
+    auto wrong_support_construction =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    auto &mutated_construction =
+        bounded::relation_artifact_test_access::transverse_supports(
+            wrong_support_construction)
+            .front()
+            .construction;
+    mutated_construction = bounded::relation_construction_id(
+        mutated_construction.ordinal() + 1);
+    bounded::relation_artifact_test_access::repair_codec(
+        wrong_support_construction);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(
+                wrong_support_construction, error),
+            "repaired transverse support construction mutation is rejected");
+
+    auto wrong_support_facet =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    ++bounded::relation_artifact_test_access::transverse_supports(
+          wrong_support_facet)
+          .front()
+          .first_facet.primary;
+    bounded::relation_artifact_test_access::repair_codec(wrong_support_facet);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(wrong_support_facet,
+                                                       error),
+            "repaired transverse support facet mutation is rejected");
+  }
+
+  auto construction_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!construction_mutation.constructions().empty(),
+          "mutation fixture requires authoritative constructions");
+  auto &construction_record =
+      bounded::relation_artifact_test_access::constructions(
+          construction_mutation)
+          .front();
+  ++construction_record.authoritative_source_feature.primary;
+  bounded::relation_artifact_test_access::repair_codec(construction_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(construction_mutation, error),
+          "matched construction-authority mutation is independently rejected");
+
+  auto certificate_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  auto &certificate = bounded::relation_artifact_test_access::constructions(
+                          certificate_mutation)
+                          .front()
+                          .certificate_evidence;
+  require(!certificate.empty(),
+          "mutation fixture requires issued construction evidence");
+  certificate.front() ^= std::uint8_t{1};
+  bounded::relation_artifact_test_access::repair_codec(certificate_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(certificate_mutation, error),
+          "mutated issued construction operation evidence is rejected");
+
+  auto ledger_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(ledger_mutation.construction_ledger().size() >= 2,
+          "mutation fixture requires construction witness ledger entries");
+  auto &ledger =
+      bounded::relation_artifact_test_access::construction_ledger(
+          ledger_mutation);
+  const auto witness = std::find_if(
+      ledger.begin(), ledger.end(),
+      [](const auto &record) { return !record.authoritative_entry; });
+  require(witness != ledger.end(),
+          "mutation fixture requires a non-authority construction witness");
+  witness->enclosure_compatible = false;
+  bounded::relation_artifact_test_access::repair_codec(ledger_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(ledger_mutation, error),
+          "matched construction-ledger compatibility mutation is independently rejected");
+
+  auto seed_table_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!seed_table_mutation.event_seeds().empty(),
+          "mutation fixture requires event seeds");
+  bounded::relation_artifact_test_access::event_seeds(seed_table_mutation)
+      .clear();
+  bounded::relation_artifact_test_access::event_seed_incidence(
+      seed_table_mutation)
+      .clear();
+  bounded::relation_artifact_test_access::repair_codec(seed_table_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(seed_table_mutation, error),
+          "matched missing event-seed table is independently rejected");
+
+  auto occurrence_separation_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!occurrence_separation_mutation.event_seeds().empty(),
+          "mutation fixture requires an event seed");
+  auto &mutated_seed =
+      bounded::relation_artifact_test_access::event_seeds(
+          occurrence_separation_mutation)
+          .front();
+  mutated_seed.distinct_occurrence_required =
+      !mutated_seed.distinct_occurrence_required;
+  bounded::relation_artifact_test_access::repair_codec(
+      occurrence_separation_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(
+              occurrence_separation_mutation, error),
+          "matched event-seed occurrence-separation mutation is independently rejected");
+
+  auto candidate_incidence_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!candidate_incidence_mutation.event_seed_candidate_incidence().empty(),
+          "mutation fixture requires event-seed candidate incidence");
+  auto &candidate_incidence =
+      bounded::relation_artifact_test_access::event_seed_candidate_incidence(
+          candidate_incidence_mutation)
+          .front();
+  ++candidate_incidence.triangle_halfedges[0];
+  bounded::relation_artifact_test_access::repair_codec(
+      candidate_incidence_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(
+              candidate_incidence_mutation, error),
+          "matched event-seed candidate-halfedge mutation is independently rejected");
+
+  auto candidate_coverage_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!candidate_coverage_mutation.candidate_relation_coverage().empty(),
+          "mutation fixture requires candidate relation coverage");
+  auto &coverage =
+      bounded::relation_artifact_test_access::candidate_relation_coverage(
+          candidate_coverage_mutation)
+          .front();
+  coverage = bounded::feature_relation_id(
+      static_cast<std::uint64_t>(artifact->relations().size()));
+  bounded::relation_artifact_test_access::repair_codec(
+      candidate_coverage_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(
+              candidate_coverage_mutation, error),
+          "matched candidate relation-coverage mutation is independently rejected");
+
+  auto candidate_partition_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!candidate_partition_mutation.candidate_partitions().empty(),
+          "mutation fixture requires candidate partitions");
+  ++bounded::relation_artifact_test_access::candidate_partitions(
+         candidate_partition_mutation)
+         .front()
+         .maximum_records;
+  bounded::relation_artifact_test_access::repair_codec(
+      candidate_partition_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(
+              candidate_partition_mutation, error),
+          "matched candidate-partition mutation is independently rejected");
+
+  auto lineage_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!lineage_mutation.truth_lineage().empty(),
+          "mutation fixture requires truth lineage");
+  auto &lineage_record =
+      bounded::relation_artifact_test_access::truth_lineage(lineage_mutation)
+          .front();
+  lineage_record.truth_ordinal += 1U;
+  bounded::relation_artifact_test_access::repair_codec(lineage_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(lineage_mutation, error),
+          "matched truth-lineage mutation is independently rejected");
+
+  if (!artifact->crossings().empty()) {
+    auto crossing_mutation =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    auto &crossing =
+        bounded::relation_artifact_test_access::crossings(crossing_mutation)
+            .front();
+    crossing.numeric_crossing = crossing.numeric_crossing == 1 ? -1 : 1;
+    bounded::relation_artifact_test_access::repair_codec(crossing_mutation);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(crossing_mutation, error),
+            "matched crossing multiplicity mutation is rejected");
+
+    auto fan_mutation =
+        bounded::relation_artifact_test_access::copy(*artifact);
+    auto &fan =
+        bounded::relation_artifact_test_access::crossings(fan_mutation).front();
+    ++fan.source_fan_group_size;
+    bounded::relation_artifact_test_access::repair_codec(fan_mutation);
+    error = bounded_boolean_error{};
+    require(!bounded::verify_signed_feature_relations(fan_mutation, error),
+            "matched source-fan cardinality mutation is rejected");
+  }
+
+  auto symbolic_source = symbolic_fixture();
+  bounded::resource_manager symbolic_resources(
+      resource_policy::conservative_defaults());
+  const auto symbolic_artifact =
+      build_artifact(symbolic_source, &symbolic_resources);
+  bool saw_source_vertex_authority = false;
+  bool saw_cross_family_construction = false;
+  for (const auto &construction : symbolic_artifact->constructions()) {
+    if (construction.precedence !=
+        bounded::relation_construction_precedence::accepted_source_vertex)
+      continue;
+    saw_source_vertex_authority = true;
+    const auto authority_family = symbolic_artifact->relations()[
+        construction.source_relation.ordinal()].family;
+    for (std::uint64_t offset = 1; offset < construction.ledger_count; ++offset) {
+      const auto &witness = symbolic_artifact->construction_ledger()[
+          construction.ledger_begin + offset];
+      saw_cross_family_construction =
+          saw_cross_family_construction ||
+          symbolic_artifact->relations()[witness.source_relation.ordinal()].family !=
+              authority_family;
+    }
+  }
+  require(saw_source_vertex_authority && saw_cross_family_construction,
+          "accepted source vertices are deduplicated across edge-facet and coplanar relation families");
+  require(!symbolic_artifact->symbolic_eligibility().empty() &&
+              symbolic_artifact->symbolic_eligibility().size() ==
+                  symbolic_artifact->symbolic_decisions().size(),
+          "qualified exact ties publish complete symbolic evidence and decisions");
+  bool saw_facet_lineage = false;
+  bool saw_coincident_contract = false;
+  for (const auto &eligibility :
+       symbolic_artifact->symbolic_eligibility()) {
+    require(eligibility.exact_relation ==
+                    bounded::exact_relation_status::exact_zero &&
+                eligibility.reason !=
+                    bounded::symbolic_eligibility_reason::none &&
+                eligibility.evidence_formula_version != 0 &&
+                eligibility.exact_lineage_tie &&
+                eligibility.structural_category_eligible &&
+                eligibility.tolerance_compatible &&
+                !eligibility.separated_realizations_possible &&
+                eligibility.owner_is_original_source_feature,
+            "symbolic eligibility retains qualified exact and structural evidence");
+    saw_facet_lineage =
+        saw_facet_lineage ||
+        eligibility.reason ==
+            bounded::symbolic_eligibility_reason::coplanar_source_facet_lineage;
+    saw_coincident_contract =
+        saw_coincident_contract ||
+        eligibility.reason ==
+            bounded::symbolic_eligibility_reason::coincident_source_contract;
+  }
+  require(saw_facet_lineage && saw_coincident_contract,
+          "symbolic fixture covers support and overlay eligibility categories");
+
+  bool saw_acting_owner = false;
+  bool saw_opposite_owner = false;
+  bool saw_shared_owner = false;
+  bool saw_coincident_pair = false;
+  const auto inspect_symbolic_decisions =
+      [&](const bounded::signed_feature_relations<double, std::uint32_t>
+              &candidate_artifact,
+          bool require_dual_counterparts) {
+        for (const auto &decision : candidate_artifact.symbolic_decisions()) {
+          saw_acting_owner = saw_acting_owner ||
+              decision.rule_key.ownership_role ==
+                  bounded::symbolic_ownership_role::acting_source_feature;
+          saw_opposite_owner = saw_opposite_owner ||
+              decision.rule_key.ownership_role ==
+                  bounded::symbolic_ownership_role::opposite_source_feature;
+          saw_shared_owner = saw_shared_owner ||
+              decision.rule_key.ownership_role ==
+                  bounded::symbolic_ownership_role::shared_source_feature;
+          saw_coincident_pair = saw_coincident_pair ||
+              decision.rule_key.ownership_role ==
+                  bounded::symbolic_ownership_role::coincident_sheet_pair;
+          require(
+              bounded::valid_symbolic_rule_key(decision.rule_key) &&
+                  bounded::valid_symbolic_tie_key_description(decision.tie_key) &&
+                  decision.tie_key.feature_priority ==
+                      decision.feature_priority &&
+                  decision.tie_key.preferred_operand ==
+                      decision.coincident_owner_rank &&
+                  decision.exchanged_rule_key ==
+                      bounded::exchange_symbolic_rule_key(decision.rule_key) &&
+                  decision.exchange_rule_ordinal ==
+                      bounded::symbolic_rule_ordinal(
+                          decision.exchanged_rule_key),
+              "symbolic decisions publish complete frozen rule and tie-key consequences");
+          const bool dual_subject =
+              decision.subject_kind ==
+                  bounded::symbolic_relation_subject_kind::coplanar_component ||
+              decision.matrix_family == bounded::relation_family::coplanar ||
+              decision.matrix_family ==
+                  bounded::relation_family::coincident_face;
+          if (!require_dual_counterparts || !dual_subject ||
+              decision.exchanged_rule_key.operation !=
+                  candidate_artifact.operation())
+            continue;
+          const auto counterpart = std::find_if(
+              candidate_artifact.symbolic_decisions().begin(),
+              candidate_artifact.symbolic_decisions().end(),
+              [&](const auto &candidate) {
+                return candidate.rule_key == decision.exchanged_rule_key &&
+                       candidate.subject_kind == decision.subject_kind &&
+                       candidate.subject_ordinal == decision.subject_ordinal;
+              });
+          require(counterpart != candidate_artifact.symbolic_decisions().end() &&
+                      counterpart->exchange_rule_ordinal ==
+                          decision.stable_rule_ordinal,
+                  "same-operation operand exchange publishes its exact counterpart");
+        }
+      };
+  inspect_symbolic_decisions(*symbolic_artifact, true);
+  require(saw_acting_owner && saw_coincident_pair,
+          "supported artifact fixtures publish acting-feature and coincident-sheet symbolic roles");
+  require(!saw_opposite_owner && !saw_shared_owner,
+          "unsupported isolated boundary contacts are not fabricated merely to populate symbolic roles");
+
+  std::size_t expected_nodes = 0;
+  std::size_t expected_arcs = 0;
+  std::size_t expected_components = 0;
+  for (const auto &overlay :
+       bounded::relation_artifact_test_access::coplanar_overlay_stage(
+           *symbolic_artifact)->overlays) {
+    expected_nodes += overlay.event_nodes.size();
+    expected_arcs += overlay.oriented_arcs.size();
+    expected_components += overlay.overlap_components.size();
+  }
+  require(expected_nodes != 0 && expected_arcs != 0 &&
+              expected_components != 0 &&
+              symbolic_artifact->coplanar_event_nodes().size() ==
+                  expected_nodes &&
+              symbolic_artifact->coplanar_oriented_arcs().size() ==
+                  expected_arcs &&
+              symbolic_artifact->coplanar_overlap_components().size() ==
+                  expected_components &&
+              symbolic_artifact->statistics().coplanar_event_node_count ==
+                  expected_nodes &&
+              symbolic_artifact->statistics().coplanar_oriented_arc_count ==
+                  expected_arcs &&
+              symbolic_artifact->statistics()
+                      .coplanar_overlap_component_count == expected_components,
+           "coplanar topology is published as complete first-class artifact tables");
+
+  require(symbolic_artifact->coplanar_supports().size() ==
+              bounded::relation_artifact_test_access::coplanar_overlay_stage(
+                  *symbolic_artifact)->overlays.size() &&
+              symbolic_artifact->statistics().coplanar_support_count ==
+                  symbolic_artifact->coplanar_supports().size(),
+          "coplanar supports are published one-for-one with private overlays");
+  std::uint64_t coverage_count = 0;
+  for (const auto &support : symbolic_artifact->coplanar_supports()) {
+    require(support.support_lineage != 0 &&
+                support.support_facets[0].kind ==
+                    bounded::relation_feature_kind::source_facet &&
+                support.support_facets[1].kind ==
+                    bounded::relation_feature_kind::source_facet &&
+                !support.original_boundary_edges[0].empty() &&
+                !support.original_boundary_edges[1].empty() &&
+                support.complete_boundary_pair_coverage &&
+                support.complete_vertex_coverage &&
+                support.complete_boundary_partition_coverage &&
+                support.complete_event_lineage &&
+                support.complete_authorized_arc_coverage &&
+                support.complete_overlap_component_assembly &&
+                support.distinct_sheet_occurrences,
+            "coplanar support exposes complete normalized support and policy evidence");
+    coverage_count += support.partition_coverage.size();
+    for (const auto &coverage : support.partition_coverage)
+      require(coverage.source_edge.kind ==
+                      bounded::relation_feature_kind::source_edge &&
+                  coverage.breakpoint_count >= 2 &&
+                  coverage.complete_boundary_contact_set &&
+                  coverage.triangle_reconciliation_complete,
+              "coplanar partition coverage retains every original boundary edge");
+  }
+  require(coverage_count ==
+              symbolic_artifact->statistics()
+                  .coplanar_partition_coverage_count,
+          "coplanar partition coverage statistics reconstruct");
+  for (const auto &node_record : symbolic_artifact->coplanar_event_nodes())
+    for (const auto &occurrence : node_record.occurrences) {
+      require(occurrence.source_edge.kind ==
+                  bounded::relation_feature_kind::source_edge,
+              "coplanar node occurrence retains its original boundary edge");
+      if (occurrence.query_source_vertex_valid)
+        require(occurrence.endpoint_source_vertex.kind ==
+                        bounded::relation_feature_kind::source_vertex &&
+                    occurrence.endpoint_source_vertex.primary ==
+                        occurrence.query_source_vertex,
+                "coplanar endpoint retains source-vertex ownership");
+    }
+  for (const auto &arc_record : symbolic_artifact->coplanar_oriented_arcs()) {
+    require(arc_record.arc_lineage != 0 &&
+                arc_record.source_edge_count >= 1 &&
+                arc_record.source_edge_count <= 2,
+            "coplanar arc retains stable lineage and source-edge pair");
+    for (const auto &occurrence : arc_record.occurrences) {
+      require(occurrence.source_edge_lineage != 0,
+              "coplanar arc occurrence retains nonzero source-edge lineage");
+      for (std::size_t endpoint = 0; endpoint < 2; ++endpoint)
+        require(occurrence.endpoint_domains[endpoint] !=
+                        bounded::parameter_domain_status::invalid,
+                "coplanar arc endpoint retains bounded parameter evidence");
+    }
+  }
+  for (const auto &component_record :
+       symbolic_artifact->coplanar_overlap_components())
+    require(component_record.component_lineage != 0 &&
+                component_record.distinct_sheet_occurrences &&
+                component_record.zero_measure ==
+                    (component_record.kind ==
+                         bounded::relation_coplanar_component_kind::isolated_point ||
+                     component_record.kind ==
+                         bounded::relation_coplanar_component_kind::boundary_segment),
+            "coplanar component retains lineage, sheet policy, and measure class");
+
+  auto topology_decode_fixture = symbolic_fixture();
+  bounded::resource_manager topology_decode_resources(
+      resource_policy::conservative_defaults());
+  auto topology_decoded = bounded::decode_signed_feature_relations(
+      symbolic_artifact->canonical_bytes(),
+      topology_decode_fixture.predecessor.context,
+      *topology_decode_fixture.predecessor.precision,
+      topology_decode_fixture.artifact,
+      capabilities(topology_decode_fixture, &topology_decode_resources));
+  require(topology_decoded.has_value() &&
+              (*topology_decoded.value())->canonical_bytes() ==
+                  symbolic_artifact->canonical_bytes() &&
+              (*topology_decoded.value())->coplanar_event_nodes().size() ==
+                  expected_nodes &&
+              (*topology_decoded.value())->coplanar_oriented_arcs().size() ==
+                  expected_arcs &&
+               (*topology_decoded.value())->coplanar_overlap_components().size() ==
+                   expected_components &&
+               (*topology_decoded.value())->coplanar_supports().size() ==
+                   symbolic_artifact->coplanar_supports().size(),
+          "coplanar topology codec rebuilds identical first-class tables");
+
+  auto node_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &node = bounded::relation_artifact_test_access::coplanar_event_nodes(
+      node_mutation).front();
+  node.sheet_mask ^= 1U;
+  bounded::relation_artifact_test_access::repair_codec(node_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(node_mutation, error),
+          "matched coplanar event-node mutation is independently rejected");
+
+  auto arc_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &arc = bounded::relation_artifact_test_access::coplanar_oriented_arcs(
+      arc_mutation).front();
+  arc.start_node = arc.end_node;
+  bounded::relation_artifact_test_access::repair_codec(arc_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(arc_mutation, error),
+          "matched coplanar oriented-arc mutation is independently rejected");
+
+  auto component_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &component =
+      bounded::relation_artifact_test_access::coplanar_overlap_components(
+          component_mutation).front();
+  component.closed = !component.closed;
+  bounded::relation_artifact_test_access::repair_codec(component_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(component_mutation, error),
+           "matched coplanar component mutation is independently rejected");
+
+  auto support_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &support = bounded::relation_artifact_test_access::coplanar_supports(
+      support_mutation).front();
+  support.support_lineage = 0;
+  bounded::relation_artifact_test_access::repair_codec(support_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(support_mutation, error),
+          "matched coplanar support-lineage mutation is independently rejected");
+
+  auto parameter_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &parameter =
+      bounded::relation_artifact_test_access::coplanar_oriented_arcs(
+          parameter_mutation).front().occurrences.front();
+  parameter.endpoint_domains[0] = bounded::parameter_domain_status::invalid;
+  bounded::relation_artifact_test_access::repair_codec(parameter_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(parameter_mutation, error),
+          "matched coplanar endpoint-parameter mutation is independently rejected");
+
+  auto symbolic_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &symbolic = bounded::relation_artifact_test_access::symbolic_eligibility(
+      symbolic_mutation).front();
+  symbolic.rounded_nominal_zero = !symbolic.rounded_nominal_zero;
+  bounded::relation_artifact_test_access::repair_codec(symbolic_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(symbolic_mutation, error),
+          "matched symbolic evidence mutation is independently rejected");
+
+  auto decision_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &decision = bounded::relation_artifact_test_access::symbolic_decisions(
+      decision_mutation).front();
+  decision.tie_key.components[0] =
+      bounded::symbolic_tie_key_component::operand_priority;
+  bounded::relation_artifact_test_access::repair_codec(decision_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(decision_mutation, error),
+          "matched symbolic tie-key mutation is independently rejected");
+
+  auto seed_symbolic_mutation =
+      bounded::relation_artifact_test_access::copy(*symbolic_artifact);
+  auto &symbolic_seeds =
+      bounded::relation_artifact_test_access::event_seeds(
+          seed_symbolic_mutation);
+  const auto symbolic_seed_it = std::find_if(
+      symbolic_seeds.begin(), symbolic_seeds.end(),
+      [](const auto &seed) { return seed.has_symbolic_decision; });
+  require(symbolic_seed_it != symbolic_seeds.end(),
+          "symbolic mutation fixture requires a symbolic event seed");
+  auto &symbolic_seed = *symbolic_seed_it;
+  symbolic_seed.conceptual_order =
+      symbolic_seed.conceptual_order ==
+              bounded::symbolic_offset_disposition::negative
+          ? bounded::symbolic_offset_disposition::positive
+          : bounded::symbolic_offset_disposition::negative;
+  bounded::relation_artifact_test_access::repair_codec(
+      seed_symbolic_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(seed_symbolic_mutation,
+                                                    error),
+          "matched symbolic seed consequence mutation is independently rejected");
+
+  auto replay_checkpoint_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!replay_checkpoint_mutation.replay_checkpoints().empty(),
+          "mutation fixture requires replay checkpoints");
+  ++bounded::relation_artifact_test_access::replay_checkpoints(
+        replay_checkpoint_mutation)
+        .front()
+        .output_count;
+  bounded::relation_artifact_test_access::repair_codec(
+      replay_checkpoint_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(
+              replay_checkpoint_mutation, error),
+          "matched replay-checkpoint mutation is independently rejected");
+
+  auto diagnostic_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  require(!diagnostic_mutation.diagnostics().empty(),
+          "mutation fixture requires canonical diagnostics");
+  bounded::relation_artifact_test_access::diagnostics(diagnostic_mutation)
+      .front()
+      .replay_checkpoint = bounded::relation_replay_checkpoint_id(0);
+  bounded::relation_artifact_test_access::repair_codec(diagnostic_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(diagnostic_mutation, error),
+          "matched canonical-diagnostic mutation is independently rejected");
+
+  auto replay_evidence_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  bounded::relation_artifact_test_access::replay_evidence(
+      replay_evidence_mutation)
+      .complete = false;
+  bounded::relation_artifact_test_access::repair_codec(
+      replay_evidence_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(
+              replay_evidence_mutation, error),
+           "matched replay-evidence mutation is independently rejected");
+
+  require(artifact->predecessor_commitments().size() == 6 &&
+              artifact->resource_evidence().size() == 17 &&
+              artifact->section_digests().size() == 10,
+          "artifact publishes complete predecessor, resource, and section commitments");
+  bounded::signed_feature_relations_view<double, std::uint32_t> checked_view(
+      *artifact, artifact->owner());
+  require(checked_view.predecessor_commitments() != nullptr &&
+              checked_view.section_digests() != nullptr &&
+              checked_view.resource_evidence().size() == 17,
+          "checked downstream view exposes immutable Component 07 commitments");
+
+  auto predecessor_mutation =
+      bounded::relation_artifact_test_access::copy(*artifact);
+  bounded::relation_artifact_test_access::predecessor_commitments(
+      predecessor_mutation)[3].artifact_digest_a.bytes[0] ^= 1U;
+  bounded::relation_artifact_test_access::repair_codec(predecessor_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(predecessor_mutation, error),
+          "matched predecessor commitment mutation is independently rejected");
+
+  auto resource_mutation = bounded::relation_artifact_test_access::copy(*artifact);
+  ++bounded::relation_artifact_test_access::resource_evidence(resource_mutation)
+        .front().reconciled_used;
+  bounded::relation_artifact_test_access::repair_codec(resource_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(resource_mutation, error),
+          "matched resource-domain mutation is independently rejected");
+
+  auto numerical_mutation = bounded::relation_artifact_test_access::copy(*artifact);
+  require(numerical_mutation.diagnostics().size() == 7,
+          "numerical mutation fixture requires retained extrema");
+  ++bounded::relation_artifact_test_access::diagnostics(numerical_mutation)[4]
+        .margin_bits;
+  bounded::relation_artifact_test_access::repair_codec(numerical_mutation);
+  error = bounded_boolean_error{};
+  require(!bounded::verify_signed_feature_relations(numerical_mutation, error),
+          "matched numerical-extremum mutation is independently rejected");
+
+  for (std::size_t section = 0; section < artifact->section_digests().size();
+       ++section) {
+    auto section_mutation = artifact->canonical_bytes();
+    std::size_t frame = 12;
+    for (std::size_t i = 0; i < section; ++i) {
+      std::uint64_t length = 0;
+      for (std::size_t byte = 0; byte < 8; ++byte)
+        length |= std::uint64_t(section_mutation[frame + 40 + byte])
+                  << (8 * byte);
+      frame += 48 + static_cast<std::size_t>(length);
+    }
+    std::uint64_t payload_length = 0;
+    for (std::size_t byte = 0; byte < 8; ++byte)
+      payload_length |= std::uint64_t(section_mutation[frame + 40 + byte])
+                        << (8 * byte);
+    require(payload_length != 0,
+            "every Component 07 frame carries semantic payload bytes");
+    section_mutation[frame + 48 + payload_length / 2] ^= 1U;
+    auto section_fixture = overlapping_fixture();
+    bounded::resource_manager section_resources(
+        resource_policy::conservative_defaults());
+    auto rejected = bounded::decode_signed_feature_relations(
+        section_mutation, section_fixture.predecessor.context,
+        *section_fixture.predecessor.precision, section_fixture.artifact,
+        capabilities(section_fixture, &section_resources));
+    require(!rejected.has_value(),
+            "decode rejects corruption of every Component 07 section digest");
+    require_no_live_resources(
+        section_resources,
+        "section-digest corruption must not reserve or commit resources");
+  }
+
+  auto trailing = artifact->canonical_bytes();
+  trailing.push_back(0);
+  auto decode_fixture = overlapping_fixture();
+  bounded::resource_manager decode_resources(
+      resource_policy::conservative_defaults());
+  auto decoded = bounded::decode_signed_feature_relations(
+      trailing, decode_fixture.predecessor.context,
+      *decode_fixture.predecessor.precision, decode_fixture.artifact,
+      capabilities(decode_fixture, &decode_resources));
+  require(!decoded.has_value() &&
+              decoded.error()->subcode ==
+                  static_cast<std::uint32_t>(bounded::relation_subcode::codec_error),
+          "relation decode rejects trailing data before publication");
+  require_no_live_resources(
+      decode_resources,
+      "failed relation decode must not reserve or commit resources");
+}
+
+void test_resource_boundary_and_cancellation() {
+  auto reference_fixture = overlapping_fixture();
+  bounded::resource_manager reference_resources(
+      resource_policy::conservative_defaults());
+  const auto reference = build_artifact(reference_fixture, &reference_resources);
+  const auto reference_snapshot = reference_resources.snapshot();
+  const auto persistent_used =
+      reference_snapshot[static_cast<std::size_t>(
+          bounded::resource_kind::persistent_bytes)]
+          .committed;
+  require(persistent_used == reference->statistics().persistent_bytes &&
+              persistent_used > 0,
+          "relation persistent accounting is exact and nonzero");
+
+  auto limited_fixture = overlapping_fixture();
+  auto limited_policy = resource_policy::conservative_defaults();
+  limited_policy.persistent_bytes.hard = persistent_used - 1;
+  limited_policy.persistent_bytes.advisory = persistent_used - 1;
+  bounded::resource_manager limited_resources(limited_policy);
+  auto limited = bounded::build_signed_feature_relations(
+      limited_fixture.predecessor.context,
+      *limited_fixture.predecessor.precision, limited_fixture.artifact,
+      capabilities(limited_fixture, &limited_resources));
+  require(!limited.has_value() &&
+              limited.error()->category ==
+                  bounded_boolean_error_category::resource_limit,
+          "relation persistent limit-minus-one fails transactionally");
+  require_no_live_resources(
+      limited_resources,
+      "resource-limited relation build must release every lease");
+
+  auto ledger_limited_fixture = overlapping_fixture();
+  bounded::resource_manager ledger_limited_resources(
+      resource_policy::conservative_defaults());
+  auto ledger_limited_caps =
+      capabilities(ledger_limited_fixture, &ledger_limited_resources);
+  ledger_limited_caps.maximum_construction_ledger =
+      reference->construction_ledger().size() - 1;
+  auto ledger_limited = bounded::build_signed_feature_relations(
+      ledger_limited_fixture.predecessor.context,
+      *ledger_limited_fixture.predecessor.precision,
+      ledger_limited_fixture.artifact, ledger_limited_caps);
+  require(!ledger_limited.has_value() &&
+              ledger_limited.error()->category ==
+                  bounded_boolean_error_category::resource_limit,
+          "construction-ledger limit-minus-one fails before publication");
+  require_no_live_resources(
+      ledger_limited_resources,
+      "construction-ledger capability failure must release every lease");
+
+  auto incidence_limited_fixture = overlapping_fixture();
+  bounded::resource_manager incidence_limited_resources(
+      resource_policy::conservative_defaults());
+  auto incidence_limited_caps =
+      capabilities(incidence_limited_fixture, &incidence_limited_resources);
+  incidence_limited_caps.maximum_event_seed_incidence =
+      reference->event_seed_candidate_incidence().size() - 1;
+  auto incidence_limited = bounded::build_signed_feature_relations(
+      incidence_limited_fixture.predecessor.context,
+      *incidence_limited_fixture.predecessor.precision,
+      incidence_limited_fixture.artifact, incidence_limited_caps);
+  require(!incidence_limited.has_value() &&
+              incidence_limited.error()->category ==
+                  bounded_boolean_error_category::resource_limit,
+          "event-seed candidate-incidence limit-minus-one fails before publication");
+  require_no_live_resources(
+      incidence_limited_resources,
+      "event-seed incidence capability failure must release every lease");
+
+  auto coverage_limited_fixture = overlapping_fixture();
+  bounded::resource_manager coverage_limited_resources(
+      resource_policy::conservative_defaults());
+  auto coverage_limited_caps =
+      capabilities(coverage_limited_fixture, &coverage_limited_resources);
+  const auto maximum_coverage = std::max(
+      reference->candidate_relation_coverage().size(),
+      reference->candidate_event_seed_coverage().size());
+  require(maximum_coverage != 0,
+          "coverage resource fixture requires nonempty candidate coverage");
+  coverage_limited_caps.maximum_candidate_coverage = maximum_coverage - 1;
+  auto coverage_limited = bounded::build_signed_feature_relations(
+      coverage_limited_fixture.predecessor.context,
+      *coverage_limited_fixture.predecessor.precision,
+      coverage_limited_fixture.artifact, coverage_limited_caps);
+  require(!coverage_limited.has_value() &&
+              coverage_limited.error()->category ==
+                  bounded_boolean_error_category::resource_limit,
+          "candidate coverage limit-minus-one fails before publication");
+  require_no_live_resources(
+      coverage_limited_resources,
+      "candidate coverage capability failure must release every lease");
+
+  auto diagnostic_limited_fixture = overlapping_fixture();
+  bounded::resource_manager diagnostic_limited_resources(
+      resource_policy::conservative_defaults());
+  auto diagnostic_limited_caps =
+      capabilities(diagnostic_limited_fixture, &diagnostic_limited_resources);
+  diagnostic_limited_caps.maximum_diagnostics = 6;
+  auto diagnostic_limited = bounded::build_signed_feature_relations(
+      diagnostic_limited_fixture.predecessor.context,
+      *diagnostic_limited_fixture.predecessor.precision,
+      diagnostic_limited_fixture.artifact, diagnostic_limited_caps);
+  require(!diagnostic_limited.has_value() &&
+              diagnostic_limited.error()->category ==
+                  bounded_boolean_error_category::resource_limit,
+          "diagnostic limit-minus-one fails before publication");
+  require_no_live_resources(
+      diagnostic_limited_resources,
+      "diagnostic capability failure must release every lease");
+
+  auto replay_limited_fixture = overlapping_fixture();
+  bounded::resource_manager replay_limited_resources(
+      resource_policy::conservative_defaults());
+  auto replay_limited_caps =
+      capabilities(replay_limited_fixture, &replay_limited_resources);
+  replay_limited_caps.maximum_replay_checkpoints = 16;
+  auto replay_limited = bounded::build_signed_feature_relations(
+      replay_limited_fixture.predecessor.context,
+      *replay_limited_fixture.predecessor.precision,
+      replay_limited_fixture.artifact, replay_limited_caps);
+  require(!replay_limited.has_value() &&
+              replay_limited.error()->category ==
+                  bounded_boolean_error_category::resource_limit,
+          "replay-checkpoint limit-minus-one fails before publication");
+  require_no_live_resources(
+      replay_limited_resources,
+      "replay checkpoint capability failure must release every lease");
+
+  auto cancelled_fixture = overlapping_fixture();
+  bounded::resource_manager cancelled_resources(
+      resource_policy::conservative_defaults());
+  bounded_boolean_cancellation_source source;
+  auto token = source.token();
+  source.request_cancel(7);
+  auto cancelled_caps = capabilities(cancelled_fixture, &cancelled_resources);
+  cancelled_caps.cancellation = &token;
+  auto cancelled = bounded::build_signed_feature_relations(
+      cancelled_fixture.predecessor.context,
+      *cancelled_fixture.predecessor.precision, cancelled_fixture.artifact,
+      cancelled_caps);
+  require(!cancelled.has_value() &&
+              cancelled.error()->category ==
+                  bounded_boolean_error_category::cancelled,
+          "pre-cancelled relation build publishes nothing");
+  require_no_live_resources(
+      cancelled_resources,
+      "cancelled relation build must release every lease");
+
+  bounded::resource_manager retry_resources(
+      resource_policy::conservative_defaults());
+  const auto retry = build_artifact(cancelled_fixture, &retry_resources);
+  require(retry->canonical_bytes() == reference->canonical_bytes(),
+          "retry after cancellation reproduces canonical relation bytes");
+}
+
+void test_per_domain_preflight_boundaries() {
+  auto fixture = overlapping_fixture();
+  auto caps = capabilities(fixture);
+  bounded::relation_preflight_plan reference;
+  bounded_boolean_error error;
+  require(bounded::preflight_relation_foundation(
+              *fixture.artifact, caps, reference, error),
+          "candidate-local Component 07 domain preflight succeeds");
+  const std::array<std::uint64_t, 17> bounds{{
+      reference.domains.requests, reference.domains.primitives,
+      reference.domains.relation_families, reference.domains.graph,
+      reference.domains.regions, reference.domains.numerical_workspaces,
+      reference.domains.overlays, reference.domains.constructions,
+      reference.domains.crossings, reference.domains.symbolic,
+      reference.domains.seeds, reference.domains.dispositions,
+      reference.domains.canonical_merge, reference.domains.private_buffers,
+      reference.fixed_persistent_bytes, reference.domains.verifier,
+      reference.domains.persistent_artifact}};
+  require(reference.maximum_candidate_boundary_witness !=
+              bounded::relation_invalid_ordinal &&
+              reference.maximum_candidate_boundary_pairs != 0,
+          "candidate-local preflight retains the least maximum-boundary witness");
+  for (std::size_t domain = 0; domain < bounds.size(); ++domain) {
+    require(bounds[domain] != 0,
+            "nonempty resource fixture exercises every Component 07 domain");
+    auto below = caps;
+    below.maximum_resource_domains[domain] = bounds[domain] - 1;
+    bounded::relation_preflight_plan rejected;
+    error = bounded_boolean_error{};
+    require(!bounded::preflight_relation_foundation(
+                *fixture.artifact, below, rejected, error) &&
+                error.category == bounded_boolean_error_category::resource_limit &&
+                error.witness_count == 4 && error.witnesses[0] == domain + 1 &&
+                error.witnesses[1] == bounds[domain] &&
+                error.witnesses[2] == bounds[domain] - 1,
+            "every Component 07 domain has an exact limit-minus-one witness");
+    auto exact = caps;
+    exact.maximum_resource_domains[domain] = bounds[domain];
+    bounded::relation_preflight_plan exact_plan;
+    error = bounded_boolean_error{};
+    require(bounded::preflight_relation_foundation(
+                *fixture.artifact, exact, exact_plan, error),
+            "every Component 07 domain accepts its exact preflight limit");
+    auto above = caps;
+    above.maximum_resource_domains[domain] = bounds[domain] + 1;
+    bounded::relation_preflight_plan above_plan;
+    error = bounded_boolean_error{};
+    require(bounded::preflight_relation_foundation(
+                *fixture.artifact, above, above_plan, error) &&
+                above_plan.maximum_candidate_boundary_pairs ==
+                    reference.maximum_candidate_boundary_pairs,
+            "every Component 07 domain accepts limit-plus-one deterministically");
+  }
+
+  auto exact_fixture = overlapping_fixture();
+  bounded::resource_manager exact_resources(
+      resource_policy::conservative_defaults());
+  auto exact_caps = capabilities(exact_fixture, &exact_resources);
+  exact_caps.maximum_resource_domains = bounds;
+  auto exact_result = bounded::build_signed_feature_relations(
+      exact_fixture.predecessor.context, *exact_fixture.predecessor.precision,
+      exact_fixture.artifact, exact_caps);
+  require(exact_result.has_value(),
+          "exact Component 07 domain ceilings publish successfully");
+  auto plus_fixture = overlapping_fixture();
+  bounded::resource_manager plus_resources(
+      resource_policy::conservative_defaults());
+  auto plus_caps = capabilities(plus_fixture, &plus_resources);
+  for (std::size_t i = 0; i < bounds.size(); ++i)
+    plus_caps.maximum_resource_domains[i] = bounds[i] + 1;
+  auto plus_result = bounded::build_signed_feature_relations(
+      plus_fixture.predecessor.context, *plus_fixture.predecessor.precision,
+      plus_fixture.artifact, plus_caps);
+  require(plus_result.has_value() &&
+              (*exact_result.value())->canonical_bytes() ==
+                  (*plus_result.value())->canonical_bytes(),
+          "exact and limit-plus-one Component 07 domain ceilings are byte-identical");
+}
+
+void test_predecessor_rejection_precedes_resources() {
+  auto fixture = overlapping_fixture();
+  auto candidate = bounded::broad_phase_test_access::copy(*fixture.artifact);
+  bounded::broad_phase_test_access::predecessor_digest(candidate).bytes[0] ^= 1U;
+  auto malformed = std::make_shared<const bounded::canonical_candidate_stream<
+      double, std::uint32_t>>(std::move(candidate));
+  bounded::resource_manager resources(resource_policy::conservative_defaults());
+  auto result = bounded::build_signed_feature_relations(
+      fixture.predecessor.context, *fixture.predecessor.precision,
+      std::move(malformed), capabilities(fixture, &resources));
+  require(!result.has_value() &&
+              result.error()->subcode == static_cast<std::uint32_t>(
+                  bounded::relation_subcode::predecessor_mismatch) &&
+              result.error()->checkpoint == static_cast<std::uint32_t>(
+                  bounded::relation_checkpoint::predecessor_validation),
+          "malformed committed predecessor is rejected at the handshake checkpoint");
+  const auto snapshot = resources.snapshot();
+  for (std::size_t kind = static_cast<std::size_t>(
+           bounded::resource_kind::relation_request_records);
+       kind <= static_cast<std::size_t>(
+           bounded::resource_kind::relation_persistent_artifact);
+       ++kind)
+    require(snapshot[kind].reserved == 0 && snapshot[kind].committed == 0,
+            "predecessor rejection precedes every Component 07 reservation");
+}
+
+void test_capability_and_resource_boundary_matrix() {
+  auto reference_fixture = overlapping_fixture();
+  bounded::resource_manager reference_resources(
+      resource_policy::conservative_defaults());
+  const auto reference = build_artifact(reference_fixture, &reference_resources);
+
+  bounded::relation_preflight_plan plan;
+  bounded_boolean_error preflight_error;
+  auto reference_caps = capabilities(reference_fixture, &reference_resources);
+  require(bounded::preflight_relation_foundation(
+              *reference_fixture.artifact, reference_caps, plan,
+              preflight_error),
+          "relation resource matrix requires a valid conservative preflight");
+
+  using capability_field =
+      std::uint64_t bounded::relation_capabilities::*;
+  struct capability_case final {
+    const char *name = nullptr;
+    capability_field field = nullptr;
+    std::uint64_t required = 0;
+  };
+  const std::array<capability_case, 15> cases{{
+      {"requests", &bounded::relation_capabilities::maximum_requests,
+       plan.request_upper_bound},
+      {"dependencies", &bounded::relation_capabilities::maximum_dependencies,
+       plan.dependency_upper_bound},
+      {"consumers", &bounded::relation_capabilities::maximum_consumers,
+       plan.witness_upper_bound},
+      {"relations", &bounded::relation_capabilities::maximum_relations,
+       plan.relation_upper_bound},
+      {"constructions", &bounded::relation_capabilities::maximum_constructions,
+       plan.construction_upper_bound},
+      {"construction ledger",
+       &bounded::relation_capabilities::maximum_construction_ledger,
+       plan.construction_ledger_upper_bound},
+      {"interval evidence",
+       &bounded::relation_capabilities::maximum_interval_evidence,
+       plan.interval_evidence_upper_bound},
+      {"region records", &bounded::relation_capabilities::maximum_region_records,
+       plan.region_record_upper_bound},
+      {"symbolic decisions",
+       &bounded::relation_capabilities::maximum_symbolic_decisions,
+       plan.symbolic_upper_bound},
+      {"event seeds", &bounded::relation_capabilities::maximum_event_seeds,
+       plan.event_seed_upper_bound},
+      {"event incidence",
+       &bounded::relation_capabilities::maximum_event_seed_incidence,
+       plan.event_seed_incidence_upper_bound},
+      {"candidate coverage",
+       &bounded::relation_capabilities::maximum_candidate_coverage,
+       plan.candidate_coverage_upper_bound},
+      {"diagnostics", &bounded::relation_capabilities::maximum_diagnostics, 7},
+      {"replay checkpoints",
+       &bounded::relation_capabilities::maximum_replay_checkpoints, 17},
+      {"work units", &bounded::relation_capabilities::maximum_work_units,
+       plan.fixed_work_units},
+  }};
+
+  for (const auto &test_case : cases) {
+    require(test_case.required != 0,
+            "resource matrix requires nonzero preflight boundaries");
+    bounded::resource_manager resources(
+        resource_policy::conservative_defaults());
+    auto below = capabilities(reference_fixture, &resources);
+    below.*(test_case.field) = test_case.required - 1;
+    bounded::relation_preflight_plan rejected_plan;
+    bounded_boolean_error rejected_error;
+    require(!bounded::preflight_relation_foundation(
+                *reference_fixture.artifact, below, rejected_plan,
+                rejected_error) &&
+                rejected_error.category ==
+                    bounded_boolean_error_category::resource_limit &&
+                rejected_error.checkpoint == static_cast<std::uint32_t>(
+                    bounded::relation_checkpoint::count_representability_preflight),
+            test_case.name);
+    require_no_live_resources(
+        resources,
+        "capability limit-minus-one preflight must not acquire resources");
+
+    auto exact = capabilities(reference_fixture, &resources);
+    exact.*(test_case.field) = test_case.required;
+    bounded::relation_preflight_plan exact_plan;
+    bounded_boolean_error exact_error;
+    require(bounded::preflight_relation_foundation(
+                *reference_fixture.artifact, exact, exact_plan, exact_error),
+            "exact capability boundary must pass preflight");
+
+    auto above = exact;
+    above.*(test_case.field) = test_case.required + 1;
+    bounded::relation_preflight_plan above_plan;
+    bounded_boolean_error above_error;
+    require(bounded::preflight_relation_foundation(
+                *reference_fixture.artifact, above, above_plan, above_error),
+            "capability limit-plus-one must pass preflight");
+  }
+
+  const auto configure_exact_capabilities = [&](
+      bounded::relation_capabilities &caps, std::uint64_t increment) {
+    for (const auto &test_case : cases)
+      caps.*(test_case.field) = test_case.required + increment;
+    caps.maximum_canonical_bytes =
+        reference->canonical_bytes().size() + increment;
+  };
+  for (std::uint64_t increment = 0; increment <= 1; ++increment) {
+    auto fixture = overlapping_fixture();
+    bounded::resource_manager resources(
+        resource_policy::conservative_defaults());
+    auto caps = capabilities(fixture, &resources);
+    configure_exact_capabilities(caps, increment);
+    auto result = bounded::build_signed_feature_relations(
+        fixture.predecessor.context, *fixture.predecessor.precision,
+        fixture.artifact, caps);
+    require(result.has_value() &&
+                (*result.value())->canonical_bytes() ==
+                    reference->canonical_bytes(),
+            increment == 0
+                ? "all exact capability limits publish without truncation"
+                : "all limit-plus-one capabilities preserve canonical bytes");
+  }
+
+  {
+    auto fixture = overlapping_fixture();
+    bounded::resource_manager resources(
+        resource_policy::conservative_defaults());
+    auto caps = capabilities(fixture, &resources);
+    caps.maximum_canonical_bytes = reference->canonical_bytes().size() - 1;
+    auto result = bounded::build_signed_feature_relations(
+        fixture.predecessor.context, *fixture.predecessor.precision,
+        fixture.artifact, caps);
+    require(!result.has_value() &&
+                result.error()->category ==
+                    bounded_boolean_error_category::resource_limit,
+            "canonical byte limit-minus-one fails closed");
+    require_no_live_resources(
+        resources,
+        "canonical byte limit-minus-one must reconcile every lease");
+  }
+
+  const auto persistent_peak = std::max(
+      reference->statistics().persistent_bytes, plan.fixed_persistent_bytes);
+  const auto temporary_peak = plan.fixed_temporary_bytes;
+  const auto work_peak = plan.fixed_work_units;
+  struct policy_case final {
+    const char *name = nullptr;
+    resource_limit_policy resource_policy::*field = nullptr;
+    std::uint64_t required = 0;
+  };
+  const std::array<policy_case, 3> policy_cases{{
+      {"persistent bytes", &resource_policy::persistent_bytes, persistent_peak},
+      {"temporary bytes", &resource_policy::temporary_bytes, temporary_peak},
+      {"work units", &resource_policy::work_units, work_peak},
+  }};
+
+  for (const auto &test_case : policy_cases) {
+    auto fixture = overlapping_fixture();
+    auto policy = resource_policy::conservative_defaults();
+    require(test_case.required != 0,
+            "resource policy matrix requires nonzero boundaries");
+    auto &limit = policy.*(test_case.field);
+    limit.hard = test_case.required - 1;
+    limit.advisory = test_case.required - 1;
+    bounded::resource_manager resources(policy);
+    auto result = bounded::build_signed_feature_relations(
+        fixture.predecessor.context, *fixture.predecessor.precision,
+        fixture.artifact, capabilities(fixture, &resources));
+    require(!result.has_value() &&
+                result.error()->category ==
+                    bounded_boolean_error_category::resource_limit,
+            test_case.name);
+    require_no_live_resources(
+        resources,
+        "resource policy limit-minus-one must reconcile every lease");
+  }
+
+  for (std::uint64_t increment = 0; increment <= 1; ++increment) {
+    auto fixture = overlapping_fixture();
+    auto policy = resource_policy::conservative_defaults();
+    policy.persistent_bytes = {persistent_peak + increment,
+                               persistent_peak + increment};
+    policy.temporary_bytes = {temporary_peak + increment,
+                              temporary_peak + increment};
+    policy.work_units = {work_peak + increment, work_peak + increment};
+    bounded::resource_manager resources(policy);
+    auto result = bounded::build_signed_feature_relations(
+        fixture.predecessor.context, *fixture.predecessor.precision,
+        fixture.artifact, capabilities(fixture, &resources));
+    require(result.has_value() &&
+                (*result.value())->canonical_bytes() ==
+                    reference->canonical_bytes(),
+            increment == 0
+                ? "exact manager resource limits publish without truncation"
+                : "manager limit-plus-one preserves canonical bytes");
+    const auto snapshot = resources.snapshot();
+    require(snapshot[static_cast<std::size_t>(
+                bounded::resource_kind::replay_bytes)]
+                .committed == (*result.value())->canonical_bytes().size(),
+            "replay bytes are committed exactly at exact and plus-one limits");
+  }
+}
+
+void test_deterministic_cancellation_matrix() {
+  auto reference_fixture = empty_fixture();
+  bounded::resource_manager reference_resources(
+      resource_policy::conservative_defaults());
+  const auto reference = build_artifact(reference_fixture, &reference_resources);
+
+  constexpr std::uint32_t first_checkpoint =
+      static_cast<std::uint32_t>(
+          bounded::relation_checkpoint::context_policy_capability_validation);
+  constexpr std::uint32_t last_checkpoint =
+      static_cast<std::uint32_t>(
+          bounded::relation_checkpoint::transaction_commit);
+  for (std::uint32_t ordinal = first_checkpoint; ordinal <= last_checkpoint;
+       ++ordinal) {
+    const auto target = static_cast<bounded::relation_checkpoint>(ordinal);
+    auto fixture = empty_fixture();
+    bounded::resource_manager resources(
+        resource_policy::conservative_defaults());
+    bounded_boolean_cancellation_source source;
+    auto token = source.token();
+    cancellation_observer_state state;
+    state.source = &source;
+    state.target = target;
+    bounded::relation_cancellation_observer observer;
+    observer.poll = &cancellation_observer_poll;
+    observer.state = &state;
+    auto caps = capabilities(fixture, &resources);
+    caps.cancellation = &token;
+    caps.cancellation_observer = &observer;
+
+    auto cancelled = bounded::build_signed_feature_relations(
+        fixture.predecessor.context, *fixture.predecessor.precision,
+        fixture.artifact, caps);
+    require(state.seen >= state.target_poll,
+            "every Component 07 checkpoint is deterministically observable");
+    if (cancelled.has_value() ||
+        cancelled.error()->category !=
+            bounded_boolean_error_category::cancelled ||
+        cancelled.error()->subcode != static_cast<std::uint32_t>(
+            bounded::relation_subcode::cancelled) ||
+        cancelled.error()->checkpoint != ordinal || token.reason() != ordinal) {
+      const auto reported = cancelled.has_value()
+                                ? 0U
+                                : cancelled.error()->checkpoint;
+      throw std::runtime_error(
+          "checkpoint cancellation mismatch: target=" +
+          std::to_string(ordinal) + " reported=" +
+          std::to_string(reported) + " reason=" +
+          std::to_string(token.reason()));
+    }
+    require_no_live_resources(
+        resources,
+        "checkpoint cancellation must roll back every Component 07 lease");
+
+  }
+
+  auto retry_fixture = empty_fixture();
+  bounded::resource_manager retry_resources(
+      resource_policy::conservative_defaults());
+  const auto retry = build_artifact(retry_fixture, &retry_resources);
+  require(retry->canonical_bytes() == reference->canonical_bytes() &&
+              retry->digest() == reference->digest(),
+          "retry after the complete checkpoint-cancellation matrix is byte-identical");
+}
+
+} // namespace
+
+int main() {
+  try {
+    test_zero_ordinal_source_vertex_import();
+    test_context_execution_is_nonsemantic();
+    test_empty_artifact_and_decode();
+    test_nonempty_determinism_and_decode();
+    test_matched_mutation_rejection();
+    test_resource_boundary_and_cancellation();
+    test_per_domain_preflight_boundaries();
+    test_predecessor_rejection_precedes_resources();
+    test_capability_and_resource_boundary_matrix();
+    test_deterministic_cancellation_matrix();
+    std::cout << "Component 07 final artifact qualification checks passed\n";
+    return 0;
+  } catch (const std::exception &error) {
+    std::cerr << error.what() << '\n';
+    return 1;
+  }
+}
