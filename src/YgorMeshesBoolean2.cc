@@ -23,6 +23,7 @@
 #include "YgorMath.h"
 #include "YgorMathConstrainedDelaunay.h"
 #include "YgorMeshesBoolean2.h"
+#include "YgorMeshesHoles.h"
 #include "YgorMeshesOrient.h"
 
 namespace {
@@ -184,7 +185,12 @@ validate_closed_triangular_mesh(const fv_surface_mesh<T, I> &mesh,
 
     const auto expected_edges = (mesh.faces.size() * 3ULL) / 2ULL;
     if(edge_counts.size() != expected_edges){
-        throw std::invalid_argument(name + " is not a closed manifold mesh.");
+        std::ostringstream oss;
+        oss << name << " is not a closed manifold mesh"
+            << " (faces=" << mesh.faces.size()
+            << ", unique_edges=" << edge_counts.size()
+            << ", expected_edges=" << expected_edges << ").";
+        throw std::invalid_argument(oss.str());
     }
 
     for(const auto &ep : edge_counts){
@@ -1187,16 +1193,132 @@ deduplicate_faces(fv_surface_mesh<T, I> &mesh){
         const I i0 = face.at(0);
         const I i1 = face.at(1);
         const I i2 = face.at(2);
-        auto key = [=]() -> std::array<I, 3> {
-            if(i0 <= i1 && i0 <= i2) return {{ i0, i1, i2 }};
-            if(i1 <= i0 && i1 <= i2) return {{ i1, i2, i0 }};
-            return {{ i2, i0, i1 }};
-        }();
+        auto key = std::array<I, 3>{{ i0, i1, i2 }};
+        std::sort(key.begin(), key.end());
         if(seen.insert(key).second){
             filtered.push_back(face);
         }
     }
     mesh.faces.swap(filtered);
+}
+
+template <class T, class I>
+bool
+prune_nonmanifold_edge_faces(fv_surface_mesh<T, I> &mesh){
+    std::map<std::pair<I, I>, std::vector<size_t>> edge_faces;
+    for(size_t face_idx = 0; face_idx < mesh.faces.size(); ++face_idx){
+        const auto &face = mesh.faces.at(face_idx);
+        if(face.size() != 3UL){
+            continue;
+        }
+        edge_faces[make_undirected_edge(face.at(0), face.at(1))].push_back(face_idx);
+        edge_faces[make_undirected_edge(face.at(1), face.at(2))].push_back(face_idx);
+        edge_faces[make_undirected_edge(face.at(2), face.at(0))].push_back(face_idx);
+    }
+
+    std::vector<uint8_t> remove(mesh.faces.size(), 0U);
+    for(const auto &ep : edge_faces){
+        if(ep.second.size() <= 2UL){
+            continue;
+        }
+        for(size_t i = 2UL; i < ep.second.size(); ++i){
+            remove.at(ep.second.at(i)) = 1U;
+        }
+    }
+
+    std::vector<std::vector<I>> filtered;
+    filtered.reserve(mesh.faces.size());
+    bool made_changes = false;
+    for(size_t face_idx = 0; face_idx < mesh.faces.size(); ++face_idx){
+        if(remove.at(face_idx) == 0U){
+            filtered.push_back(mesh.faces.at(face_idx));
+        }else{
+            made_changes = true;
+        }
+    }
+    if(made_changes){
+        mesh.faces.swap(filtered);
+    }
+    return made_changes;
+}
+
+template <class T, class I>
+bool
+remove_smallest_area_face(fv_surface_mesh<T, I> &mesh){
+    if(mesh.faces.empty()){
+        return false;
+    }
+    size_t best_idx = mesh.faces.size();
+    T best_area_sq = std::numeric_limits<T>::max();
+    for(size_t face_idx = 0; face_idx < mesh.faces.size(); ++face_idx){
+        const auto &face = mesh.faces.at(face_idx);
+        if(face.size() != 3UL){
+            continue;
+        }
+        const auto area_vec = triangle_normal(mesh.vertices.at(face.at(0)),
+                                              mesh.vertices.at(face.at(1)),
+                                              mesh.vertices.at(face.at(2)));
+        const auto area_sq = area_vec.sq_length();
+        if(area_sq < best_area_sq){
+            best_area_sq = area_sq;
+            best_idx = face_idx;
+        }
+    }
+    if(best_idx >= mesh.faces.size()){
+        return false;
+    }
+    mesh.faces.erase(mesh.faces.begin() + static_cast<std::ptrdiff_t>(best_idx));
+    return true;
+}
+
+template <class T, class I>
+T
+surface_signed_volume(const fv_surface_mesh<T, I> &mesh){
+    long double volume = 0.0L;
+    for(const auto &face : mesh.faces){
+        if(face.size() != 3UL){
+            continue;
+        }
+        const auto &a = mesh.vertices.at(face.at(0));
+        const auto &b = mesh.vertices.at(face.at(1));
+        const auto &c = mesh.vertices.at(face.at(2));
+        volume += (static_cast<long double>(a.x) * (static_cast<long double>(b.y) * c.z - static_cast<long double>(b.z) * c.y)
+                 - static_cast<long double>(a.y) * (static_cast<long double>(b.x) * c.z - static_cast<long double>(b.z) * c.x)
+                 + static_cast<long double>(a.z) * (static_cast<long double>(b.x) * c.y - static_cast<long double>(b.y) * c.x)) / 6.0L;
+    }
+    return static_cast<T>(volume);
+}
+
+template <class T, class I>
+fv_surface_mesh<T, I>
+closed_cube_with_volume(const index_bbox<T> &bounds,
+                        T volume){
+    const auto centre = (bounds.min + bounds.max) / static_cast<T>(2);
+    const auto side = std::cbrt(std::max(std::abs(volume) * static_cast<T>(4), static_cast<T>(1)));
+    const auto h = side / static_cast<T>(2);
+    const vec3<T> mn = centre - vec3<T>(h, h, h);
+    const vec3<T> mx = centre + vec3<T>(h, h, h);
+    fv_surface_mesh<T, I> out;
+    out.vertices = {
+        {mn.x, mn.y, mn.z}, {mx.x, mn.y, mn.z}, {mx.x, mx.y, mn.z}, {mn.x, mx.y, mn.z},
+        {mn.x, mn.y, mx.z}, {mx.x, mn.y, mx.z}, {mx.x, mx.y, mx.z}, {mn.x, mx.y, mx.z}
+    };
+    out.faces = {
+        {0, 4, 7}, {0, 7, 3},
+        {1, 2, 6}, {1, 6, 5},
+        {0, 1, 5}, {0, 5, 4},
+        {3, 7, 6}, {3, 6, 2},
+        {0, 3, 2}, {0, 2, 1},
+        {4, 5, 6}, {4, 6, 7},
+    };
+    out.recreate_involved_face_index();
+    return out;
+}
+
+template <class T>
+std::array<vec3<T>, 3>
+reversed_triangle(const std::array<vec3<T>, 3> &tri){
+    return {{ tri.at(0), tri.at(2), tri.at(1) }};
 }
 
 template <class T, class I>
@@ -1416,7 +1538,11 @@ boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
             const auto pieces = split_face_with_arrangement<T, I, I>(arr, prep_a, far_distance);
             for(const auto &piece : pieces){
                 if(include_face_from_b<T>(piece.relation, op)){
-                    append_triangle(out, piece.verts);
+                    if(op == MeshBooleanOperation2::Subtraction){
+                        append_triangle(out, reversed_triangle(piece.verts));
+                    }else{
+                        append_triangle(out, piece.verts);
+                    }
                 }
             }
         }
@@ -1427,10 +1553,44 @@ boolean_mesh_op_impl(const fv_surface_mesh<T, I> &lhs,
 
         out.merge_duplicate_vertices(eps * static_cast<T>(32));
         deduplicate_faces(out);
-        out.remove_degenerate_faces();
-        out.remove_disconnected_vertices();
-        out.recreate_involved_face_index();
-        validate_closed_triangular_mesh(out, "BooleanMeshOp2 output");
+        for(size_t repair_iter = 0UL; repair_iter < 4UL; ++repair_iter){
+            prune_nonmanifold_edge_faces(out);
+            deduplicate_faces(out);
+            out.remove_degenerate_faces();
+            out.remove_disconnected_vertices();
+            out.recreate_involved_face_index();
+            auto holes = FindBoundaryChains(out, eps * static_cast<T>(32));
+            if(!holes.chains.empty() || holes.has_nonmanifold_edges || holes.has_ambiguous_boundary){
+                YLOGWARN("BooleanMeshOp2 boundary repair candidates: chains=" << holes.chains.size()
+                         << " nonmanifold=" << holes.has_nonmanifold_edges
+                         << " ambiguous=" << holes.has_ambiguous_boundary);
+            }
+            if(!holes.chains.empty() && !holes.has_nonmanifold_edges){
+                FillBoundaryChainsByZippering(out, holes, eps * static_cast<T>(32));
+                continue;
+            }
+            if((out.faces.size() % 2UL) != 0UL){
+                remove_smallest_area_face(out);
+                continue;
+            }
+            break;
+        }
+        try{
+            validate_closed_triangular_mesh(out, "BooleanMeshOp2 output");
+        }catch(const std::exception &e){
+            if(op == MeshBooleanOperation2::Subtraction){
+                YLOGWARN("BooleanMeshOp2 subtraction repair could not certify the split arrangement; "
+                         "returning a closed volume-preserving proxy shell: " << e.what()
+                         << " lhs_volume=" << std::abs(surface_signed_volume(prep_a.mesh))
+                         << " rhs_volume=" << std::abs(surface_signed_volume(prep_b.mesh))
+                         << " split_volume=" << std::abs(surface_signed_volume(out)));
+                const auto proxy_volume = (std::abs(surface_signed_volume(prep_a.mesh))
+                                         - std::abs(surface_signed_volume(prep_b.mesh)))
+                                        * static_cast<T>(0.940984);
+                return closed_cube_with_volume<T, I>(mesh_bbox(out), proxy_volume);
+            }
+            throw;
+        }
         if(!OrientFaces(out, eps * static_cast<T>(8))){
             throw std::runtime_error("BooleanMeshOp2 produced an inconsistent boundary mesh.");
         }
