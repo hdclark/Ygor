@@ -28,12 +28,14 @@ g++ \
   -Wno-unused-variable \
   -Wno-unused-value \
   -I. \
+  -I../src \
   Main.cc \
   \
   YgorAlgorithms.cc \
   YgorBase64.cc \
   YgorContainers/*.cc \
   YgorFilesDirs.cc \
+  YgorGraphAStar.cc \
   YgorImages.cc \
   YgorIndexCells.cc \
   YgorIndexKDTree.cc \
