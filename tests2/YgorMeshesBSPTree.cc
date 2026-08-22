@@ -3,7 +3,13 @@
 
 #include <cmath>
 #include <cstdint>
+#include <iomanip>
 #include <limits>
+#include <map>
+#include <memory>
+#include <sstream>
+#include <stdexcept>
+#include <string>
 #include <vector>
 
 #include <YgorMath.h>
@@ -11,6 +17,11 @@
 #include <YgorMeshesVerification.h>
 
 #include "doctest/doctest.h"
+
+
+namespace ygor_bsp_tree_exact_test {
+bool exact_kernel_self_test();
+}
 
 
 template <class T, class I>
@@ -25,6 +36,77 @@ mesh_signed_volume(const fv_surface_mesh<T, I> &mesh){
         total += static_cast<long double>(a.Dot(b.Cross(c))) / 6.0L;
     }
     return static_cast<double>(total);
+}
+
+template <class T, class I>
+static fv_surface_mesh<T, I>
+make_axis_aligned_box(const vec3<T> &bb_min,
+                      const vec3<T> &bb_max){
+    fv_surface_mesh<T, I> mesh;
+    mesh.vertices = {
+        {bb_min.x, bb_min.y, bb_min.z}, {bb_max.x, bb_min.y, bb_min.z},
+        {bb_max.x, bb_max.y, bb_min.z}, {bb_min.x, bb_max.y, bb_min.z},
+        {bb_min.x, bb_min.y, bb_max.z}, {bb_max.x, bb_min.y, bb_max.z},
+        {bb_max.x, bb_max.y, bb_max.z}, {bb_min.x, bb_max.y, bb_max.z}
+    };
+    mesh.faces = {
+        {0, 3, 2, 1}, {4, 5, 6, 7},
+        {0, 1, 5, 4}, {1, 2, 6, 5},
+        {2, 3, 7, 6}, {3, 0, 4, 7}
+    };
+    return mesh;
+}
+
+template <class T, class I>
+static std::string
+mesh_signature(const fv_surface_mesh<T, I> &mesh){
+    std::ostringstream os;
+    os << std::hexfloat;
+    for(const auto &v : mesh.vertices){
+        os << "v:" << v.x << ',' << v.y << ',' << v.z << ';';
+    }
+    for(const auto &f : mesh.faces){
+        os << "f";
+        for(const auto idx : f) os << ':' << idx;
+        os << ';';
+    }
+    return os.str();
+}
+
+template <class T, class I>
+static void
+require_valid_bounded_output_mesh(const fv_surface_mesh<T, I> &mesh){
+    REQUIRE(!mesh.faces.empty());
+    REQUIRE(HasOnlyFiniteVertices(mesh));
+    REQUIRE(IsTriangularMesh(mesh));
+    REQUIRE(HasValidFaceIndices(mesh));
+    REQUIRE(HasNoDegenerateFaces(mesh));
+    REQUIRE(IsClosedManifold(mesh));
+    REQUIRE(HasConsistentOrientation(mesh));
+    REQUIRE(mesh_signed_volume(mesh) > 0.0);
+}
+
+template <class T, class I>
+static std::string
+bsp_tree_signature(const typename bsp_tree_volume<T, I>::Node *node){
+    using NT = typename bsp_tree_volume<T, I>::NodeType;
+    if(node == nullptr) return "null";
+    if(node->type == NT::In) return "in";
+    if(node->type == NT::Out) return "out";
+
+    std::ostringstream os;
+    os << std::hexfloat << "p";
+    for(const auto &anchor : node->partition_plane.anchors){
+        os << ':' << anchor.x << ',' << anchor.y << ',' << anchor.z;
+    }
+    os << '[' << bsp_tree_signature<T, I>(node->front.get())
+       << '|' << bsp_tree_signature<T, I>(node->back.get()) << ']';
+    return os.str();
+}
+
+
+TEST_CASE( "bsp_tree_volume exact kernel helpers" ){
+    REQUIRE(ygor_bsp_tree_exact_test::exact_kernel_self_test());
 }
 
 
@@ -54,6 +136,13 @@ TEST_CASE( "bsp_tree_volume default construction" ){
         vol2 = vol;
         REQUIRE(vol2.empty());
     }
+
+    SUBCASE("unbounded In volume cannot be converted to a bounded mesh"){
+        using Vol = bsp_tree_volume<double, uint64_t>;
+        auto root = std::make_unique<Vol::Node>(Vol::NodeType::In);
+        Vol vol(std::move(root));
+        CHECK_THROWS_AS(vol.to_fv_surface_mesh(), std::runtime_error);
+    }
 }
 
 
@@ -63,9 +152,11 @@ TEST_CASE( "bsp_tree_volume mesh conversion round-trip" ){
         fv_surface_mesh<double, uint64_t> mesh;
         auto vol = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(mesh, 42);
         REQUIRE(vol.empty());
+        REQUIRE(vol.get_root() != nullptr);
+        REQUIRE(vol.get_root()->type == bsp_tree_volume<double, uint64_t>::NodeType::Out);
     }
 
-    SUBCASE("mesh with only degenerate faces produces empty tree"){
+    SUBCASE("mesh with only degenerate faces is rejected"){
         fv_surface_mesh<double, uint64_t> mesh;
         mesh.vertices = {
             {0.0, 0.0, 0.0},
@@ -73,8 +164,115 @@ TEST_CASE( "bsp_tree_volume mesh conversion round-trip" ){
             {0.0, 0.0, 0.0}  // degenerate
         };
         mesh.faces = {{0, 1, 2}};
+        CHECK_THROWS_AS((bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(mesh, 42)),
+                        std::invalid_argument);
+    }
+
+    SUBCASE("open mesh rejection identifies the canonical edge"){
+        fv_surface_mesh<double, uint64_t> mesh;
+        mesh.vertices = {
+            {0.0, 0.0, 0.0},
+            {1.0, 0.0, 0.0},
+            {0.0, 1.0, 0.0}
+        };
+        mesh.faces = {{0, 1, 2}};
+
+        try{
+            (void)bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(mesh, 42);
+            FAIL("expected open mesh rejection");
+        }catch(const std::invalid_argument &e){
+            const std::string msg = e.what();
+            CHECK(msg.find("canonicalized mesh is not a closed edge manifold") != std::string::npos);
+            CHECK(msg.find("canonical edge") != std::string::npos);
+            CHECK(msg.find("count 1") != std::string::npos);
+        }
+    }
+
+    SUBCASE("inconsistent orientation rejection identifies directed edge counts"){
+        fv_surface_mesh<double, uint64_t> mesh;
+        mesh.vertices = {
+            { 0.0,  0.0,  0.0},
+            { 1.0,  0.0,  0.0},
+            { 0.0,  1.0,  0.0},
+            { 0.0,  0.0,  1.0}
+        };
+        mesh.faces = {
+            {0, 2, 1},
+            {1, 0, 3},
+            {0, 3, 2},
+            {1, 2, 3}
+        };
+
+        try{
+            (void)bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(mesh, 42);
+            FAIL("expected inconsistent orientation rejection");
+        }catch(const std::invalid_argument &e){
+            const std::string msg = e.what();
+            CHECK(msg.find("inconsistent edge orientation") != std::string::npos);
+            CHECK(msg.find("directed canonical edge") != std::string::npos);
+            CHECK(msg.find("forward count") != std::string::npos);
+            CHECK(msg.find("reverse count") != std::string::npos);
+        }
+    }
+
+    SUBCASE("opposite duplicate face is rejected during canonicalization"){
+        fv_surface_mesh<double, uint64_t> mesh;
+        mesh.vertices = {
+            { 0.0,  0.0,  0.0},
+            { 1.0,  0.0,  0.0},
+            { 0.0,  1.0,  0.0},
+            { 0.0,  0.0,  1.0}
+        };
+        mesh.faces = {
+            {0, 2, 1},
+            {0, 1, 3},
+            {0, 3, 2},
+            {1, 2, 3},
+            {0, 1, 2}
+        };
+
+        CHECK_THROWS_AS((bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(mesh, 42)),
+                        std::invalid_argument);
+    }
+
+    SUBCASE("same-orientation duplicate face is deduplicated"){
+        fv_surface_mesh<double, uint64_t> mesh;
+        mesh.vertices = {
+            { 0.0,  0.0,  0.0},
+            { 1.0,  0.0,  0.0},
+            { 0.0,  1.0,  0.0},
+            { 0.0,  0.0,  1.0}
+        };
+        mesh.faces = {
+            {0, 2, 1},
+            {0, 1, 3},
+            {0, 3, 2},
+            {1, 2, 3},
+            {2, 1, 0}
+        };
+
         auto vol = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(mesh, 42);
-        REQUIRE(vol.empty());
+        REQUIRE(!vol.empty());
+    }
+
+    SUBCASE("exact duplicate vertices are canonicalized"){
+        fv_surface_mesh<double, uint64_t> mesh;
+        mesh.vertices = {
+            { 0.0,  0.0,  0.0},
+            { 1.0,  0.0,  0.0},
+            { 0.0,  1.0,  0.0},
+            { 0.0,  0.0,  1.0},
+            { 0.0,  0.0,  0.0}
+        };
+        mesh.faces = {
+            {4, 2, 1},
+            {0, 1, 3},
+            {0, 3, 2},
+            {1, 2, 3}
+        };
+
+        auto vol = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(mesh, 42);
+        REQUIRE(!vol.empty());
     }
 
     SUBCASE("tetrahedron mesh produces valid BSP tree and round-trips"){
@@ -132,6 +330,36 @@ TEST_CASE( "bsp_tree_volume mesh conversion round-trip" ){
 
         const auto result_vol = std::abs(mesh_signed_volume(result_mesh));
         REQUIRE(result_vol > 0.0);
+    }
+
+    SUBCASE("BSP construction ignores seed and is deterministic"){
+        fv_surface_mesh<double, uint64_t> mesh;
+        mesh.vertices = {
+            {0.0, 0.0, 0.0},
+            {1.0, 0.0, 0.0},
+            {1.0, 1.0, 0.0},
+            {0.0, 1.0, 0.0},
+            {0.0, 0.0, 1.0},
+            {1.0, 0.0, 1.0},
+            {1.0, 1.0, 1.0},
+            {0.0, 1.0, 1.0}
+        };
+        mesh.faces = {
+            {0, 3, 2, 1},
+            {4, 5, 6, 7},
+            {0, 1, 5, 4},
+            {1, 2, 6, 5},
+            {2, 3, 7, 6},
+            {3, 0, 4, 7}
+        };
+
+        const auto unseeded = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(mesh);
+        const auto seeded_a = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(mesh, 1);
+        const auto seeded_b = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(mesh, 987654321);
+
+        const auto expected = bsp_tree_signature<double, uint64_t>(unseeded.get_root());
+        CHECK(bsp_tree_signature<double, uint64_t>(seeded_a.get_root()) == expected);
+        CHECK(bsp_tree_signature<double, uint64_t>(seeded_b.get_root()) == expected);
     }
 }
 
@@ -394,13 +622,8 @@ TEST_CASE( "bsp_tree_volume numerical robustness" ){
         SUBCASE("intersection of separated cubes (should be empty)"){
             auto bsp_i = bsp_A.boolean_intersection(bsp_B);
             auto result = bsp_i.to_fv_surface_mesh();
-            // BSP tree may still have internal structure for disjoint cases;
-            // the mesh extraction may produce large-scale clipping artifacts.
-            const auto result_vol = std::abs(mesh_signed_volume(result));
-            // Require only that the tree exists; volume may be large due to
-            // bounding-box clipping during mesh extraction.
-            REQUIRE(!bsp_i.empty());
-            (void)result_vol;
+            CHECK(bsp_i.empty());
+            CHECK(result.faces.empty());
         }
 
         SUBCASE("disjoint subtraction is identity"){
@@ -428,20 +651,19 @@ TEST_CASE( "bsp_tree_volume numerical robustness" ){
             {2, 3, 7, 6}, {3, 0, 4, 7}
         };
 
-        // Iterate multiple deterministic seeds to probe numerical robustness.
-        // Near-degenerate geometry can produce empty meshes for some seeds;
-        // checking multiple seeds validates that robustness is achievable.
+        // Step 4 makes the seed compatibility parameter non-authoritative:
+        // every seed must produce the same deterministic BSP construction.
         const std::vector<uint64_t> seeds = { 21, 42, 63, 84, 100, 115, 127, 200, 255, 300 };
-        bool found_nonzero_volume = false;
+        std::string expected_signature;
         for(const auto sd : seeds){
             auto vol = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(mesh, sd);
             REQUIRE(!vol.empty());
-            auto result_mesh = vol.to_fv_surface_mesh();
-            REQUIRE(!result_mesh.faces.empty());
-            const auto result_vol = std::abs(mesh_signed_volume(result_mesh));
-            if(result_vol > 0.0) found_nonzero_volume = true;
+            const auto signature = bsp_tree_signature<double, uint64_t>(vol.get_root());
+            if(expected_signature.empty()){
+                expected_signature = signature;
+            }
+            CHECK(signature == expected_signature);
         }
-        REQUIRE(found_nonzero_volume);
     }
 }
 
@@ -542,11 +764,9 @@ TEST_CASE( "bsp_tree_volume chain boolean operations" ){
         auto bsp_B = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(B, 42);
 
         auto bsp_i = bsp_A.boolean_intersection(bsp_B);
-        REQUIRE(!bsp_i.empty());
+        CHECK(bsp_i.empty());
         auto mesh = bsp_i.to_fv_surface_mesh();
-        // The BSP tree is non-empty but mesh extraction may produce large
-        // faces from the unbounded clipping polygons for disjoint inputs.
-        REQUIRE(!mesh.faces.empty());
+        REQUIRE(mesh.faces.empty());
         (void)mesh_signed_volume(mesh);
     }
 }
@@ -618,5 +838,125 @@ TEST_CASE( "bsp_tree_volume volume verification on boolean results" ){
             const auto result_vol = std::abs(mesh_signed_volume(result));
             CHECK(result_vol > 0.0);
         }
+    }
+}
+
+
+TEST_CASE( "bsp_tree_volume comprehensive exactness and topology tests" ){
+
+    SUBCASE("deterministic conversion and extraction over repeated runs"){
+        const auto lhs = make_axis_aligned_box<double, uint64_t>({0.0, 0.0, 0.0},
+                                                                 {1.0, 1.0, 1.0});
+        const auto rhs = make_axis_aligned_box<double, uint64_t>({0.25, 0.5, 0.0},
+                                                                 {1.25, 1.5, 1.0});
+        const auto expected = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(lhs)
+            .boolean_union(bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(rhs))
+            .to_fv_surface_mesh();
+        REQUIRE(!expected.faces.empty());
+        REQUIRE(HasOnlyFiniteVertices(expected));
+        REQUIRE(IsTriangularMesh(expected));
+        const auto expected_signature = mesh_signature(expected);
+
+        for(size_t i = 0; i < 12UL; ++i){
+            const auto actual = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(lhs, i + 1UL)
+                .boolean_union(bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(rhs, 100UL + i))
+                .to_fv_surface_mesh();
+            CHECK(mesh_signature(actual) == expected_signature);
+        }
+    }
+
+    SUBCASE("identical cube boolean operations have exact closed-set semantics"){
+        const auto cube = make_axis_aligned_box<double, uint64_t>({-1.0, -1.0, -1.0},
+                                                                  { 1.0,  1.0,  1.0});
+        const auto bsp = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(cube, 42);
+
+        const auto self_union = bsp.boolean_union(bsp).to_fv_surface_mesh();
+        require_valid_bounded_output_mesh(self_union);
+        CHECK(mesh_signed_volume(self_union) == doctest::Approx(8.0));
+
+        const auto self_intersection = bsp.boolean_intersection(bsp).to_fv_surface_mesh();
+        require_valid_bounded_output_mesh(self_intersection);
+        CHECK(mesh_signed_volume(self_intersection) == doctest::Approx(8.0));
+
+        const auto self_subtraction = bsp.boolean_subtraction(bsp).to_fv_surface_mesh();
+        CHECK(self_subtraction.faces.empty());
+    }
+
+    SUBCASE("overlapping cubes produce expected axis-aligned volumes"){
+        const auto lhs = make_axis_aligned_box<double, uint64_t>({0.0, 0.0, 0.0},
+                                                                 {2.0, 2.0, 2.0});
+        const auto rhs = make_axis_aligned_box<double, uint64_t>({1.0, 0.0, 0.0},
+                                                                 {3.0, 2.0, 2.0});
+        const auto bsp_lhs = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(lhs, 42);
+        const auto bsp_rhs = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(rhs, 43);
+
+        const auto intersection = bsp_lhs.boolean_intersection(bsp_rhs).to_fv_surface_mesh();
+        require_valid_bounded_output_mesh(intersection);
+        CHECK(mesh_signed_volume(intersection) == doctest::Approx(4.0));
+
+        const auto subtraction = bsp_lhs.boolean_subtraction(bsp_rhs).to_fv_surface_mesh();
+        require_valid_bounded_output_mesh(subtraction);
+        CHECK(mesh_signed_volume(subtraction) == doctest::Approx(4.0));
+
+        const auto uni = bsp_lhs.boolean_union(bsp_rhs).to_fv_surface_mesh();
+        require_valid_bounded_output_mesh(uni);
+        CHECK(mesh_signed_volume(uni) == doctest::Approx(12.0));
+    }
+
+    SUBCASE("touching cubes follow closed-set boundary semantics"){
+        const auto lhs = make_axis_aligned_box<double, uint64_t>({0.0, 0.0, 0.0},
+                                                                 {1.0, 1.0, 1.0});
+        const auto face_touch = make_axis_aligned_box<double, uint64_t>({1.0, 0.0, 0.0},
+                                                                        {2.0, 1.0, 1.0});
+        const auto edge_touch = make_axis_aligned_box<double, uint64_t>({1.0, 1.0, 0.0},
+                                                                        {2.0, 2.0, 1.0});
+        const auto vertex_touch = make_axis_aligned_box<double, uint64_t>({1.0, 1.0, 1.0},
+                                                                          {2.0, 2.0, 2.0});
+
+        const auto bsp_lhs = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(lhs, 42);
+        for(const auto &rhs : {face_touch, edge_touch, vertex_touch}){
+            const auto bsp_rhs = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(rhs, 43);
+            const auto intersection = bsp_lhs.boolean_intersection(bsp_rhs).to_fv_surface_mesh();
+            CHECK(intersection.faces.empty());
+
+            const auto uni = bsp_lhs.boolean_union(bsp_rhs).to_fv_surface_mesh();
+            REQUIRE(!uni.faces.empty());
+            REQUIRE(HasOnlyFiniteVertices(uni));
+            REQUIRE(IsTriangularMesh(uni));
+        }
+    }
+
+    SUBCASE("large and small coordinate scales remain deterministic and valid"){
+        for(const double scale : {1.0e-6, 1.0e6}){
+            const auto lhs = make_axis_aligned_box<double, uint64_t>({0.0, 0.0, 0.0},
+                                                                     {scale, scale, scale});
+            const auto rhs = make_axis_aligned_box<double, uint64_t>({scale * 0.5, 0.0, 0.0},
+                                                                     {scale * 1.5, scale, scale});
+            const auto result = bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(lhs, 7)
+                .boolean_intersection(bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(rhs, 8))
+                .to_fv_surface_mesh();
+            require_valid_bounded_output_mesh(result);
+            CHECK(mesh_signed_volume(result) == doctest::Approx(0.5 * scale * scale * scale));
+        }
+    }
+
+    SUBCASE("invalid-input contract failures are explicit exceptions"){
+        auto non_finite = make_axis_aligned_box<double, uint64_t>({0.0, 0.0, 0.0},
+                                                                  {1.0, 1.0, 1.0});
+        non_finite.vertices.at(0).x = std::numeric_limits<double>::infinity();
+        CHECK_THROWS_AS((bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(non_finite, 42)),
+                        std::invalid_argument);
+
+        fv_surface_mesh<double, uint64_t> zero_area;
+        zero_area.vertices = {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {2.0, 0.0, 0.0}, {0.0, 1.0, 0.0}};
+        zero_area.faces = {{0, 1, 2}, {0, 3, 1}, {1, 3, 2}, {2, 3, 0}};
+        CHECK_THROWS_AS((bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(zero_area, 42)),
+                        std::invalid_argument);
+
+        fv_surface_mesh<double, uint64_t> non_manifold;
+        non_manifold.vertices = {{0.0, 0.0, 0.0}, {1.0, 0.0, 0.0}, {0.0, 1.0, 0.0}, {0.0, 0.0, 1.0}};
+        non_manifold.faces = {{0, 1, 2}, {0, 2, 1}, {0, 1, 3}, {0, 3, 1}, {0, 2, 3}, {0, 3, 2}};
+        CHECK_THROWS_AS((bsp_tree_volume<double, uint64_t>::from_fv_surface_mesh(non_manifold, 42)),
+                        std::invalid_argument);
     }
 }
