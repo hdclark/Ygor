@@ -90,8 +90,11 @@ loop_subdivide(fv_surface_mesh<T,I> &fvsm,
         const auto N_orig_faces = fvsm.faces.size();
 
         // Ensure we have an up-to-date index of involved faces.
-        // Always rebuild since faces may have been modified without updating the index.
-        fvsm.recreate_involved_face_index();
+        // On the first iteration, rebuild to handle any prior modifications.
+        // On subsequent iterations, the diff from the previous iteration keeps it current.
+        if(iter == 0){
+            fvsm.recreate_involved_face_index();
+        }
 
         // Helper: Create a canonical edge key from two vertex indices.
         // The edge key is always ordered (min, max) to ensure consistency.
@@ -363,12 +366,9 @@ loop_subdivide(fv_surface_mesh<T,I> &fvsm,
         // Replace old faces with new faces.
         fvsm.faces = std::move(new_faces);
 
-        // Invalidate and rebuild involved_faces index.
-        fvsm.involved_faces.clear();
+        // Topology replacement is global; rebuilding is more practical than a full remove/add diff.
+        fvsm.recreate_involved_face_index();
     }
-
-    // Rebuild the involved_faces index for the final mesh.
-    fvsm.recreate_involved_face_index();
 }
 
 #ifndef YGOR_MESHES_REFINEMENT_DISABLE_ALL_SPECIALIZATIONS
@@ -378,4 +378,3 @@ loop_subdivide(fv_surface_mesh<T,I> &fvsm,
     template void loop_subdivide(fv_surface_mesh<double, uint32_t> &, int64_t);
     template void loop_subdivide(fv_surface_mesh<double, uint64_t> &, int64_t);
 #endif
-
