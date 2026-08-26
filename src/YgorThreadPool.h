@@ -1,4 +1,4 @@
-//Thread_Pool.h.
+//YgorThreadPool.h.
 
 #pragma once
 
@@ -6,8 +6,8 @@
 #include <condition_variable>
 #include <thread>
 #include <atomic>
-#include <algorithm>
 #include <list>
+#include <type_traits>
 
 
 // Multi-threaded work queue for offloading processing tasks.
@@ -33,7 +33,7 @@ class work_queue {
         std::unique_lock<std::mutex> lock(this->queue_mutex);
         
         // Exercise the condition variables and mutexes, ensuring they are initialized by the implementation.
-        // This should efectively evaluate to a no-op, but also helps suppress false-positive warning messages in
+        // This should effectively evaluate to a no-op, but also helps suppress false-positive warning messages in
         // Valgrind's DRD tool, i.e., 'not a condition variable', and other tools.
         this->new_task_notifier.notify_all(); // No threads waiting, so nothing to notify.
         this->end_task_notifier.notify_all(); // No threads waiting, so nothing to notify.
@@ -49,42 +49,40 @@ class work_queue {
             this->worker_threads.emplace_back(
                 [this](){
                     // Continually check the queue and wait on the condition variable.
-                    bool l_should_quit = false;
-                    while(!l_should_quit){
+                    while(true){
 
                         std::unique_lock<std::mutex> lock(this->queue_mutex);
-                        while( !(l_should_quit = this->should_quit.load())
+                        while( !this->should_quit.load()
                                && this->queue.empty() ){
 
                             // Waiting releases the lock, which allows for work to be submitted.
                             //
                             // Note: spurious notifications are OK, since the queue will be empty and the worker will return to
                             // waiting on the condition variable.
-//                            this->new_task_notifier.wait(lock);
-                            this->new_task_notifier.wait_for(lock, std::chrono::seconds(2) ); // No notifiers, so no signal to receive.
+                            this->new_task_notifier.wait_for(lock, std::chrono::seconds(2) );
+                        }
+
+                        if(this->queue.empty()){
+                            return;
                         }
 
                         // Assume ownership of only the first item in the queue (FIFO).
-                        std::list<T> l_queue;
-                        if(!this->queue.empty()) l_queue.splice( std::end(l_queue), this->queue, std::begin(this->queue) );
-                        
-                        //// Assume ownership of all available items in the queue.
-                        //std::list<T> l_queue;
-                        //l_queue.swap( this->queue );
+                        auto task = std::move(this->queue.front());
+                        this->queue.pop_front();
 
-                        // Perform the work in FIFO order.
                         lock.unlock();
-                        for(const auto &user_f : l_queue){
-                            try{
-                                if(user_f){
-                                    user_f();
-                                }
-                            }catch(const std::exception &){};
 
-                            lock.lock();
-                            this->end_task_notifier.notify_all();
-                            lock.unlock();
-                        }
+                        // Perform the work.
+                        try{
+                            if constexpr(std::is_constructible_v<bool, const T &>){
+                                if(task) task();
+                            }else{
+                                task();
+                            }
+                        }catch(const std::exception &){}
+                         catch(...){};
+
+                        this->end_task_notifier.notify_one();
                     }
                 }
             );
@@ -92,15 +90,13 @@ class work_queue {
     }
 
     void submit_task(T f){
-        std::lock_guard<std::mutex> lock(this->queue_mutex);
-        this->queue.push_back(std::move(f));
-
-        // Note: it's not strictly necessary to lock the mutex before notifying, but it's possible it could lead to a data
-        // race or use-after-free. If nothing else, locking suppresses warnings of a 'possible' data race in thread sanitizers.
-        // See discussion and some links at
-        // https://stackoverflow.com/questions/17101922/do-i-have-to-acquire-lock-before-calling-condition-variable-notify-one
-        // Also note that this can potentially lead to a performance downgrade; in practice, most pthread
-        // implementations will detect and mitigate the issue.
+        {
+            std::lock_guard<std::mutex> lock(this->queue_mutex);
+            this->queue.push_back(std::move(f));
+        }
+        // Note: notifying without the mutex held avoids the situation where a notified thread wakes and immediately
+        // blocks waiting for the mutex to be released. This is safe; condition_variable::notify_one does not require
+        // the associated mutex to be held.
         this->new_task_notifier.notify_one();
         return;
     }
@@ -119,12 +115,9 @@ class work_queue {
         //
         // We rely on a condition variable to signal when tasks are completed, but fallback on occasional polling in
         // case there are any races to avoid waiting forever.
-        bool l_should_quit = false;
-        while(!l_should_quit){
-
+        {
             std::unique_lock<std::mutex> lock(this->queue_mutex);
-            while( !(l_should_quit = this->should_quit.load())
-                   && !this->queue.empty() ){
+            while( !this->queue.empty() ){
 
                 // Waiting releases the lock while waiting, which still allows for outstanding work to be completed.
                 //
@@ -133,15 +126,10 @@ class work_queue {
                 this->end_task_notifier.wait_for(lock, std::chrono::milliseconds(2000) );
             }
 
-            if(!l_should_quit){
-                this->should_quit.store(true);
-                this->new_task_notifier.notify_all(); // notify threads to wake up and 'notice' they need to terminate.
-                lock.unlock();
-                for(auto &wt : this->worker_threads) wt.join();
-            }
-            break;
+            this->should_quit.store(true);
         }
+        this->new_task_notifier.notify_all(); // notify threads to wake up and 'notice' they need to terminate.
+        for(auto &wt : this->worker_threads) wt.join();
     }
 };
-
 
