@@ -7,6 +7,12 @@ FILE(GLOB ygor_sources "*cc")
 FILE(GLOB ygor_headers "*.h"
                        ${CMAKE_CURRENT_BINARY_DIR}/YgorDefinitions.h)
 
+find_path(SQLITE3_INCLUDE_DIR NAMES sqlite3.h)
+find_library(SQLITE3_LIBRARY NAMES sqlite3)
+if(NOT SQLITE3_INCLUDE_DIR OR NOT SQLITE3_LIBRARY)
+    message(FATAL_ERROR "SQLite3 headers and library are required to build Ygor.")
+endif()
+
 add_library(ygor
     ${ygor_sources}
     External/SpookyHash/SpookyV2.cpp
@@ -20,11 +26,14 @@ target_include_directories(ygor
         $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}>
         $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}>
         $<INSTALL_INTERFACE:${CMAKE_INSTALL_INCLUDEDIR}>
+    PRIVATE
+        ${SQLITE3_INCLUDE_DIR}
 )
 
 target_link_libraries(ygor
     PUBLIC
         Threads::Threads
+        ${SQLITE3_LIBRARY}
     PRIVATE
         m
         "${STD_FS_LIB}"

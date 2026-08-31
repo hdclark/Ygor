@@ -12,6 +12,7 @@ arch=('x86_64' 'i686' 'armv7h')
 license=('unknown')
 depends=(
    'gsl'     # If enabled (see below).
+   'sqlite'
 )
 makedepends=(
    'cmake'
