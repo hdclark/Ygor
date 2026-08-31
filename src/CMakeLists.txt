@@ -33,7 +33,7 @@ target_include_directories(ygor
 target_link_libraries(ygor
     PUBLIC
         Threads::Threads
-        sqlite3
+        ${SQLITE3_LIBRARY}
     PRIVATE
         m
         "${STD_FS_LIB}"
