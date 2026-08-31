@@ -33,6 +33,7 @@ g++ \
   YgorAlgorithms.cc \
   YgorBase64.cc \
   YgorContainers/*.cc \
+  YgorFileIndex.cc \
   YgorFilesDirs.cc \
   YgorImages.cc \
   YgorIndexCells.cc \
